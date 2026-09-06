@@ -12,39 +12,53 @@ export async function toggleListLike(listId: string, currentLikeStatus: boolean)
 
   const userId = session.user.id;
 
+  const list = await prisma.list.findUnique({
+    where: { id: listId },
+    select: {
+      userId: true,
+      visibility: true,
+      user: { select: { notifyOnListLike: true } },
+    },
+  });
+
+  if (!list) {
+    return { error: 'List not found' };
+  }
+
+  if (list.visibility !== 'PUBLIC' && list.userId !== userId) {
+    return { error: 'Not authorized' };
+  }
+
+  if (list.userId === userId) {
+    return { error: 'You cannot like your own list' };
+  }
+
   try {
     if (currentLikeStatus) {
-      // Unlike
       await prisma.listLike.delete({
         where: {
           userId_listId: {
             userId,
             listId,
-          }
-        }
+          },
+        },
       });
     } else {
-      // Like
       await prisma.listLike.create({
         data: {
           userId,
           listId,
-        }
+        },
       });
 
-      // Notification
-      const list = await prisma.list.findUnique({
-        where: { id: listId },
-        select: { userId: true, user: { select: { notifyOnListLike: true } } }
-      });
-      if (list && list.userId !== userId && list.user.notifyOnListLike !== false) {
+      if (list.user.notifyOnListLike !== false) {
         await prisma.notification.create({
           data: {
             userId: list.userId,
             type: 'LIST_LIKE',
             sourceId: userId,
             listId,
-          }
+          },
         });
       }
     }
@@ -62,12 +76,12 @@ export async function getPopularLists() {
     where: {
       visibility: 'PUBLIC',
       items: {
-        some: {} // Ensure the list has at least one item
-      }
+        some: {},
+      },
     },
     include: {
       user: {
-        select: { name: true, username: true, image: true }
+        select: { name: true, username: true, image: true },
       },
       items: {
         include: { game: { select: { coverImage: true } } },
@@ -75,18 +89,18 @@ export async function getPopularLists() {
         take: 4,
       },
       _count: {
-        select: { items: true, likes: true }
-      }
+        select: { items: true, likes: true },
+      },
     },
     orderBy: [
       { likes: { _count: 'desc' } },
-      { items: { _count: 'desc' } }
+      { items: { _count: 'desc' } },
     ],
     take: 4,
   });
 
-  return popularLists.map(list => ({
+  return popularLists.map((list) => ({
     ...list,
-    likesCount: list._count.likes
+    likesCount: list._count.likes,
   }));
 }

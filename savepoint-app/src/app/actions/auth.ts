@@ -5,6 +5,38 @@ import { hash } from 'bcryptjs';
 import { signIn } from '@/lib/auth';
 import { sendVerificationEmail, sendPasswordResetEmail } from '@/lib/mail';
 import crypto from 'crypto';
+import { headers } from 'next/headers';
+import { getClientIpFromHeaders } from '@/lib/security';
+
+const resetAttempts = new Map<string, { count: number; resetAt: number }>();
+const registerAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(
+  store: Map<string, { count: number; resetAt: number }>,
+  key: string,
+  limit: number,
+  windowMs: number
+): boolean {
+  const now = Date.now();
+  const entry = store.get(key);
+  if (!entry || now > entry.resetAt) {
+    store.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= limit) return false;
+  entry.count += 1;
+  return true;
+}
+
+async function clientKey(suffix: string) {
+  try {
+    const h = await headers();
+    const ip = getClientIpFromHeaders(h);
+    return `${ip}:${suffix}`;
+  } catch {
+    return `unknown:${suffix}`;
+  }
+}
 
 export async function registerUser(formData: FormData) {
   const username = formData.get('username') as string;
@@ -14,6 +46,11 @@ export async function registerUser(formData: FormData) {
 
   if (!username || !email || !password) {
     return { error: 'All fields are required' };
+  }
+
+  const rateKey = await clientKey(email.toLowerCase());
+  if (!checkRateLimit(registerAttempts, rateKey, 5, 60 * 60 * 1000)) {
+    return { error: 'Too many registration attempts. Please try again later.' };
   }
 
   if (username.length < 3 || username.length > 30) {
@@ -28,7 +65,6 @@ export async function registerUser(formData: FormData) {
     return { error: 'Password must be at least 8 characters' };
   }
 
-  // Check if username or email already exists
   const existingUser = await prisma.user.findFirst({
     where: {
       OR: [{ email }, { username }],
@@ -36,15 +72,13 @@ export async function registerUser(formData: FormData) {
   });
 
   if (existingUser) {
-    if (existingUser.email === email) {
-      return { error: 'An account with this email already exists' };
-    }
-    return { error: 'This username is already taken' };
+    // Generic message to reduce account enumeration
+    return { error: 'Unable to create account with those details. Try a different username or sign in.' };
   }
 
   const hashedPassword = await hash(password, 12);
 
-  const user = await prisma.user.create({
+  await prisma.user.create({
     data: {
       username,
       email,
@@ -53,19 +87,17 @@ export async function registerUser(formData: FormData) {
     },
   });
 
-  // Generate Verification Token
   const token = crypto.randomBytes(32).toString('hex');
-  const expires = new Date(new Date().getTime() + 1000 * 60 * 60 * 24); // 24 hours
-  
+  const expires = new Date(new Date().getTime() + 1000 * 60 * 60 * 24);
+
   await prisma.verificationToken.create({
     data: {
       identifier: email,
       token,
-      expires
-    }
+      expires,
+    },
   });
 
-  // Send the email
   await sendVerificationEmail(email, token);
 
   return { success: true };
@@ -95,21 +127,29 @@ export async function requestPasswordReset(formData: FormData) {
   const email = formData.get('email') as string;
   if (!email) return { error: 'Email is required' };
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    // Return success anyway to prevent email enumeration
+  const rateKey = await clientKey(email.toLowerCase());
+  if (!checkRateLimit(resetAttempts, rateKey, 3, 60 * 60 * 1000)) {
+    // Still return success to avoid enumeration / timing tells
     return { success: true };
   }
 
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    return { success: true };
+  }
+
+  // Invalidate previous unused tokens for this email
+  await prisma.passwordResetToken.deleteMany({ where: { email } });
+
   const token = crypto.randomBytes(32).toString('hex');
-  const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+  const expires = new Date(Date.now() + 1000 * 60 * 60);
 
   await prisma.passwordResetToken.create({
     data: {
       email,
       token,
       expires,
-    }
+    },
   });
 
   await sendPasswordResetEmail(email, token);
@@ -127,7 +167,7 @@ export async function resetPassword(formData: FormData) {
   if (password.length < 8) return { error: 'Password must be at least 8 characters' };
 
   const resetToken = await prisma.passwordResetToken.findUnique({
-    where: { token }
+    where: { token },
   });
 
   if (!resetToken) return { error: 'Invalid token' };
@@ -137,11 +177,11 @@ export async function resetPassword(formData: FormData) {
 
   await prisma.user.update({
     where: { email: resetToken.email },
-    data: { password: hashedPassword }
+    data: { password: hashedPassword },
   });
 
-  await prisma.passwordResetToken.delete({
-    where: { id: resetToken.id }
+  await prisma.passwordResetToken.deleteMany({
+    where: { email: resetToken.email },
   });
 
   return { success: true };

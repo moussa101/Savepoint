@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { escapeHtml } from '@/lib/security';
 
 const appUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
@@ -11,7 +12,7 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function sendVerificationEmail(email: string, token: string) {
-  const verifyUrl = `${appUrl}/verify?token=${token}`;
+  const verifyUrl = `${appUrl}/verify?token=${encodeURIComponent(token)}`;
 
   try {
     const info = await transporter.sendMail({
@@ -20,7 +21,7 @@ export async function sendVerificationEmail(email: string, token: string) {
       subject: 'Verify your email for Savepoint',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0f; color: #fff; padding: 40px; border-radius: 10px;">
-          <h1 style="color: #00e5a0; text-align: center;">⟐ Savepoint</h1>
+          <h1 style="color: #00e5a0; text-align: center;">Savepoint</h1>
           <h2 style="text-align: center; margin-bottom: 30px;">Verify your email address</h2>
           <p style="font-size: 16px; line-height: 1.5; color: #ccc;">
             Welcome to Savepoint! To complete your registration and start building your gaming profile, please verify your email address by clicking the button below.
@@ -44,7 +45,7 @@ export async function sendVerificationEmail(email: string, token: string) {
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const resetUrl = `${appUrl}/reset-password?token=${token}`;
+  const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
   try {
     const info = await transporter.sendMail({
@@ -53,7 +54,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
       subject: 'Reset your Savepoint password',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0f; color: #fff; padding: 40px; border-radius: 10px;">
-          <h1 style="color: #00e5a0; text-align: center;">⟐ Savepoint</h1>
+          <h1 style="color: #00e5a0; text-align: center;">Savepoint</h1>
           <h2 style="text-align: center; margin-bottom: 30px;">Reset your password</h2>
           <p style="font-size: 16px; line-height: 1.5; color: #ccc;">
             We received a request to reset your password. Click the button below to create a new password. This link will expire in 1 hour.
@@ -77,18 +78,21 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 }
 
 export async function sendReviewRemovalEmail(email: string, username: string, gameName: string, reason: string) {
+  const safeUsername = escapeHtml(username);
+  const safeGame = escapeHtml(gameName);
+
   try {
     const info = await transporter.sendMail({
       from: `"Savepoint Moderation" <${process.env.GMAIL_USER}>`,
       to: email,
-      subject: `Your review for ${gameName} has been removed`,
+      subject: `Your review for ${gameName.replace(/[\r\n]/g, ' ')} has been removed`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0f; color: #fff; padding: 40px; border-radius: 10px;">
-          <h1 style="color: #eb5757; text-align: center;">⟐ Savepoint Moderation</h1>
+          <h1 style="color: #eb5757; text-align: center;">Savepoint Moderation</h1>
           <h2 style="text-align: center; margin-bottom: 30px;">Review Removed</h2>
           <p style="font-size: 16px; line-height: 1.5; color: #ccc;">
-            Hello ${username},<br><br>
-            Your recent review for the game <strong>${gameName}</strong> has been removed by our moderation team for violating our community guidelines.
+            Hello ${safeUsername},<br><br>
+            Your recent review for the game <strong>${safeGame}</strong> has been removed by our moderation team for violating our community guidelines.
           </p>
           <div style="background-color: rgba(255,255,255,0.05); border-left: 4px solid #eb5757; padding: 16px; margin: 30px 0;">
             <p style="margin: 0; font-size: 15px; color: #ddd;">

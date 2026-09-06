@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import Link from 'next/link';
 import SessionProvider from '@/components/SessionProvider';
 import { LogOutIcon, UsersIcon, ActivityIcon, SettingsIcon, ShieldIcon, AlertTriangleIcon } from '@/components/ui/Icons';
@@ -7,15 +8,22 @@ import { LogOutIcon, UsersIcon, ActivityIcon, SettingsIcon, ShieldIcon, AlertTri
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
 
-  // If not authenticated or not an admin, boot them
-  if (!session?.user || !(session.user as any).isAdmin) {
+  if (!session?.user?.id) {
+    redirect('/');
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { isAdmin: true, isBanned: true },
+  });
+
+  if (!dbUser?.isAdmin || dbUser.isBanned) {
     redirect('/');
   }
 
   return (
     <SessionProvider>
       <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg-background)' }}>
-        {/* Admin Sidebar */}
         <aside style={{
           width: '260px',
           backgroundColor: 'var(--bg-card)',
@@ -33,7 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Admin
             </Link>
           </div>
-          
+
           <div style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)', flex: 1 }}>
             <Link href="/admin" className="btn btn-ghost" style={{ justifyContent: 'flex-start', paddingLeft: 'var(--space-md)' }}>
               <ActivityIcon size={18} />
@@ -65,7 +73,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         </aside>
 
-        {/* Admin Main Content */}
         <main style={{ flex: 1, backgroundColor: 'var(--bg-background)' }}>
           {children}
         </main>

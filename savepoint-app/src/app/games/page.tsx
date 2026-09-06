@@ -81,7 +81,14 @@ export default async function GamesPage({
   let games: IGDBGame[] = [];
   let heroGames: IGDBGame[] = [];
   let popularLists: any[] = [];
-  let recentReviews: Awaited<ReturnType<typeof prisma.review.findMany>> = [];
+  let recentReviews: Array<{
+    id: string;
+    rating: number;
+    text: string;
+    createdAt: Date;
+    game: { name: string; slug: string; coverImage: string | null };
+    user: { username: string; name: string | null; image: string | null };
+  }> = [];
   
   try {
     const [gamesRes, heroRes, listsRes, reviewsRes] = await Promise.all([
@@ -103,7 +110,6 @@ export default async function GamesPage({
       }),
     ]);
     games = gamesRes;
-    // Shuffle the top 30 games and pick 10 random ones for the carousel
     heroGames = heroRes.sort(() => 0.5 - Math.random()).slice(0, 10);
     popularLists = listsRes;
     recentReviews = reviewsRes;

@@ -49,7 +49,7 @@ export default function SettingsForms({
           <div>
             <span style={{ display: 'block', fontWeight: 600, marginBottom: '4px' }}>Private profile</span>
             <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-              Only you can see your library, reviews, lists, and followers when enabled
+              Only you can view your library, reviews, lists, and social graph
             </span>
           </div>
           <input type="checkbox" checked={isPrivate} onChange={handlePrivacy} disabled={isPending} />

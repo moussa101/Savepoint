@@ -1,19 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { assertInternalRequest } from '@/lib/security';
 
-// Cache this endpoint for 60 seconds so middleware doesn't spam DB
-export const revalidate = 60; 
+export const revalidate = 60;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    assertInternalRequest(req);
+
     const bannedIps = await prisma.bannedIP.findMany({
-      select: { ip: true }
+      select: { ip: true },
     });
-    
+
     return NextResponse.json({
-      ips: bannedIps.map(b => b.ip)
+      ips: bannedIps.map((b) => b.ip),
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json({ ips: [] });
   }
 }

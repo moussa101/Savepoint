@@ -16,16 +16,15 @@ export const metadata = { title: 'Feed — Savepoint' };
 
 export default async function FeedPage() {
   const session = await auth();
-  if (!session) redirect('/login');
-  if ((session.user as any).onboarded === false) {
-    // Fallback check in case the session token is stale
+  if (!session?.user?.id) redirect('/login');
+  if ((session.user as { onboarded?: boolean }).onboarded === false) {
     const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } });
     if (!dbUser?.onboarded) {
       redirect('/onboarding');
     }
   }
 
-  if ((session.user as any).isAdmin) {
+  if ((session.user as { isAdmin?: boolean }).isAdmin) {
     redirect('/admin');
   }
 
@@ -45,9 +44,16 @@ export default async function FeedPage() {
   const followingIds = following.map((f) => f.followingId);
   const feedUserIds = [...followingIds, session.user.id];
 
-  // Fetch activities in a single query
+  // Fetch activities in a single query (exclude private lists from other users)
   const activities = await prisma.activity.findMany({
-    where: { userId: { in: feedUserIds } },
+    where: {
+      userId: { in: feedUserIds },
+      OR: [
+        { type: { not: 'LIST' } },
+        { list: { visibility: 'PUBLIC' } },
+        { userId: session.user.id, type: 'LIST' },
+      ],
+    },
     include: {
       user: { select: { username: true, name: true, image: true } },
       review: { include: { game: true } },

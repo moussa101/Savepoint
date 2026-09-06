@@ -21,17 +21,7 @@ async function getProfileUser(username: string) {
 
 async function canViewSocial(viewerId: string | undefined, profile: { id: string; isPrivate: boolean }) {
   if (!profile.isPrivate) return true;
-  if (!viewerId) return false;
-  if (viewerId === profile.id) return true;
-  const follow = await prisma.follow.findUnique({
-    where: {
-      followerId_followingId: {
-        followerId: viewerId,
-        followingId: profile.id,
-      },
-    },
-  });
-  return !!follow;
+  return !!viewerId && viewerId === profile.id;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }) {

@@ -6,24 +6,44 @@ import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { PrismaAdapter } from '@auth/prisma-adapter';
+import { touchLastIp } from '@/lib/user-ip';
 
 class UnverifiedEmailError extends CredentialsSignin {
-  code = "unverified_email"
+  code = 'unverified_email';
+}
+
+class BannedUserError extends CredentialsSignin {
+  code = 'banned';
+}
+
+async function loadSessionUser(where: { id?: string; email?: string }) {
+  if (!where.id && !where.email) return null;
+  return prisma.user.findUnique({
+    where: where.id ? { id: where.id } : { email: where.email! },
+    select: {
+      id: true,
+      username: true,
+      image: true,
+      onboarded: true,
+      isAdmin: true,
+      isBanned: true,
+      email: true,
+    },
+  });
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: {
     ...PrismaAdapter(prisma),
     createUser: async (user) => {
-      // Generate a random username if not provided (for OAuth users)
-      const username = user.email.split('@')[0] + Math.floor(Math.random() * 10000);
+      const username = user.email!.split('@')[0] + Math.floor(Math.random() * 10000);
       return prisma.user.create({
         data: {
           ...user,
           username,
-        }
+        },
       });
-    }
+    },
   },
   providers: [
     Google({
@@ -37,7 +57,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     MicrosoftEntraID({
       clientId: process.env.XBOX_CLIENT_ID,
       clientSecret: process.env.XBOX_CLIENT_SECRET,
-      tenantId: 'common', // Crucial: Allows personal Xbox accounts
+      // @ts-expect-error tenantId is supported by the provider at runtime
+      tenantId: 'common',
     }),
     Credentials({
       name: 'credentials',
@@ -63,7 +84,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         if (user.isBanned) {
-          throw new Error('Your account has been banned.');
+          throw new BannedUserError();
         }
 
         const isPasswordValid = await compare(
@@ -75,6 +96,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
+        await touchLastIp(user.id);
+
         return {
           id: user.id,
           email: user.email,
@@ -85,31 +108,75 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: user.email! },
-          select: { id: true, username: true, image: true, onboarded: true, isAdmin: true, isBanned: true },
-        });
-        if (dbUser) {
-          if (dbUser.isBanned) return token; // Skip attaching info to effectively void session capabilities in UI
-          token.id = dbUser.id;
-          token.username = dbUser.username;
-          token.image = dbUser.image;
-          token.onboarded = dbUser.onboarded;
-          token.isAdmin = dbUser.isAdmin;
-        }
+    async signIn({ user }) {
+      if (!user?.email) return false;
+      const dbUser = await prisma.user.findUnique({
+        where: { email: user.email },
+        select: { id: true, isBanned: true },
+      });
+      if (dbUser?.isBanned) return false;
+      if (dbUser?.id) {
+        await touchLastIp(dbUser.id);
       }
+      return true;
+    },
+    async jwt({ token, user }) {
+      const lookup = user?.email
+        ? { email: user.email }
+        : token.id
+          ? { id: token.id as string }
+          : token.email
+            ? { email: token.email as string }
+            : null;
+
+      if (!lookup) {
+        return token;
+      }
+
+      const dbUser = await loadSessionUser(lookup);
+
+      if (!dbUser || dbUser.isBanned) {
+        return {
+          error: 'Banned',
+        };
+      }
+
+      token.id = dbUser.id;
+      token.email = dbUser.email;
+      token.username = dbUser.username;
+      token.image = dbUser.image;
+      token.onboarded = dbUser.onboarded;
+      token.isAdmin = dbUser.isAdmin;
+      delete (token as { error?: string }).error;
+
+      // Record IP on fresh sign-in only (avoid writing on every request)
+      if (user) {
+        await touchLastIp(dbUser.id);
+      }
+
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id as string;
-        session.user.username = token.username as string;
-        session.user.image = token.image as string | null;
-        (session.user as any).onboarded = token.onboarded;
-        (session.user as any).isAdmin = token.isAdmin;
+      if ((token as { error?: string }).error === 'Banned' || !token.id) {
+        return {
+          ...session,
+          user: {
+            ...session.user,
+            id: '',
+            username: '',
+            image: null,
+            email: '',
+            name: '',
+          },
+          expires: new Date(0).toISOString(),
+        };
       }
+
+      session.user.id = token.id as string;
+      session.user.username = token.username as string;
+      session.user.image = (token.image as string | null) ?? null;
+      (session.user as { onboarded?: boolean }).onboarded = token.onboarded as boolean;
+      (session.user as { isAdmin?: boolean }).isAdmin = token.isAdmin as boolean;
       return session;
     },
   },
@@ -118,5 +185,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: 'jwt',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60, // refresh claims at least hourly
   },
 });

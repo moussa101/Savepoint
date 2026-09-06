@@ -60,17 +60,10 @@ export async function createReport(input: {
 }
 
 export async function resolveReport(reportId: string, status: 'RESOLVED' | 'DISMISSED') {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: 'Not authenticated' };
-  }
-
-  const admin = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { isAdmin: true },
-  });
-
-  if (!admin?.isAdmin) {
+  try {
+    const { ensureAdmin } = await import('@/lib/authz');
+    await ensureAdmin();
+  } catch {
     return { error: 'Not authorized' };
   }
 

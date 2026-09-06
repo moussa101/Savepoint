@@ -26,6 +26,11 @@ export async function searchIGDBGamesAutocomplete(query: string) {
 }
 
 export async function ensureGameExistsLocally(igdbId: string) {
+  // Validate numeric IGDB id before any interpolation
+  if (!/^\d+$/.test(igdbId)) {
+    throw new Error('Invalid game id');
+  }
+
   // First check if we already have it
   const existing = await prisma.game.findUnique({
     where: { id: igdbId }
@@ -456,7 +461,8 @@ export async function createList(formData: FormData) {
 
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
-  const visibility = (formData.get('visibility') as string) || 'PUBLIC';
+  const visibilityRaw = (formData.get('visibility') as string) || 'PUBLIC';
+  const visibility = visibilityRaw === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC';
 
   if (!title || title.trim().length === 0) {
     return { error: 'List title is required' };
@@ -471,13 +477,15 @@ export async function createList(formData: FormData) {
     },
   });
 
-  await prisma.activity.create({
-    data: {
-      userId: session.user.id,
-      type: 'LIST',
-      listId: list.id,
-    }
-  });
+  if (visibility === 'PUBLIC') {
+    await prisma.activity.create({
+      data: {
+        userId: session.user.id,
+        type: 'LIST',
+        listId: list.id,
+      }
+    });
+  }
 
   await grantXP(session.user.id, XP_REWARDS.CREATE_LIST);
   await evaluateBadges(session.user.id);
@@ -547,20 +555,32 @@ export async function updateList(listId: string, formData: FormData) {
 
   const title = (formData.get('title') as string)?.trim();
   const description = (formData.get('description') as string)?.trim() || null;
-  const visibility = (formData.get('visibility') as string) || list.visibility;
+  const visibilityRaw = (formData.get('visibility') as string) || list.visibility;
+  const visibility = visibilityRaw === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC';
 
   if (!title) {
     return { error: 'List title is required' };
-  }
-
-  if (!['PUBLIC', 'PRIVATE'].includes(visibility)) {
-    return { error: 'Invalid visibility' };
   }
 
   await prisma.list.update({
     where: { id: listId },
     data: { title, description, visibility },
   });
+
+  if (visibility === 'PRIVATE') {
+    await prisma.activity.deleteMany({ where: { listId } });
+  } else if (list.visibility === 'PRIVATE' && visibility === 'PUBLIC') {
+    const existing = await prisma.activity.findFirst({ where: { listId } });
+    if (!existing) {
+      await prisma.activity.create({
+        data: {
+          userId: session.user.id,
+          type: 'LIST',
+          listId,
+        },
+      });
+    }
+  }
 
   revalidatePath('/lists');
   revalidatePath(`/lists/${listId}`);

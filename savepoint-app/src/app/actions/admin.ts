@@ -1,17 +1,10 @@
 'use server';
 
 import { prisma } from '@/lib/db';
-import { auth } from '@/lib/auth';
 import { sendReviewRemovalEmail } from '@/lib/mail';
 import { revalidatePath } from 'next/cache';
-
-// Helper to check admin access
-async function ensureAdmin() {
-  const session = await auth();
-  if (!session?.user || !(session.user as any).isAdmin) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-}
+import { ensureAdmin } from '@/lib/authz';
+import { escapeHtml } from '@/lib/security';
 
 export async function removeReview(reviewId: string, category: string, customReason?: string) {
   try {
@@ -19,20 +12,20 @@ export async function removeReview(reviewId: string, category: string, customRea
 
     const review = await prisma.review.findUnique({
       where: { id: reviewId },
-      include: { user: true, game: true }
+      include: { user: true, game: true },
     });
 
     if (!review) return { error: 'Review not found' };
 
-    let fullReason = `Category: ${category}`;
-    if (customReason) {
-      fullReason += `<br><br>Additional Details: ${customReason}`;
+    const safeCategory = escapeHtml(category);
+    const safeCustom = customReason ? escapeHtml(customReason) : '';
+    let fullReason = `Category: ${safeCategory}`;
+    if (safeCustom) {
+      fullReason += `<br><br>Additional Details: ${safeCustom}`;
     }
 
-    // Delete review
     await prisma.review.delete({ where: { id: reviewId } });
 
-    // Send moderation email
     await sendReviewRemovalEmail(
       review.user.email,
       review.user.username,
@@ -42,9 +35,10 @@ export async function removeReview(reviewId: string, category: string, customRea
 
     revalidatePath('/admin/reviews');
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to remove review:', error);
-    return { error: error.message || 'Internal Server Error' };
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return { error: message };
   }
 }
 
@@ -55,28 +49,30 @@ export async function banUser(userId: string, reason: string, banIp: boolean = t
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return { error: 'User not found' };
 
-    // Update user to banned status
     await prisma.user.update({
       where: { id: userId },
-      data: { isBanned: true, bannedReason: reason }
+      data: { isBanned: true, bannedReason: reason },
     });
 
-    // Optionally ban their last known IP
-    if (banIp && user.lastIp) {
-      // Upsert just in case it's already banned to prevent unique constraint error
-      await prisma.bannedIP.upsert({
-        where: { ip: user.lastIp },
-        update: { reason },
-        create: { ip: user.lastIp, reason }
-      });
+    if (banIp) {
+      if (user.lastIp && user.lastIp !== 'Unknown') {
+        await prisma.bannedIP.upsert({
+          where: { ip: user.lastIp },
+          update: { reason },
+          create: { ip: user.lastIp, reason },
+        });
+      }
     }
+
+    await prisma.session.deleteMany({ where: { userId } });
 
     revalidatePath('/admin/users');
     revalidatePath('/admin/reviews');
-    
+
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to ban user:', error);
-    return { error: error.message || 'Internal Server Error' };
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return { error: message };
   }
 }

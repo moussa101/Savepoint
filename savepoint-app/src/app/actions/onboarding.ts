@@ -8,6 +8,10 @@ import { redirect } from 'next/navigation';
 
 export async function getSimilarGamesForOnboarding(gameId: string) {
   try {
+    if (!/^\d+$/.test(gameId)) {
+      return [];
+    }
+
     const query = `
       fields similar_games.name, similar_games.cover.image_id;
       where id = ${gameId};

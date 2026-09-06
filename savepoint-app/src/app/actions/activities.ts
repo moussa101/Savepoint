@@ -10,6 +10,16 @@ export async function toggleActivityLike(activityId: string) {
 
   const userId = session.user.id;
 
+  const activity = await prisma.activity.findUnique({
+    where: { id: activityId },
+    select: { userId: true },
+  });
+
+  if (!activity) throw new Error('Activity not found');
+  if (activity.userId === userId) {
+    throw new Error('You cannot like your own activity');
+  }
+
   const existingLike = await prisma.activityLike.findUnique({
     where: {
       userId_activityId: {

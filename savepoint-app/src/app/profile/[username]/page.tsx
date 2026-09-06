@@ -124,7 +124,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     isFollowing = !!followRecord;
   }
 
-  const canViewPrivate = isOwnProfile || !user.isPrivate || isFollowing;
+  // Private profiles are owner-only (FR privacy: Public or Private)
+  const canViewPrivate = isOwnProfile || !user.isPrivate;
   if (!canViewPrivate) {
     return (
       <SessionProvider>
@@ -136,12 +137,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               @{user.username} is private
             </h1>
             <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
-              Follow this user to request access to their gaming profile.
+              This profile is private. Only the owner can view their library, reviews, and lists.
             </p>
             {session?.user ? (
               <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn />
             ) : (
-              <Link href="/login" className="btn btn-primary">Sign in to follow</Link>
+              <Link href="/login" className="btn btn-primary">Sign in</Link>
             )}
           </div>
         </main>
