@@ -49,16 +49,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      // Link Google to an existing email/password account when Google verifies the email
+      allowDangerousEmailAccountLinking: true,
     }),
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID,
       clientSecret: process.env.DISCORD_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: true,
     }),
     MicrosoftEntraID({
       clientId: process.env.XBOX_CLIENT_ID,
       clientSecret: process.env.XBOX_CLIENT_SECRET,
       // @ts-expect-error tenantId is supported by the provider at runtime
       tenantId: 'common',
+      allowDangerousEmailAccountLinking: true,
     }),
     Credentials({
       name: 'credentials',
@@ -141,6 +145,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         };
       }
 
+      token.sub = dbUser.id;
       token.id = dbUser.id;
       token.email = dbUser.email;
       token.username = dbUser.username;

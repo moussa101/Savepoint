@@ -106,6 +106,15 @@ model User {
   xp            Int       @default(0)
   equippedBadge String?
 
+  // Connected libraries
+  steamId          String?   @unique
+  steamLinkedAt    DateTime?
+  steamLastSyncAt  DateTime?
+  xboxGamertag     String?
+  xboxXuid         String?
+  xboxLinkedAt     DateTime?
+  xboxLastSyncAt   DateTime?
+
   // Relations
   accounts     Account[]
   sessions     Session[]
@@ -181,6 +190,7 @@ model Game {
   developer   String?
   publisher   String?
   igdbId      Int?     @unique
+  steamAppId  Int?     @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -226,13 +236,16 @@ model GamePlatform {
 // ============================================
 
 model UserGame {
-  id        String   @id @default(cuid())
-  userId    String
-  gameId    String
-  status    String   // WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED
-  rating    Float?   // 0.5 to 5.0, half-star increments
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(cuid())
+  userId          String
+  gameId          String
+  status          String    // WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED
+  rating          Float?    // 0.5 to 5.0, half-star increments
+  playtimeMinutes Int       @default(0)
+  source          String?   // MANUAL, STEAM, XBOX
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)

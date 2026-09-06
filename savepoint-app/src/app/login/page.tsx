@@ -13,9 +13,19 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get('registered');
+  const oauthError = searchParams.get('error');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const oauthErrorMessage =
+    oauthError === 'OAuthAccountNotLinked'
+      ? 'That Google account is linked to a different Savepoint user. Sign out completely (clear site cookies if needed), then try Google again.'
+      : oauthError === 'AccessDenied'
+        ? 'Sign-in was denied. If your account is banned, contact support.'
+        : oauthError
+          ? 'Sign-in failed. Please try again.'
+          : '';
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -76,7 +86,9 @@ function LoginForm() {
             </div>
           )}
 
-          {error && <div className="auth-error">{error}</div>}
+          {(error || oauthErrorMessage) && (
+            <div className="auth-error">{error || oauthErrorMessage}</div>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">

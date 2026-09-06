@@ -1,6 +1,6 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
+import { signIn, signOut } from 'next-auth/react';
 import { XboxIcon } from '@/components/ui/Icons';
 
 export default function XboxSignInButton() {
@@ -8,7 +8,10 @@ export default function XboxSignInButton() {
     <button
       type="button"
       className="btn btn-oauth"
-      onClick={() => signIn('microsoft-entra-id', { callbackUrl: '/onboarding' })}
+      onClick={async () => {
+        await signOut({ redirect: false });
+        await signIn('microsoft-entra-id', { callbackUrl: '/feed' });
+      }}
     >
       <XboxIcon size={22} />
       Continue with Xbox

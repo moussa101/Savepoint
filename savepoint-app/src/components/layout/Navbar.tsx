@@ -84,8 +84,8 @@ export default function Navbar() {
                     >
                       <UserIcon size={16} /> My Profile
                     </Link>
-                    <Link href="/diary" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                      <BookOpenIcon size={16} /> My Diary
+                    <Link href="/library" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                      <BookOpenIcon size={16} /> My Library
                     </Link>
                     <Link href="/lists" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
                       <ListIcon size={16} /> My Lists

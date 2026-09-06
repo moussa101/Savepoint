@@ -48,6 +48,20 @@ DIRECT_URL="your_postgres_direct_url"
 AUTH_SECRET="your_secure_secret"
 NEXTAUTH_URL="http://localhost:3000"
 
+# OAuth (optional)
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+DISCORD_CLIENT_ID=""
+DISCORD_CLIENT_SECRET=""
+XBOX_CLIENT_ID=""
+XBOX_CLIENT_SECRET=""
+
+# Steam library sync — https://steamcommunity.com/dev/apikey
+STEAM_WEB_API_KEY=""
+
+# Xbox library sync via OpenXBL — https://xbl.io/ (separate from Xbox login)
+OPENXBL_API_KEY=""
+
 # IGDB (Twitch) API
 TWITCH_CLIENT_ID="your_twitch_client_id"
 TWITCH_CLIENT_SECRET="your_twitch_client_secret"

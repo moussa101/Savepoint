@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '5mb',
     },
   },
+  async redirects() {
+    return [{ source: '/diary', destination: '/library', permanent: true }];
+  },
   async headers() {
     return [
       {
@@ -28,10 +31,10 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob: https://images.igdb.com https://*.r2.dev https://*.cloudflarestorage.com https://authjs.dev",
-              "connect-src 'self' https://api.igdb.com https://id.twitch.tv https://api.sightengine.com",
+              "connect-src 'self' https://api.igdb.com https://id.twitch.tv https://api.sightengine.com https://api.steampowered.com https://steamcommunity.com https://api.xbl.io",
               "frame-ancestors 'none'",
               "base-uri 'self'",
-              "form-action 'self'",
+              "form-action 'self' https://steamcommunity.com",
             ].join('; '),
           },
         ],

@@ -35,7 +35,15 @@ export async function ensureGameExistsLocally(igdbId: string) {
   const existing = await prisma.game.findUnique({
     where: { id: igdbId }
   });
-  if (existing) return existing.id;
+  if (existing) {
+    if (existing.igdbId == null) {
+      await prisma.game.update({
+        where: { id: igdbId },
+        data: { igdbId: parseInt(igdbId, 10) },
+      });
+    }
+    return existing.id;
+  }
 
   // Otherwise, fetch full details from IGDB and upsert
   const query = `
@@ -57,10 +65,12 @@ export async function ensureGameExistsLocally(igdbId: string) {
 
   const localGame = await prisma.game.upsert({
     where: { slug },
-    update: {}, // Already exists, do nothing
+    update: {
+      igdbId: parseInt(igdbId, 10),
+    },
     create: {
       id: igdbId,
-      igdbId: parseInt(igdbId),
+      igdbId: parseInt(igdbId, 10),
       name: game.name,
       slug,
       description: game.summary,
@@ -101,6 +111,7 @@ export async function addToLibrary(gameId: string, status: string) {
       userId: session.user.id,
       gameId,
       status,
+      source: 'MANUAL',
     },
   });
 
@@ -669,7 +680,7 @@ export async function createDiaryEntry(formData: FormData) {
     await rateGame(gameId, rating);
   }
 
-  revalidatePath('/diary');
+  revalidatePath('/library');
   return { success: true };
 }
 

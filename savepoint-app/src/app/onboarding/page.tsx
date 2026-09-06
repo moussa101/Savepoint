@@ -49,7 +49,7 @@ export default async function OnboardingPage() {
             Welcome to Savepoint, {session.user.name}!
           </h1>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto' }}>
-            To personalize your experience and generate AI recommendations, tell us about your taste. <br/>
+            To personalize your experience and recommendations, tell us about your taste. <br/>
             <strong>Like or Dislike at least 5 games to continue.</strong>
           </p>
         </div>

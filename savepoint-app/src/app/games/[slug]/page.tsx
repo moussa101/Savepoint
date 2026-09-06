@@ -65,6 +65,7 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
     game = await prisma.game.upsert({
       where: { slug: igdbGame.slug },
       update: {
+        igdbId: igdbGame.id,
         name: igdbGame.name,
         slug: igdbGame.slug,
         description: igdbGame.summary,

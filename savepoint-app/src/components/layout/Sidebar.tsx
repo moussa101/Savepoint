@@ -9,7 +9,7 @@ import { ReactNode } from 'react';
 const sidebarLinks: { href: string; label: string; icon: ReactNode }[] = [
   { href: '/feed', label: 'Home', icon: <HomeIcon size={18} /> },
   { href: '/games', label: 'Browse Games', icon: <GamepadIcon size={18} /> },
-  { href: '/diary', label: 'My Diary', icon: <BookOpenIcon size={18} /> },
+  { href: '/library', label: 'My Library', icon: <BookOpenIcon size={18} /> },
   { href: '/lists', label: 'My Lists', icon: <ListIcon size={18} /> },
   { href: '/settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
 ];
@@ -37,6 +37,7 @@ export default function Sidebar() {
         {sidebarLinks.map((link) => {
           let isActive = pathname === link.href;
           if (link.href === '/games' && pathname.startsWith('/games')) isActive = true;
+          if (link.href === '/library' && pathname.startsWith('/library')) isActive = true;
           if (link.href === '/feed' && pathname === '/feed') isActive = true;
 
           return (

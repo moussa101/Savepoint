@@ -1,0 +1,80 @@
+export type SteamOwnedGame = {
+  appid: number;
+  name: string;
+  playtime_forever: number; // minutes
+  playtime_2weeks?: number;
+  img_icon_url?: string;
+};
+
+function getSteamApiKey() {
+  const key = process.env.STEAM_WEB_API_KEY;
+  if (!key) throw new Error('STEAM_WEB_API_KEY is not configured');
+  return key;
+}
+
+export function getAppBaseUrl() {
+  return (process.env.NEXTAUTH_URL || process.env.AUTH_URL || 'http://localhost:3000').replace(/\/$/, '');
+}
+
+/** Build Steam OpenID login URL for the current user session cookie flow. */
+export function buildSteamOpenIdUrl() {
+  const returnTo = `${getAppBaseUrl()}/api/auth/steam/callback`;
+  const realm = getAppBaseUrl();
+  const params = new URLSearchParams({
+    'openid.ns': 'http://specs.openid.net/auth/2.0',
+    'openid.mode': 'checkid_setup',
+    'openid.return_to': returnTo,
+    'openid.realm': realm,
+    'openid.identity': 'http://specs.openid.net/auth/2.0/identifier_select',
+    'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
+  });
+  return `https://steamcommunity.com/openid/login?${params.toString()}`;
+}
+
+export function extractSteamIdFromClaimedId(claimedId: string | null): string | null {
+  if (!claimedId) return null;
+  const match = claimedId.match(/\/openid\/id\/(\d+)$/);
+  return match?.[1] || null;
+}
+
+/** Verify Steam OpenID assertion (openid.mode=id_res). */
+export async function verifySteamOpenId(params: URLSearchParams): Promise<boolean> {
+  const body = new URLSearchParams(params);
+  body.set('openid.mode', 'check_authentication');
+
+  const response = await fetch('https://steamcommunity.com/openid/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+    cache: 'no-store',
+  });
+
+  const text = await response.text();
+  return text.includes('is_valid:true');
+}
+
+export async function fetchSteamOwnedGames(steamId: string): Promise<SteamOwnedGame[]> {
+  const key = getSteamApiKey();
+  const url = new URL('https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/');
+  url.searchParams.set('key', key);
+  url.searchParams.set('steamid', steamId);
+  url.searchParams.set('include_appinfo', '1');
+  url.searchParams.set('include_played_free_games', '1');
+  url.searchParams.set('format', 'json');
+
+  const response = await fetch(url.toString(), { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`Steam API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const games = data?.response?.games;
+  if (!games) {
+    // Empty response usually means private game details
+    throw new Error(
+      'Could not read Steam library. Make sure your Steam profile and Game details are set to Public.'
+    );
+  }
+
+  return games as SteamOwnedGame[];
+}

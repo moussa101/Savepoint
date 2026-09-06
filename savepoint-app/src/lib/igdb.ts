@@ -16,7 +16,7 @@ export async function getTwitchToken() {
 
   const response = await fetch(
     `https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
-    { method: 'POST', next: { revalidate: 3600 } }
+    { method: 'POST', cache: 'no-store' }
   );
 
   if (!response.ok) {
@@ -30,11 +30,17 @@ export async function getTwitchToken() {
   return cachedToken;
 }
 
-export async function fetchIGDB(endpoint: string, query: string) {
+type IGDBCacheMode = { revalidate?: number; cache?: RequestCache };
+
+export async function fetchIGDB(
+  endpoint: string,
+  query: string,
+  options: IGDBCacheMode = { revalidate: 3600 }
+) {
   const token = await getTwitchToken();
   const clientId = process.env.TWITCH_CLIENT_ID!;
 
-  const response = await fetch(`https://api.igdb.com/v4/${endpoint}`, {
+  const fetchOptions: RequestInit & { next?: { revalidate?: number } } = {
     method: 'POST',
     headers: {
       'Client-ID': clientId,
@@ -43,8 +49,15 @@ export async function fetchIGDB(endpoint: string, query: string) {
       'Content-Type': 'text/plain',
     },
     body: query,
-    next: { revalidate: 3600 }, // Cache IGDB responses for an hour by default
-  });
+  };
+
+  if (options.cache === 'no-store') {
+    fetchOptions.cache = 'no-store';
+  } else {
+    fetchOptions.next = { revalidate: options.revalidate ?? 3600 };
+  }
+
+  const response = await fetch(`https://api.igdb.com/v4/${endpoint}`, fetchOptions);
 
   if (!response.ok) {
     console.error('IGDB Error:', await response.text());
@@ -52,6 +65,11 @@ export async function fetchIGDB(endpoint: string, query: string) {
   }
 
   return response.json();
+}
+
+/** Always-fresh IGDB fetch (no Next.js Data Cache). */
+export async function fetchIGDBFresh(endpoint: string, query: string) {
+  return fetchIGDB(endpoint, query, { cache: 'no-store' });
 }
 
 // Helpers for processing image URLs
@@ -71,9 +89,13 @@ export interface IGDBGame {
   artworks?: { image_id: string }[];
   screenshots?: { image_id: string }[];
   genres?: { id: number; name: string }[];
+  themes?: { id: number; name: string }[];
   platforms?: { id: number; name: string }[];
   involved_companies?: { company: { name: string }; developer: boolean; publisher: boolean }[];
   websites?: { type: number; url: string }[];
   total_rating?: number;
   total_rating_count?: number;
+  category?: number;
+  similar_games?: IGDBGame[];
 }
+
