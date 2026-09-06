@@ -14,34 +14,54 @@ import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon } from '@/components/u
 import { cache } from 'react';
 
 const getUser = cache(async (username: string) => {
-  return await prisma.user.findUnique({
+  // Fetch user and counts in one query
+  const user = await prisma.user.findUnique({
     where: { username },
     include: {
-      userGames: {
-        include: { game: { include: { genres: true } } },
-        orderBy: { updatedAt: 'desc' },
+      favoriteGames: {
+        include: { game: true },
+        orderBy: { order: 'asc' },
+        take: 6,
       },
       reviews: {
         include: { game: true },
         orderBy: { createdAt: 'desc' },
         take: 5,
       },
-      lists: {
-        where: { visibility: 'PUBLIC' },
-        include: { items: { include: { game: true }, take: 4 } },
-        orderBy: { updatedAt: 'desc' },
-        take: 4,
-      },
-      favoriteGames: {
-        include: { game: true },
-        orderBy: { order: 'asc' },
-        take: 6,
-      },
       _count: {
         select: { followers: true, following: true, reviews: true, lists: true },
       },
     },
   });
+
+  if (!user) return null;
+
+  // Fetch games data separately to avoid massive cartesian joins
+  const [userGamesStats, libraryGames, currentlyPlaying] = await Promise.all([
+    prisma.userGame.findMany({
+      where: { userId: user.id },
+      select: { status: true, rating: true }
+    }),
+    prisma.userGame.findMany({
+      where: { userId: user.id },
+      include: { game: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 12,
+    }),
+    prisma.userGame.findMany({
+      where: { userId: user.id, status: 'PLAYING' },
+      include: { game: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 3,
+    })
+  ]);
+
+  return {
+    ...user,
+    userGamesStats,
+    libraryGames,
+    currentlyPlaying
+  };
 });
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }) {
@@ -74,13 +94,13 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   }
 
   const isOwnProfile = session?.user?.username === user.username;
-  const gamesPlayed = user.userGames.filter((g) => ['COMPLETED', 'PLAYING', 'DROPPED'].includes(g.status)).length;
-  const gamesCompleted = user.userGames.filter((g) => g.status === 'COMPLETED').length;
-  const ratingsGiven = user.userGames.filter((g) => g.rating).length;
+  const gamesPlayed = user.userGamesStats.filter((g) => ['COMPLETED', 'PLAYING', 'DROPPED'].includes(g.status)).length;
+  const gamesCompleted = user.userGamesStats.filter((g) => g.status === 'COMPLETED').length;
+  const ratingsGiven = user.userGamesStats.filter((g) => g.rating).length;
   const avgRating = ratingsGiven > 0
-    ? user.userGames.reduce((sum, g) => sum + (g.rating || 0), 0) / ratingsGiven
+    ? user.userGamesStats.reduce((sum, g) => sum + (g.rating || 0), 0) / ratingsGiven
     : 0;
-  const currentlyPlaying = user.userGames.filter((g) => g.status === 'PLAYING');
+  const currentlyPlaying = user.currentlyPlaying;
 
   return (
     <SessionProvider>
@@ -230,14 +250,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           {/* Library */}
           <div style={{ marginBottom: 'var(--space-2xl)' }}>
             <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>Library</h2>
-            {user.userGames.length === 0 ? (
+            {user.libraryGames.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-icon"><GamepadIcon size={48} color="var(--text-muted)" /></div>
                 <div className="empty-state-title">No games in library</div>
               </div>
             ) : (
               <div className="game-grid">
-                {user.userGames.slice(0, 12).map((ug) => (
+                {user.libraryGames.map((ug) => (
                   <Link key={ug.id} href={`/games/${ug.game.slug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                     <div className="game-cover" style={{ marginBottom: 'var(--space-sm)', position: 'relative' }}>
                       {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} />}
