@@ -9,7 +9,7 @@ import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import { formatRelativeTime, STATUS_LABELS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
-import { SignalIcon } from '@/components/ui/Icons';
+import { SignalIcon, HeartIcon } from '@/components/ui/Icons';
 
 export const metadata = { title: 'Feed — Savepoint' };
 
@@ -41,7 +41,7 @@ export default async function FeedPage() {
   const feedUserIds = [...followingIds, session.user.id];
 
   // Fetch all recent activity feeds in parallel
-  const [recentReviews, recentTracking, recentLists] = await Promise.all([
+  const [recentReviews, recentTracking, recentLists, recentFavorites] = await Promise.all([
     prisma.review.findMany({
       where: { userId: { in: feedUserIds } },
       include: {
@@ -68,12 +68,21 @@ export default async function FeedPage() {
       },
       orderBy: { createdAt: 'desc' },
       take: 5,
+    }),
+    prisma.favoriteGame.findMany({
+      where: { userId: { in: feedUserIds } },
+      include: {
+        user: { select: { username: true, name: true, image: true } },
+        game: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
     })
   ]);
 
   // Merge and sort by date
   type FeedItem = {
-    type: 'review' | 'tracking' | 'list';
+    type: 'review' | 'tracking' | 'list' | 'favorite';
     date: Date;
     data: Record<string, unknown>;
   };
@@ -93,6 +102,11 @@ export default async function FeedPage() {
       type: 'list' as const,
       date: l.createdAt,
       data: l as unknown as Record<string, unknown>,
+    })),
+    ...recentFavorites.map((f) => ({
+      type: 'favorite' as const,
+      date: f.createdAt,
+      data: f as unknown as Record<string, unknown>,
     })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 20);
 
@@ -219,7 +233,9 @@ export default async function FeedPage() {
                             {user.name || user.username}
                           </Link>{' '}
                           <span style={{ color: 'var(--text-secondary)' }}>created a list:</span>{' '}
-                          <strong>&ldquo;{String(d.title)}&rdquo;</strong>
+                          <Link href={`/lists/${d.id}`} style={{ color: 'var(--accent-primary)', textDecoration: 'none' }}>
+                            <strong>&ldquo;{String(d.title)}&rdquo;</strong>
+                          </Link>
                           <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-md)' }}>
                             {items.slice(0, 4).map((item, j) => (
                               <Link key={j} href={`/games/${item.game.slug}`}>
@@ -233,6 +249,42 @@ export default async function FeedPage() {
                             {formatRelativeTime(item.date)}
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (item.type === 'favorite') {
+                  return (
+                    <div key={`favorite-${i}`} className="card animate-fade-in">
+                      <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
+                        <Link href={`/profile/${user.username}`}>
+                          <div className="avatar">
+                            {user.image ? <img src={user.image} alt="" /> : (user.name || user.username).charAt(0).toUpperCase()}
+                          </div>
+                        </Link>
+                        <div style={{ flex: 1 }}>
+                          <Link href={`/profile/${user.username}`} style={{ fontWeight: 700 }}>
+                            {user.name || user.username}
+                          </Link>{' '}
+                          <span style={{ color: 'var(--text-secondary)' }}>favorited</span>{' '}
+                          <Link href={`/games/${game?.slug}`} style={{ fontWeight: 700 }}>
+                            {game?.name}
+                          </Link>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 'var(--space-sm)' }}>
+                            <HeartIcon size={16} filled color="var(--accent-primary)" />
+                          </span>
+                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-xs)' }}>
+                            {formatRelativeTime(item.date)}
+                          </div>
+                        </div>
+                        {game?.coverImage && (
+                          <Link href={`/games/${game.slug}`}>
+                            <div className="game-cover" style={{ width: '50px', height: '67px', flexShrink: 0 }}>
+                              <img src={game.coverImage} alt="" />
+                            </div>
+                          </Link>
+                        )}
                       </div>
                     </div>
                   );

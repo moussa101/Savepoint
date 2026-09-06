@@ -233,6 +233,48 @@ export async function createReview(gameId: string, formData: FormData) {
   return { success: true };
 }
 
+export async function updateReview(reviewId: string, formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: 'Not authenticated' };
+  }
+
+  const text = formData.get('text') as string;
+  const rating = parseFloat(formData.get('rating') as string);
+  const containsSpoilers = formData.get('containsSpoilers') === 'true';
+
+  if (!text || text.trim().length === 0) {
+    return { error: 'Review text is required' };
+  }
+
+  if (!rating || rating < 0.5 || rating > 5) {
+    return { error: 'A valid rating is required' };
+  }
+
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+  });
+
+  if (!review || review.userId !== session.user.id) {
+    return { error: 'Not authorized' };
+  }
+
+  await prisma.review.update({
+    where: { id: reviewId },
+    data: {
+      rating,
+      text: text.trim(),
+      containsSpoilers,
+    },
+  });
+
+  // Also update the game rating if changed
+  await rateGame(review.gameId, rating);
+
+  revalidatePath(`/games/${review.gameId}`);
+  return { success: true };
+}
+
 export async function deleteReview(reviewId: string) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -406,6 +448,7 @@ export async function createDiaryEntry(formData: FormData) {
   const status = formData.get('status') as string;
   const ratingStr = formData.get('rating') as string;
   const notes = formData.get('notes') as string;
+  const playtimeStr = formData.get('playtime') as string;
 
   if (!gameId || !date) {
     return { error: 'Game and date are required' };
@@ -421,6 +464,7 @@ export async function createDiaryEntry(formData: FormData) {
       status: status || null,
       rating,
       notes: notes?.trim() || null,
+      playtime: playtimeStr ? parseInt(playtimeStr, 10) : null,
     },
   });
 
@@ -435,3 +479,113 @@ export async function createDiaryEntry(formData: FormData) {
   revalidatePath('/diary');
   return { success: true };
 }
+
+export async function createComment(reviewId: string, text: string) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: 'Not authenticated' };
+  }
+
+  if (!text || text.trim().length === 0) {
+    return { error: 'Comment text is required' };
+  }
+
+  const comment = await prisma.comment.create({
+    data: {
+      userId: session.user.id,
+      reviewId,
+      text: text.trim(),
+    },
+  });
+
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { gameId: true },
+  });
+
+  if (review) {
+    revalidatePath(`/games/${review.gameId}`);
+  }
+
+  return { success: true, commentId: comment.id };
+}
+
+export async function deleteComment(commentId: string) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: 'Not authenticated' };
+  }
+
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    include: { review: true },
+  });
+
+  if (!comment) {
+    return { error: 'Comment not found' };
+  }
+
+  // Can delete if own comment OR own review
+  if (comment.userId !== session.user.id && comment.review.userId !== session.user.id) {
+    return { error: 'Not authorized' };
+  }
+
+  await prisma.comment.delete({
+    where: { id: commentId },
+  });
+
+  revalidatePath(`/games/${comment.review.gameId}`);
+  return { success: true };
+}
+
+export async function toggleFavoriteGame(gameId: string) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: 'Not authenticated' };
+  }
+
+  const existing = await prisma.favoriteGame.findUnique({
+    where: {
+      userId_gameId: {
+        userId: session.user.id,
+        gameId,
+      },
+    },
+  });
+
+  if (existing) {
+    await prisma.favoriteGame.delete({
+      where: { id: existing.id },
+    });
+  } else {
+    // Optional: Could count existing favorites to enforce a limit (e.g. max 4 favorites)
+    const count = await prisma.favoriteGame.count({
+      where: { userId: session.user.id }
+    });
+    
+    if (count >= 10) {
+      return { error: 'You can only have up to 10 favorite games.' };
+    }
+
+    await prisma.favoriteGame.create({
+      data: {
+        userId: session.user.id,
+        gameId,
+        order: count,
+      },
+    });
+  }
+
+  const game = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: { slug: true }
+  });
+
+  if (game) {
+    revalidatePath(`/games/${game.slug}`);
+  }
+  revalidatePath(`/profile/${session.user.username}`);
+  
+  return { success: true, isFavorited: !existing };
+}
+

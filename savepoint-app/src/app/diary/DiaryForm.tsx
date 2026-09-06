@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import StarRating from '@/components/ui/StarRating';
 import { createDiaryEntry } from '@/app/actions/games';
 import GameAutocomplete from '@/components/ui/GameAutocomplete';
@@ -11,6 +12,7 @@ interface DiaryFormProps {
 }
 
 export default function DiaryForm({ games = [] }: DiaryFormProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(0);
   const [selectedGameId, setSelectedGameId] = useState('');
@@ -26,7 +28,7 @@ export default function DiaryForm({ games = [] }: DiaryFormProps) {
       if (result.success) {
         setOpen(false);
         setRating(0);
-        window.location.reload();
+        router.refresh();
       }
     });
   }
@@ -68,6 +70,10 @@ export default function DiaryForm({ games = [] }: DiaryFormProps) {
                 <div className="form-group">
                   <label className="form-label">Rating (optional)</label>
                   <StarRating rating={rating} size="lg" interactive onRate={setRating} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Playtime (hours)</label>
+                  <input type="number" name="playtime" className="input" placeholder="e.g., 12" min="0" step="1" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Notes (optional)</label>

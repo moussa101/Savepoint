@@ -7,18 +7,28 @@ import StarRating from '@/components/ui/StarRating';
 import GameActions from './GameActions';
 import ReviewSection from './ReviewSection';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
+import { cache } from 'react';
+
+const getIGDBGame = cache(async (slug: string) => {
+  const igdbResults = await fetchIGDB(
+    'games',
+    `fields id, name, slug, summary, cover.image_id, artworks.image_id, screenshots.image_id, first_release_date, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, genres.name, platforms.name;
+     where slug = "${slug}"; limit 1;`
+  );
+  if (igdbResults && igdbResults.length > 0) {
+    return igdbResults[0] as IGDBGame;
+  }
+  return null;
+});
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   try {
-    const igdbResults = await fetchIGDB(
-      'games',
-      `fields name, summary; where slug = "${slug}"; limit 1;`
-    );
-    if (!igdbResults || igdbResults.length === 0) return { title: 'Game Not Found' };
+    const game = await getIGDBGame(slug);
+    if (!game) return { title: 'Game Not Found' };
     return {
-      title: `${igdbResults[0].name} — Savepoint`,
-      description: igdbResults[0].summary?.slice(0, 160),
+      title: `${game.name} — Savepoint`,
+      description: game.summary?.slice(0, 160),
     };
   } catch (e) {
     return { title: 'Game Not Found' };
@@ -32,14 +42,7 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
   // 1. Fetch from IGDB
   let igdbGame: IGDBGame | null = null;
   try {
-    const igdbResults = await fetchIGDB(
-      'games',
-      `fields id, name, slug, summary, cover.image_id, artworks.image_id, screenshots.image_id, first_release_date, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, genres.name, platforms.name;
-       where slug = "${slug}"; limit 1;`
-    );
-    if (igdbResults && igdbResults.length > 0) {
-      igdbGame = igdbResults[0];
-    }
+    igdbGame = await getIGDBGame(slug);
   } catch (e) {
     console.error(e);
   }
@@ -85,7 +88,17 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
         reviews: {
           include: {
             user: { select: { id: true, username: true, name: true, image: true } },
-            likes: true,
+            likes: {
+              include: {
+                user: { select: { id: true, username: true, name: true, image: true } }
+              }
+            },
+            comments: {
+              include: {
+                user: { select: { id: true, username: true, name: true, image: true } }
+              },
+              orderBy: { createdAt: 'asc' }
+            },
             _count: { select: { comments: true } },
           },
           orderBy: { createdAt: 'desc' },
@@ -102,7 +115,17 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
         reviews: {
           include: {
             user: { select: { id: true, username: true, name: true, image: true } },
-            likes: true,
+            likes: {
+              include: {
+                user: { select: { id: true, username: true, name: true, image: true } }
+              }
+            },
+            comments: {
+              include: {
+                user: { select: { id: true, username: true, name: true, image: true } }
+              },
+              orderBy: { createdAt: 'asc' }
+            },
             _count: { select: { comments: true } },
           },
           orderBy: { createdAt: 'desc' },
@@ -114,17 +137,31 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
     if (!game) throw err;
   }
 
-  // 3. Determine user contextracking status for this game
+  // 3. Determine user context tracking status for this game
   let userGame = null;
+  let isFavorited = false;
+  
   if (session?.user?.id) {
-    userGame = await prisma.userGame.findUnique({
-      where: {
-        userId_gameId: {
-          userId: session.user.id,
-          gameId: game.id,
+    const [ug, fg] = await Promise.all([
+      prisma.userGame.findUnique({
+        where: {
+          userId_gameId: {
+            userId: session.user.id,
+            gameId: game.id,
+          },
         },
-      },
-    });
+      }),
+      prisma.favoriteGame.findUnique({
+        where: {
+          userId_gameId: {
+            userId: session.user.id,
+            gameId: game.id,
+          },
+        },
+      })
+    ]);
+    userGame = ug;
+    isFavorited = !!fg;
   }
 
   // Rating distribution
@@ -223,7 +260,8 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
                 gameId={game.id}
                 currentStatus={userGame?.status || null}
                 currentRating={userGame?.rating || null}
-                isLoggedIn={!!session}
+                isFavorited={isFavorited}
+                isLoggedIn={!!session?.user}
               />
             </div>
           </div>

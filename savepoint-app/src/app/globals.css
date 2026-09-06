@@ -754,6 +754,12 @@ ul, ol {
 .game-cover:hover .game-cover-overlay {
   opacity: 1;
 }
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
 
 /* --- Animations --- */
 @keyframes fadeIn {
@@ -762,14 +768,13 @@ ul, ol {
 }
 
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes slideUp {

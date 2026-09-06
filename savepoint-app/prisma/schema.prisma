@@ -243,6 +243,7 @@ model ListItem {
   listId    String
   gameId    String
   order     Int      @default(0)
+  notes     String?  // Custom note for this list item
   createdAt DateTime @default(now())
 
   list List @relation(fields: [listId], references: [id], onDelete: Cascade)
@@ -264,6 +265,7 @@ model DiaryEntry {
   status    String?  // WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED
   rating    Float?
   notes     String?
+  playtime  Int?     // Playtime in hours
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

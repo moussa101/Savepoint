@@ -5,7 +5,12 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.igdb.com' }
     ]
-  }
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '5mb',
+    },
+  },
 };
 
 export default nextConfig;

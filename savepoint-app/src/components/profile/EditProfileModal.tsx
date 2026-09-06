@@ -3,7 +3,7 @@
 import { XIcon, UserIcon } from '@/components/ui/Icons';
 
 import { useState, useRef } from 'react';
-import { getPresignedPostPolicy, verifyAndSaveProfileImage, updateProfileBio } from '@/app/actions/upload';
+import { uploadImageDirect, verifyAndSaveProfileImage, updateProfileBio } from '@/app/actions/upload';
 import { useRouter } from 'next/navigation';
 
 interface EditProfileModalProps {
@@ -59,23 +59,11 @@ export default function EditProfileModal({ user, onClose }: EditProfileModalProp
   };
 
   const uploadToR2 = async (file: File, isBanner: boolean) => {
-    // 1. Get presigned POST policy
-    const { url, fields, finalImageUrl, key } = await getPresignedPostPolicy(file.type, isBanner);
-    
-    // 2. Construct FormData using the policy fields
     const formData = new FormData();
-    Object.entries(fields).forEach(([k, v]) => formData.append(k, v as string));
     formData.append('file', file);
-
-    // 3. Upload file via POST request directly to R2 edge
-    const res = await fetch(url, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!res.ok) throw new Error(`Failed to upload ${isBanner ? 'banner' : 'avatar'}`);
-
-    return { finalImageUrl, key };
+    
+    // Upload via Server Action instead of browser presigned post
+    return await uploadImageDirect(formData, isBanner);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

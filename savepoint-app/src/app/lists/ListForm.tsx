@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { createList } from '@/app/actions/games';
 import { PlusIcon, XIcon } from '@/components/ui/Icons';
 
 export default function ListForm() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -14,9 +16,9 @@ export default function ListForm() {
 
     startTransition(async () => {
       const result = await createList(formData);
-      if (result.success) {
+      if (result.success && result.listId) {
         setOpen(false);
-        window.location.reload();
+        router.push(`/lists/${result.listId}`);
       }
     });
   }

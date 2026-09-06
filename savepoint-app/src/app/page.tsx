@@ -5,8 +5,10 @@ import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import { GamepadIcon, StarIcon, UsersIcon } from '@/components/ui/Icons';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
+import { auth } from '@/lib/auth';
 
 export default async function LandingPage() {
+  const session = await auth();
   let games: IGDBGame[] = [];
   try {
     games = await fetchIGDB(
@@ -52,9 +54,15 @@ export default async function LandingPage() {
               Play. Rate. Review. Remember.
             </p>
             <div className="landing-hero-actions">
-              <Link href="/register" className="btn btn-primary btn-lg">
-                Start Your Journey
-              </Link>
+              {session ? (
+                <Link href="/feed" className="btn btn-primary btn-lg">
+                  Go to Feed
+                </Link>
+              ) : (
+                <Link href="/register" className="btn btn-primary btn-lg">
+                  Start Your Journey
+                </Link>
+              )}
               <Link href="/games" className="btn btn-outline btn-lg">
                 Browse Games
               </Link>
@@ -153,17 +161,19 @@ export default async function LandingPage() {
         </section>
 
         {/* CTA */}
-        <section className="landing-cta container" style={{ textAlign: 'center', padding: 'var(--space-3xl) 0' }}>
-          <h2 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: 'var(--space-md)' }}>
-            Ready to start your journey?
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)', maxWidth: '500px', margin: '0 auto var(--space-xl)' }}>
-            Join Savepoint and build a gaming profile that represents your taste.
-          </p>
-          <Link href="/register" className="btn btn-primary btn-lg">
-            Create Your Account
-          </Link>
-        </section>
+        {!session && (
+          <section className="landing-cta container" style={{ textAlign: 'center', padding: 'var(--space-3xl) 0' }}>
+            <h2 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: 'var(--space-md)' }}>
+              Ready to start your journey?
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)', maxWidth: '500px', margin: '0 auto var(--space-xl)' }}>
+              Join Savepoint and build a gaming profile that represents your taste.
+            </p>
+            <Link href="/register" className="btn btn-primary btn-lg">
+              Create Your Account
+            </Link>
+          </section>
+        )}
 
         {/* Footer */}
         <footer style={{ borderTop: '1px solid var(--bg-surface-border)', padding: 'var(--space-xl)', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>

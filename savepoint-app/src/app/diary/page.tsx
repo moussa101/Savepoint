@@ -16,7 +16,10 @@ export const metadata = { title: 'Gaming Diary — Savepoint' };
 export default async function DiaryPage() {
   const session = await auth();
   if (!session) redirect('/login');
-  if ((session.user as any).onboarded === false) redirect('/onboarding');
+  if ((session.user as any).onboarded === false) {
+    const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (!dbUser?.onboarded) redirect('/onboarding');
+  }
 
   const entries = await prisma.diaryEntry.findMany({
     where: { userId: session.user.id },
@@ -113,6 +116,13 @@ export default async function DiaryPage() {
                                   </span>
                                 )}
                                 {entry.rating && <StarRating rating={entry.rating} size="sm" />}
+                                {/* @ts-ignore */}
+                                {entry.playtime && (
+                                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                                    {/* @ts-ignore */}
+                                    {entry.playtime} hrs
+                                  </span>
+                                )}
                               </div>
                               {entry.notes && (
                                 <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-sm)', lineHeight: 'var(--leading-relaxed)' }}>

@@ -1,8 +1,7 @@
 'use server';
 
 import { r2 } from '@/lib/r2';
-import { DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
@@ -10,9 +9,12 @@ import { revalidatePath } from 'next/cache';
 const BUCKET_NAME = process.env.R2_BUCKET_NAME || 'savepoint-assets';
 const PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || '';
 
-export async function getPresignedPostPolicy(fileType: string, isBanner: boolean = false) {
+export async function uploadImageDirect(formData: FormData, isBanner: boolean = false) {
   const session = await auth();
   if (!session?.user?.id) throw new Error('Unauthorized');
+
+  const file = formData.get('file') as File | null;
+  if (!file) throw new Error('No file provided');
 
   // Rate Limiting: Max 5 uploads per hour
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -28,30 +30,29 @@ export async function getPresignedPostPolicy(fileType: string, isBanner: boolean
   }
 
   // Basic validation
-  if (!fileType.startsWith('image/')) throw new Error('Invalid file type');
+  if (!file.type.startsWith('image/')) throw new Error('Invalid file type');
+  if (file.size > 5 * 1024 * 1024) throw new Error('File exceeds 5MB limit');
 
   // Generate a unique filename
-  const ext = fileType.split('/')[1] || 'jpeg';
+  const ext = file.type.split('/')[1] || 'jpeg';
   const prefix = isBanner ? 'banners' : 'avatars';
   const key = `${prefix}/${session.user.id}_${Date.now()}.${ext}`;
-
-  // Enforce exactly 5MB maximum file size directly on the R2 server using a POST policy
-  const { url, fields } = await createPresignedPost(r2, {
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Conditions: [
-      ['content-length-range', 0, 5 * 1024 * 1024], // 5MB limit hard-enforced by R2
-      ['starts-with', '$Content-Type', 'image/'],
-    ],
-    Fields: {
-      'Content-Type': fileType,
-    },
-    Expires: 60, // Policy expires in 60 seconds
-  });
-
   const finalImageUrl = `${PUBLIC_URL}/${key}`;
 
-  return { url, fields, finalImageUrl, key };
+  // Read file data
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  // Upload directly via PutObject from the server
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+      ContentType: file.type,
+    })
+  );
+
+  return { finalImageUrl, key };
 }
 
 export async function verifyAndSaveProfileImage(imageUrl: string, objectKey: string, isBanner: boolean = false) {

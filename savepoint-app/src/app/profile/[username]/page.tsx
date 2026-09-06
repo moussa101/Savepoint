@@ -5,9 +5,9 @@ import { auth } from '@/lib/auth';
 import Navbar from '@/components/layout/Navbar';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
-import FollowButton from './FollowButton';
+import FollowButton from '@/components/ui/FollowButton';
 import EditProfileWrapper from '@/components/profile/EditProfileWrapper';
-import { STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
+import { STATUS_LABELS, STATUS_COLORS, formatRelativeTime } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon } from '@/components/ui/Icons';
 
@@ -59,19 +59,22 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   if (!user) notFound();
 
-  const isOwnProfile = session?.user?.id === user.id;
+  // Check if current user is following this profile
   let isFollowing = false;
-  if (session?.user?.id && !isOwnProfile) {
-    const follow = await prisma.follow.findUnique({
+  if (session?.user?.id && session.user.id !== user.id) {
+    const followRecord = await prisma.follow.findUnique({
       where: {
-        followerId_followingId: { followerId: session.user.id, followingId: user.id },
-      },
+        followerId_followingId: {
+          followerId: session.user.id,
+          followingId: user.id,
+        }
+      }
     });
-    isFollowing = !!follow;
+    isFollowing = !!followRecord;
   }
 
-  // Stats
-  const gamesPlayed = user.userGames.length;
+  const isOwnProfile = session?.user?.username === user.username;
+  const gamesPlayed = user.userGames.filter((g) => ['COMPLETED', 'PLAYING', 'DROPPED'].includes(g.status)).length;
   const gamesCompleted = user.userGames.filter((g) => g.status === 'COMPLETED').length;
   const ratingsGiven = user.userGames.filter((g) => g.rating).length;
   const avgRating = ratingsGiven > 0
@@ -86,15 +89,29 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         {/* Banner */}
         <div style={{
           height: '280px',
-          background: user.bannerImage
-            ? `linear-gradient(to bottom, rgba(13, 13, 26, 0.2), var(--bg-background)), url(${user.bannerImage}) center/cover`
-            : 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, rgba(0, 229, 160, 0.15) 100%)',
           marginTop: 'var(--navbar-height)',
           position: 'relative',
+          overflow: 'hidden',
+          backgroundColor: 'var(--bg-surface)'
         }}>
-          {!user.bannerImage && (
-            <div style={{ position: 'absolute', inset: 0, background: 'url(/noise.png)', opacity: 0.05, mixBlendMode: 'overlay' }} />
+          {user.bannerImage ? (
+            <img 
+              src={user.bannerImage} 
+              alt="Profile Banner" 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, rgba(0, 229, 160, 0.15) 100%)' }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'url(/noise.png)', opacity: 0.05, mixBlendMode: 'overlay' }} />
+            </div>
           )}
+          {/* Dark gradient overlay so text is readable */}
+          <div style={{ 
+            position: 'absolute', 
+            inset: 0, 
+            background: 'linear-gradient(to bottom, rgba(13, 13, 26, 0.2) 0%, var(--bg-background) 100%)', 
+            pointerEvents: 'none' 
+          }} />
         </div>
 
         <div className="container" style={{ marginTop: '-100px', position: 'relative', zIndex: 2 }}>
@@ -124,9 +141,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: '4px' }}>
                 {user.name || user.username}
               </h1>
-              <p style={{ color: 'var(--accent-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: 'var(--space-sm)' }}>
-                @{user.username}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-sm)' }}>
+                <p style={{ color: 'var(--accent-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', margin: 0 }}>
+                  @{user.username}
+                </p>
+              </div>
               {user.bio && <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)', maxWidth: '600px', lineHeight: 'var(--leading-relaxed)' }}>{user.bio}</p>}
               <div style={{ display: 'flex', gap: 'var(--space-xl)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-md)' }}>
                 <span style={{ display: 'flex', flexDirection: 'column' }}>
@@ -152,11 +171,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               </div>
             </div>
             <div style={{ alignSelf: 'flex-start' }}>
-              {!isOwnProfile && session ? (
-                <FollowButton targetUserId={user.id} initialFollowing={isFollowing} />
-              ) : isOwnProfile ? (
+              {!isOwnProfile && (
+                <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn={!!session?.user} />
+              )}
+              {isOwnProfile && (
                 <EditProfileWrapper user={{ name: user.name, bio: user.bio, image: user.image, bannerImage: user.bannerImage }} />
-              ) : null}
+              )}
             </div>
           </div>
 

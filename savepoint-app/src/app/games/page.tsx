@@ -7,6 +7,7 @@ import { GamepadIcon } from '@/components/ui/Icons';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import LiveSearch from '@/components/ui/LiveSearch';
 import RecommendedGames from '@/components/ui/RecommendedGames';
+import GamesHeroCarousel from '@/components/ui/GamesHeroCarousel';
 
 export const metadata = {
   title: 'Browse Games — Savepoint',
@@ -40,8 +41,20 @@ export default async function GamesPage({
   }
 
   let games: IGDBGame[] = [];
+  let heroGames: IGDBGame[] = [];
   try {
-    games = await fetchIGDB('games', query);
+    const [gamesRes, heroRes] = await Promise.all([
+      fetchIGDB('games', query),
+      fetchIGDB('games', `
+        fields name, slug, summary, total_rating, artworks.image_id, cover.image_id;
+        where artworks != null & total_rating_count > 1000 & rating > 85;
+        sort total_rating_count desc;
+        limit 30;
+      `)
+    ]);
+    games = gamesRes;
+    // Shuffle the top 30 games and pick 10 random ones for the carousel
+    heroGames = heroRes.sort(() => 0.5 - Math.random()).slice(0, 10);
   } catch (err) {
     console.error('Failed to fetch from IGDB:', err);
   }
@@ -49,9 +62,14 @@ export default async function GamesPage({
   return (
     <SessionProvider>
       <Navbar />
-      <main className="main-content" style={{ padding: 'var(--space-xl)', paddingTop: 'calc(var(--navbar-height) + var(--space-xl))' }}>
+      <main className="main-content" style={{ padding: 'var(--space-xl)', paddingTop: 'var(--navbar-height)' }}>
+        
+        {!q && heroGames.length > 0 && (
+          <GamesHeroCarousel games={heroGames} />
+        )}
+
         <div className="container container-wide">
-          <h1 className="page-title font-display">Discover</h1>
+          <h1 className="page-title font-display" style={{ marginTop: q ? 'var(--space-xl)' : 0 }}>Discover</h1>
 
           {!q && (
             <Suspense fallback={

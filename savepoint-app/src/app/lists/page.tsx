@@ -6,27 +6,50 @@ import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import SessionProvider from '@/components/SessionProvider';
 import ListForm from './ListForm';
-import { ListIcon, GamepadIcon, LockIcon } from '@/components/ui/Icons';
+import { ListIcon, GamepadIcon, LockIcon, HeartIcon } from '@/components/ui/Icons';
 
 export const metadata = { title: 'My Lists — Savepoint' };
 
 export default async function ListsPage() {
   const session = await auth();
   if (!session) redirect('/login');
-  if ((session.user as any).onboarded === false) redirect('/onboarding');
+  if ((session.user as any).onboarded === false) {
+    const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (!dbUser?.onboarded) redirect('/onboarding');
+  }
 
-  const lists = await prisma.list.findMany({
-    where: { userId: session.user.id },
-    include: {
-      items: {
-        include: { game: true },
-        orderBy: { order: 'asc' },
-        take: 6,
+  const [lists, favoriteGames] = await Promise.all([
+    prisma.list.findMany({
+      where: { userId: session.user.id },
+      include: {
+        items: {
+          include: { game: true },
+          orderBy: { order: 'asc' },
+          take: 6,
+        },
+        _count: { select: { items: true } },
       },
-      _count: { select: { items: true } },
-    },
-    orderBy: { updatedAt: 'desc' },
-  });
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.favoriteGame.findMany({
+      where: { userId: session.user.id },
+      include: { game: true },
+      orderBy: { order: 'asc' },
+    })
+  ]);
+
+  // Construct a pseudo-list for Favorites to render it seamlessly
+  const favoritesList = favoriteGames.length > 0 ? {
+    id: 'favorites',
+    title: 'Favorite Games',
+    description: 'Games you have marked as your all-time favorites.',
+    visibility: 'PUBLIC',
+    items: favoriteGames,
+    _count: { items: favoriteGames.length },
+    isSpecial: true,
+  } : null;
+
+  const allLists = favoritesList ? [favoritesList, ...lists] : lists;
 
   return (
     <SessionProvider>
@@ -41,18 +64,18 @@ export default async function ListsPage() {
           <ListForm />
         </div>
 
-        {lists.length === 0 ? (
+        {allLists.length === 0 ? (
           <div className="empty-state card">
             <div className="empty-state-icon"><ListIcon size={48} color="var(--text-muted)" /></div>
             <div className="empty-state-title">No lists yet</div>
-            <div className="empty-state-text">Create your first list to curate and share your favorite games.</div>
+            <div className="empty-state-text">Create your first list or favorite a game to curate and share your games.</div>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 'var(--space-xl)' }}>
-            {lists.map((list) => (
+            {allLists.map((list) => (
               <Link
                 key={list.id}
-                href={`/lists/${list.id}`}
+                href={list.id === 'favorites' ? `/profile/${session.user.username}` : `/lists/${list.id}`}
                 className="card card-interactive"
                 style={{ textDecoration: 'none', color: 'inherit', overflow: 'hidden', padding: 0 }}
               >
@@ -86,7 +109,8 @@ export default async function ListsPage() {
                   }} />
                   {/* Content positioned over mosaic */}
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 'var(--space-lg)', zIndex: 2 }}>
-                    <h3 style={{ fontSize: 'var(--text-xl)', fontWeight: 800, marginBottom: 'var(--space-xs)', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', fontSize: 'var(--text-xl)', fontWeight: 800, marginBottom: 'var(--space-xs)', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                      {(list as any).isSpecial && <HeartIcon size={20} filled color="var(--accent-primary)" />}
                       {list.title}
                     </h3>
                     <div style={{ display: 'flex', gap: 'var(--space-md)', fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.7)', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
