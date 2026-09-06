@@ -23,21 +23,23 @@ export async function followUser(targetUserId: string) {
     });
 
     // Create Notification
-    await prisma.notification.create({
-      data: {
-        userId: targetUserId,
-        type: 'FOLLOW',
-        sourceId: session.user.id,
-      },
-    });
-
-    const targetUser = await prisma.user.findUnique({
+    const target = await prisma.user.findUnique({
       where: { id: targetUserId },
-      select: { username: true }
+      select: { username: true, notifyOnFollow: true },
     });
 
-    if (targetUser) {
-      revalidatePath(`/profile/${targetUser.username}`);
+    if (target?.notifyOnFollow !== false) {
+      await prisma.notification.create({
+        data: {
+          userId: targetUserId,
+          type: 'FOLLOW',
+          sourceId: session.user.id,
+        },
+      });
+    }
+
+    if (target) {
+      revalidatePath(`/profile/${target.username}`);
     }
     
     revalidatePath(`/profile/${session.user.username}`);

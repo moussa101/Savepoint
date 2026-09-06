@@ -8,6 +8,8 @@ import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import ListGameManager from './ListGameManager';
 import ListLikeButton from './ListLikeButton';
+import ListControls from './ListControls';
+import ReportButton from '@/components/ui/ReportButton';
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,7 +18,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const list = await prisma.list.findUnique({
     where: { id },
     include: {
-      user: { select: { username: true, name: true, image: true } },
+      user: { select: { id: true, username: true, name: true, image: true } },
       items: {
         include: { game: { include: { genres: true } } },
         orderBy: { order: 'asc' },
@@ -35,16 +37,6 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
 
   const isOwner = list.userId === session?.user?.id;
 
-  // Get all games for add-to-list
-  const allGames = isOwner
-    ? await prisma.game.findMany({
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true },
-      })
-    : [];
-
-  const existingGameIds = list.items.map((item) => item.gameId);
-
   return (
     <SessionProvider>
       <Navbar />
@@ -56,11 +48,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             </Link>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-lg)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-lg)', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
             <div>
               <h1 className="page-title font-display">{list.title}</h1>
               {list.description && <p className="page-subtitle">{list.description}</p>}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginTop: 'var(--space-md)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}>
                 <Link href={`/profile/${list.user.username}`} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
                   <div className="avatar avatar-sm">
                     {list.user.image ? <img src={list.user.image} alt="" /> : (list.user.name || list.user.username).charAt(0).toUpperCase()}
@@ -72,18 +64,23 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
                   {list.visibility === 'PUBLIC' ? 'Public' : <><LockIcon size={12} /> Private</>}
                 </span>
               </div>
-              <div style={{ marginTop: 'var(--space-md)' }}>
-                <ListLikeButton 
-                  listId={list.id} 
-                  initialLiked={list.likes ? list.likes.length > 0 : false} 
-                  initialLikeCount={list._count.likes} 
-                  isLoggedIn={!!session} 
+              <div style={{ marginTop: 'var(--space-md)', display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', flexWrap: 'wrap' }}>
+                <ListLikeButton
+                  listId={list.id}
+                  initialLiked={list.likes ? list.likes.length > 0 : false}
+                  initialLikeCount={list._count.likes}
+                  isLoggedIn={!!session}
                 />
+                {!isOwner && session?.user && (
+                  <ReportButton targetType="LIST" targetId={list.id} reportedUserId={list.user.id} />
+                )}
               </div>
             </div>
+            {isOwner && (
+              <ListControls list={{ id: list.id, title: list.title, description: list.description, visibility: list.visibility }} />
+            )}
           </div>
 
-          {/* Games in list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             {list.items.map((item, index) => (
               <div key={item.id} className="card" style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
@@ -116,11 +113,14 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             ))}
           </div>
 
-          {/* Add game (owner only) */}
           {isOwner && (
             <ListGameManager
               listId={list.id}
-              games={allGames.filter((g) => !existingGameIds.includes(g.id))}
+              items={list.items.map((item) => ({
+                id: item.id,
+                gameId: item.gameId,
+                game: item.game,
+              }))}
             />
           )}
         </div>

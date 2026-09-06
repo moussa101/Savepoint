@@ -11,6 +11,8 @@ import GamesHeroCarousel from '@/components/ui/GamesHeroCarousel';
 import GameFilters from '@/components/ui/GameFilters';
 import { getPopularLists } from '@/app/actions/lists';
 import ListCard from '@/components/ui/ListCard';
+import { prisma } from '@/lib/db';
+import { formatRelativeTime } from '@/lib/utils';
 
 export const metadata = {
   title: 'Discover Games — Savepoint',
@@ -79,9 +81,10 @@ export default async function GamesPage({
   let games: IGDBGame[] = [];
   let heroGames: IGDBGame[] = [];
   let popularLists: any[] = [];
+  let recentReviews: Awaited<ReturnType<typeof prisma.review.findMany>> = [];
   
   try {
-    const [gamesRes, heroRes, listsRes] = await Promise.all([
+    const [gamesRes, heroRes, listsRes, reviewsRes] = await Promise.all([
       fetchIGDB('games', query),
       fetchIGDB('games', `
         fields name, slug, summary, total_rating, artworks.image_id, cover.image_id;
@@ -90,11 +93,20 @@ export default async function GamesPage({
         limit 30;
       `),
       getPopularLists(),
+      prisma.review.findMany({
+        include: {
+          game: { select: { name: true, slug: true, coverImage: true } },
+          user: { select: { username: true, name: true, image: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      }),
     ]);
     games = gamesRes;
     // Shuffle the top 30 games and pick 10 random ones for the carousel
     heroGames = heroRes.sort(() => 0.5 - Math.random()).slice(0, 10);
     popularLists = listsRes;
+    recentReviews = reviewsRes;
   } catch (err) {
     console.error('Failed to fetch from IGDB:', err);
   }
@@ -157,6 +169,31 @@ export default async function GamesPage({
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-xl)' }}>
                     {popularLists.map(list => (
                       <ListCard key={list.id} list={list} showAuthor={true} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!q && recentReviews.length > 0 && (
+                <div style={{ marginBottom: 'var(--space-2xl)' }}>
+                  <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-md)' }}>Recently Reviewed</h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                    {recentReviews.map((review) => (
+                      <Link key={review.id} href={`/games/${review.game.slug}`} className="card" style={{ display: 'flex', gap: 'var(--space-md)', textDecoration: 'none', color: 'inherit' }}>
+                        <div className="game-cover" style={{ width: 48, height: 64, flexShrink: 0 }}>
+                          {review.game.coverImage && <img src={review.game.coverImage} alt="" />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700 }}>{review.game.name}</div>
+                          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 4 }}>
+                            by {review.user.name || review.user.username} · {formatRelativeTime(review.createdAt)}
+                          </div>
+                          <StarRating rating={review.rating} size="sm" />
+                          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {review.text}
+                          </p>
+                        </div>
+                      </Link>
                     ))}
                   </div>
                 </div>

@@ -1,0 +1,104 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import { createReport } from '@/app/actions/reports';
+import { AlertTriangleIcon, XIcon } from '@/components/ui/Icons';
+
+const REASONS = [
+  { value: 'SPAM', label: 'Spam' },
+  { value: 'HARASSMENT', label: 'Harassment' },
+  { value: 'HATE_SPEECH', label: 'Hate speech' },
+  { value: 'SEXUAL_CONTENT', label: 'Sexual content' },
+  { value: 'COPYRIGHT', label: 'Copyright infringement' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+interface ReportButtonProps {
+  targetType: 'REVIEW' | 'COMMENT' | 'PROFILE' | 'LIST';
+  targetId: string;
+  reportedUserId?: string;
+  label?: string;
+}
+
+export default function ReportButton({ targetType, targetId, reportedUserId, label = 'Report' }: ReportButtonProps) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('SPAM');
+  const [details, setDetails] = useState('');
+  const [message, setMessage] = useState('');
+  const [isPending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    startTransition(async () => {
+      const result = await createReport({
+        targetType,
+        targetId,
+        reason,
+        details,
+        reportedUserId,
+      });
+      if (result.success) {
+        setMessage('Report submitted. Thanks for helping keep Savepoint safe.');
+        setTimeout(() => {
+          setOpen(false);
+          setMessage('');
+          setDetails('');
+        }, 1200);
+      } else {
+        setMessage(result.error || 'Failed to submit report');
+      }
+    });
+  }
+
+  return (
+    <>
+      <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)} style={{ color: 'var(--text-muted)' }}>
+        <AlertTriangleIcon size={14} /> {label}
+      </button>
+
+      {open && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
+          <div className="modal animate-slide-up">
+            <div className="modal-header">
+              <h2 className="font-display" style={{ fontWeight: 700 }}>Report content</h2>
+              <button className="btn btn-ghost btn-icon" onClick={() => setOpen(false)}><XIcon size={18} /></button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Reason</label>
+                  <select className="input" value={reason} onChange={(e) => setReason(e.target.value)}>
+                    {REASONS.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Details (optional)</label>
+                  <textarea
+                    className="textarea"
+                    value={details}
+                    onChange={(e) => setDetails(e.target.value)}
+                    placeholder="Add any context that helps moderators"
+                    style={{ minHeight: '90px' }}
+                  />
+                </div>
+                {message && (
+                  <p style={{ fontSize: 'var(--text-sm)', color: message.includes('Thanks') ? 'var(--status-completed)' : 'var(--danger)' }}>
+                    {message}
+                  </p>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={isPending}>
+                  {isPending ? 'Submitting...' : 'Submit Report'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

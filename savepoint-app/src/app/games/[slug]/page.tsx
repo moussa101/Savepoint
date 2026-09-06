@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
@@ -96,7 +97,9 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
             },
             comments: {
               include: {
-                user: { select: { id: true, username: true, name: true, image: true } }
+                user: { select: { id: true, username: true, name: true, image: true } },
+                likes: true,
+                _count: { select: { likes: true } },
               },
               orderBy: { createdAt: 'asc' }
             },
@@ -104,6 +107,27 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
           },
           orderBy: { createdAt: 'desc' },
           take: 10,
+        },
+        listItems: {
+          where: { list: { visibility: 'PUBLIC' } },
+          include: {
+            list: {
+              select: {
+                id: true,
+                title: true,
+                user: { select: { username: true, name: true } },
+                _count: { select: { items: true } },
+              },
+            },
+          },
+          take: 6,
+        },
+        userGames: {
+          include: {
+            user: { select: { id: true, username: true, name: true, image: true } },
+          },
+          take: 12,
+          orderBy: { updatedAt: 'desc' },
         },
         _count: { select: { reviews: true, userGames: true } },
       },
@@ -123,13 +147,36 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
             },
             comments: {
               include: {
-                user: { select: { id: true, username: true, name: true, image: true } }
+                user: { select: { id: true, username: true, name: true, image: true } },
+                likes: true,
+                _count: { select: { likes: true } },
               },
               orderBy: { createdAt: 'asc' }
             },
             _count: { select: { comments: true } },
           },
           orderBy: { createdAt: 'desc' },
+        },
+        listItems: {
+          where: { list: { visibility: 'PUBLIC' } },
+          include: {
+            list: {
+              select: {
+                id: true,
+                title: true,
+                user: { select: { username: true, name: true } },
+                _count: { select: { items: true } },
+              },
+            },
+          },
+          take: 6,
+        },
+        userGames: {
+          include: {
+            user: { select: { id: true, username: true, name: true, image: true } },
+          },
+          take: 12,
+          orderBy: { updatedAt: 'desc' },
         },
         _count: { select: { reviews: true, userGames: true } },
       }
@@ -282,6 +329,47 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
             </div>
           )}
 
+          {/* Lists containing this game */}
+          {game.listItems.length > 0 && (
+            <div className="card" style={{ marginTop: 'var(--space-xl)' }}>
+              <h2 className="font-display" style={{ fontSize: 'var(--text-xl)', fontWeight: 700, marginBottom: 'var(--space-md)' }}>
+                Lists featuring this game
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                {game.listItems.map((item) => (
+                  <Link key={item.list.id} href={`/lists/${item.list.id}`} style={{ display: 'flex', justifyContent: 'space-between', textDecoration: 'none', color: 'inherit', padding: 'var(--space-sm) 0', borderBottom: '1px solid var(--bg-surface-border)' }}>
+                    <span style={{ fontWeight: 600 }}>{item.list.title}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+                      by {item.list.user.name || item.list.user.username} · {item.list._count.items} games
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Users who played */}
+          {game.userGames.length > 0 && (
+            <div className="card" style={{ marginTop: 'var(--space-xl)' }}>
+              <h2 className="font-display" style={{ fontSize: 'var(--text-xl)', fontWeight: 700, marginBottom: 'var(--space-md)' }}>
+                Players on Savepoint
+              </h2>
+              <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+                {game.userGames.map((ug) => (
+                  <Link key={ug.id} href={`/profile/${ug.user.username}`} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', textDecoration: 'none', color: 'inherit' }}>
+                    <div className="avatar avatar-sm">
+                      {ug.user.image ? <img src={ug.user.image} alt="" /> : (ug.user.name || ug.user.username).charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{ug.user.name || ug.user.username}</div>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{ug.status.replaceAll('_', ' ')}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Reviews */}
           <ReviewSection
             gameId={game.id}
@@ -293,6 +381,15 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
               commentCount: r._count.comments,
               isLiked: session?.user?.id ? r.likes.some((l) => l.userId === session.user.id) : false,
               isOwn: r.userId === session?.user?.id,
+              comments: r.comments.map((c) => ({
+                id: c.id,
+                text: c.text,
+                createdAt: c.createdAt.toISOString(),
+                userId: c.userId,
+                likeCount: c._count.likes,
+                likedByMe: session?.user?.id ? c.likes.some((l) => l.userId === session.user.id) : false,
+                user: c.user,
+              })),
             }))}
             isLoggedIn={!!session}
             currentUserId={session?.user?.id || null}

@@ -364,7 +364,7 @@ export async function toggleReviewLike(reviewId: string) {
 
   if (existing) {
     await prisma.reviewLike.delete({ where: { id: existing.id } });
-    
+
     // Delete the notification
     const review = await prisma.review.findUnique({ where: { id: reviewId } });
     if (review && review.userId !== session.user.id) {
@@ -378,6 +378,14 @@ export async function toggleReviewLike(reviewId: string) {
       });
     }
   } else {
+    const review = await prisma.review.findUnique({ where: { id: reviewId } });
+    if (!review) {
+      return { error: 'Review not found' };
+    }
+    if (review.userId === session.user.id) {
+      return { error: 'You cannot like your own review' };
+    }
+
     await prisma.reviewLike.create({
       data: {
         userId: session.user.id,
@@ -386,8 +394,11 @@ export async function toggleReviewLike(reviewId: string) {
     });
 
     // Create a notification
-    const review = await prisma.review.findUnique({ where: { id: reviewId } });
-    if (review && review.userId !== session.user.id) {
+    const owner = await prisma.user.findUnique({
+      where: { id: review.userId },
+      select: { notifyOnReviewLike: true },
+    });
+    if (owner?.notifyOnReviewLike !== false) {
       await prisma.notification.create({
         data: {
           userId: review.userId,
@@ -510,9 +521,90 @@ export async function removeGameFromList(listId: string, gameId: string) {
     return { error: 'Not authenticated' };
   }
 
+  const list = await prisma.list.findUnique({ where: { id: listId } });
+  if (!list || list.userId !== session.user.id) {
+    return { error: 'Not authorized' };
+  }
+
   await prisma.listItem.deleteMany({
     where: { listId, gameId },
   });
+
+  revalidatePath(`/lists/${listId}`);
+  return { success: true };
+}
+
+export async function updateList(listId: string, formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: 'Not authenticated' };
+  }
+
+  const list = await prisma.list.findUnique({ where: { id: listId } });
+  if (!list || list.userId !== session.user.id) {
+    return { error: 'Not authorized' };
+  }
+
+  const title = (formData.get('title') as string)?.trim();
+  const description = (formData.get('description') as string)?.trim() || null;
+  const visibility = (formData.get('visibility') as string) || list.visibility;
+
+  if (!title) {
+    return { error: 'List title is required' };
+  }
+
+  if (!['PUBLIC', 'PRIVATE'].includes(visibility)) {
+    return { error: 'Invalid visibility' };
+  }
+
+  await prisma.list.update({
+    where: { id: listId },
+    data: { title, description, visibility },
+  });
+
+  revalidatePath('/lists');
+  revalidatePath(`/lists/${listId}`);
+  revalidatePath(`/profile/${session.user.username}`);
+  return { success: true };
+}
+
+export async function deleteList(listId: string) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: 'Not authenticated' };
+  }
+
+  const list = await prisma.list.findUnique({ where: { id: listId } });
+  if (!list || list.userId !== session.user.id) {
+    return { error: 'Not authorized' };
+  }
+
+  await prisma.list.delete({ where: { id: listId } });
+
+  revalidatePath('/lists');
+  revalidatePath(`/profile/${session.user.username}`);
+  return { success: true };
+}
+
+export async function reorderListItems(listId: string, orderedGameIds: string[]) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: 'Not authenticated' };
+  }
+
+  const list = await prisma.list.findUnique({ where: { id: listId } });
+  if (!list || list.userId !== session.user.id) {
+    return { error: 'Not authorized' };
+  }
+
+  await prisma.$transaction(
+    orderedGameIds.map((gameId, index) =>
+      prisma.listItem.updateMany({
+        where: { listId, gameId },
+        data: { order: index },
+      })
+    )
+  );
 
   revalidatePath(`/lists/${listId}`);
   return { success: true };
@@ -586,14 +678,20 @@ export async function createComment(reviewId: string, text: string) {
 
   if (review) {
     if (review.userId !== session.user.id) {
-      await prisma.notification.create({
-        data: {
-          userId: review.userId,
-          type: 'COMMENT',
-          sourceId: session.user.id,
-          reviewId,
-        }
+      const owner = await prisma.user.findUnique({
+        where: { id: review.userId },
+        select: { notifyOnComment: true },
       });
+      if (owner?.notifyOnComment !== false) {
+        await prisma.notification.create({
+          data: {
+            userId: review.userId,
+            type: 'COMMENT',
+            sourceId: session.user.id,
+            reviewId,
+          }
+        });
+      }
     }
     revalidatePath(`/games/${review.gameId}`);
   }

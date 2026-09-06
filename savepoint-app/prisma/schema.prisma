@@ -92,8 +92,15 @@ model User {
   isBanned      Boolean   @default(false)
   bannedReason  String?
   lastIp        String?
+  isPrivate     Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  // Notification preferences
+  notifyOnFollow     Boolean @default(true)
+  notifyOnReviewLike Boolean @default(true)
+  notifyOnComment    Boolean @default(true)
+  notifyOnListLike   Boolean @default(true)
 
   // Gamification
   xp            Int       @default(0)
@@ -108,6 +115,7 @@ model User {
   lists        List[]
   diaryEntries DiaryEntry[]
   comments     Comment[]
+  commentLikes CommentLike[]
   listLikes    ListLike[]
 
   // Social
@@ -131,6 +139,10 @@ model User {
 
   // Gamification
   badges           UserBadge[]
+
+  // Moderation
+  reportsFiled    Report[] @relation("Reporter")
+  reportsReceived Report[] @relation("ReportedUser")
 }
 
 model ImageUploadLog {
@@ -444,10 +456,43 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review Review        @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  likes  CommentLike[]
 
   @@index([reviewId])
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId])
+}
+
+model Report {
+  id             String   @id @default(cuid())
+  reporterId     String
+  reportedUserId String?
+  targetType     String   // REVIEW, COMMENT, PROFILE, LIST
+  targetId       String
+  reason         String   // SPAM, HARASSMENT, HATE_SPEECH, SEXUAL_CONTENT, COPYRIGHT, OTHER
+  details        String?
+  status         String   @default("OPEN") // OPEN, RESOLVED, DISMISSED
+  createdAt      DateTime @default(now())
+
+  reporter     User  @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User? @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@index([reporterId])
 }
 
 // ============================================

@@ -55,7 +55,12 @@ export default async function FeedPage() {
       list: { include: { items: { include: { game: true }, take: 4 } } },
       favorite: { include: { game: true } },
       _count: { select: { likes: true, comments: true } },
-      likes: { where: { userId: session.user.id } }
+      likes: { where: { userId: session.user.id } },
+      comments: {
+        include: { user: { select: { id: true, username: true, name: true, image: true } } },
+        orderBy: { createdAt: 'asc' },
+        take: 20,
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: 20,
@@ -82,8 +87,22 @@ export default async function FeedPage() {
               activities.map((item, i) => {
                 const user = item.user;
                 const likesCount = item._count.likes;
-                const commentsCount = item._count.comments;
                 const hasLiked = item.likes.length > 0;
+                const activityComments = item.comments.map((c) => ({
+                  ...c,
+                  userId: c.userId,
+                }));
+
+                const actionBar = (
+                  <ActivityActionBar
+                    activityId={item.id}
+                    initialLikes={likesCount}
+                    initialHasLiked={hasLiked}
+                    comments={activityComments}
+                    isLoggedIn={true}
+                    currentUserId={session.user.id}
+                  />
+                );
 
                 if (item.type === 'REVIEW' && item.review) {
                   const d = item.review;
@@ -122,13 +141,7 @@ export default async function FeedPage() {
                           </Link>
                         )}
                       </div>
-                      <ActivityActionBar 
-                        activityId={item.id} 
-                        initialLikes={likesCount} 
-                        initialHasLiked={hasLiked} 
-                        commentsCount={commentsCount} 
-                        isLoggedIn={true} 
-                      />
+                      {actionBar}
                     </div>
                   );
                 }
@@ -175,13 +188,7 @@ export default async function FeedPage() {
                           </Link>
                         )}
                       </div>
-                      <ActivityActionBar 
-                        activityId={item.id} 
-                        initialLikes={likesCount} 
-                        initialHasLiked={hasLiked} 
-                        commentsCount={commentsCount} 
-                        isLoggedIn={true} 
-                      />
+                      {actionBar}
                     </div>
                   );
                 }
@@ -219,13 +226,7 @@ export default async function FeedPage() {
                           </div>
                         </div>
                       </div>
-                      <ActivityActionBar 
-                        activityId={item.id} 
-                        initialLikes={likesCount} 
-                        initialHasLiked={hasLiked} 
-                        commentsCount={commentsCount} 
-                        isLoggedIn={true} 
-                      />
+                      {actionBar}
                     </div>
                   );
                 }
@@ -264,13 +265,7 @@ export default async function FeedPage() {
                           </Link>
                         )}
                       </div>
-                      <ActivityActionBar 
-                        activityId={item.id} 
-                        initialLikes={likesCount} 
-                        initialHasLiked={hasLiked} 
-                        commentsCount={commentsCount} 
-                        isLoggedIn={true} 
-                      />
+                      {actionBar}
                     </div>
                   );
                 }

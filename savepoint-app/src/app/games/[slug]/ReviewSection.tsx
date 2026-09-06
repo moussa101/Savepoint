@@ -6,6 +6,7 @@ import { createReview, deleteReview, toggleReviewLike, updateReview } from '@/ap
 import { formatRelativeTime } from '@/lib/utils';
 import { EditIcon, PenToolIcon, HeartIcon, AlertTriangleIcon, TrashIcon } from '@/components/ui/Icons';
 import ReviewComments, { CommentData } from './ReviewComments';
+import ReportButton from '@/components/ui/ReportButton';
 
 interface ReviewData {
   id: string;
@@ -267,6 +268,11 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
                       >
                         <TrashIcon size={16} /> Delete
                       </button>
+                    </div>
+                  )}
+                  {!review.isOwn && isLoggedIn && (
+                    <div style={{ marginLeft: 'auto' }}>
+                      <ReportButton targetType="REVIEW" targetId={review.id} reportedUserId={review.userId} />
                     </div>
                   )}
                 </div>

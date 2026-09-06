@@ -7,15 +7,14 @@ import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import FollowButton from '@/components/ui/FollowButton';
 import EditProfileWrapper from '@/components/profile/EditProfileWrapper';
-import { STATUS_LABELS, STATUS_COLORS, formatRelativeTime } from '@/lib/utils';
+import ReportButton from '@/components/ui/ReportButton';
+import { STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
-import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon } from '@/components/ui/Icons';
+import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon, LockIcon, ListIcon } from '@/components/ui/Icons';
 import { calculateLevel, getTierFromLevel, BADGE_DEFINITIONS } from '@/lib/gamification';
-
 import { cache } from 'react';
 
 const getUser = cache(async (username: string) => {
-  // Fetch user and counts in one query
   const user = await prisma.user.findUnique({
     where: { username },
     include: {
@@ -29,6 +28,19 @@ const getUser = cache(async (username: string) => {
         orderBy: { createdAt: 'desc' },
         take: 5,
       },
+      lists: {
+        where: { visibility: 'PUBLIC' },
+        include: {
+          items: {
+            include: { game: { select: { coverImage: true } } },
+            orderBy: { order: 'asc' },
+            take: 4,
+          },
+          _count: { select: { items: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 6,
+      },
       _count: {
         select: { followers: true, following: true, reviews: true, lists: true },
       },
@@ -40,33 +52,49 @@ const getUser = cache(async (username: string) => {
 
   if (!user) return null;
 
-  // Fetch games data separately to avoid massive cartesian joins
-  const [userGamesStats, libraryGames, currentlyPlaying] = await Promise.all([
+  const [userGamesStats, libraryByStatus, currentlyPlaying, genreRows, platformRows] = await Promise.all([
     prisma.userGame.findMany({
       where: { userId: user.id },
-      select: { status: true, rating: true }
+      select: { status: true, rating: true, gameId: true }
     }),
     prisma.userGame.findMany({
       where: { userId: user.id },
       include: { game: true },
       orderBy: { updatedAt: 'desc' },
-      take: 12,
     }),
     prisma.userGame.findMany({
       where: { userId: user.id, status: 'PLAYING' },
       include: { game: true },
       orderBy: { updatedAt: 'desc' },
       take: 3,
-    })
+    }),
+    prisma.gameGenre.findMany({
+      where: { game: { userGames: { some: { userId: user.id } } } },
+      select: { genre: true },
+    }),
+    prisma.gamePlatform.findMany({
+      where: { game: { userGames: { some: { userId: user.id } } } },
+      select: { platform: true },
+    }),
   ]);
 
   return {
     ...user,
     userGamesStats,
-    libraryGames,
-    currentlyPlaying
+    libraryByStatus,
+    currentlyPlaying,
+    genreRows,
+    platformRows,
   };
 });
+
+function topCounts(items: string[], limit = 5) {
+  const map = new Map<string, number>();
+  for (const item of items) {
+    map.set(item, (map.get(item) || 0) + 1);
+  }
+  return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
@@ -78,12 +106,11 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
   const session = await auth();
-
   const user = await getUser(username);
-
   if (!user) notFound();
 
-  // Check if current user is following this profile
+  const isOwnProfile = session?.user?.id === user.id;
+
   let isFollowing = false;
   if (session?.user?.id && session.user.id !== user.id) {
     const followRecord = await prisma.follow.findUnique({
@@ -97,20 +124,74 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     isFollowing = !!followRecord;
   }
 
-  const isOwnProfile = session?.user?.username === user.username;
+  const canViewPrivate = isOwnProfile || !user.isPrivate || isFollowing;
+  if (!canViewPrivate) {
+    return (
+      <SessionProvider>
+        <Navbar />
+        <main className="main-content" style={{ paddingTop: 'calc(var(--navbar-height) + var(--space-3xl))' }}>
+          <div className="container" style={{ maxWidth: 560, textAlign: 'center' }}>
+            <LockIcon size={40} color="var(--text-muted)" />
+            <h1 className="font-display" style={{ fontSize: 'var(--text-3xl)', marginTop: 'var(--space-md)' }}>
+              @{user.username} is private
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
+              Follow this user to request access to their gaming profile.
+            </p>
+            {session?.user ? (
+              <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn />
+            ) : (
+              <Link href="/login" className="btn btn-primary">Sign in to follow</Link>
+            )}
+          </div>
+        </main>
+      </SessionProvider>
+    );
+  }
+
+  const ownLists = isOwnProfile
+    ? await prisma.list.findMany({
+        where: { userId: user.id },
+        include: {
+          items: {
+            include: { game: { select: { coverImage: true } } },
+            orderBy: { order: 'asc' },
+            take: 4,
+          },
+          _count: { select: { items: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 6,
+      })
+    : user.lists;
+
   const gamesPlayed = user.userGamesStats.filter((g) => ['COMPLETED', 'PLAYING', 'DROPPED'].includes(g.status)).length;
   const gamesCompleted = user.userGamesStats.filter((g) => g.status === 'COMPLETED').length;
-  const ratingsGiven = user.userGamesStats.filter((g) => g.rating).length;
-  const avgRating = ratingsGiven > 0
-    ? user.userGamesStats.reduce((sum, g) => sum + (g.rating || 0), 0) / ratingsGiven
+  const wantToPlay = user.libraryByStatus.filter((g) => g.status === 'WANT_TO_PLAY');
+  const playing = user.libraryByStatus.filter((g) => g.status === 'PLAYING');
+  const completed = user.libraryByStatus.filter((g) => g.status === 'COMPLETED');
+  const dropped = user.libraryByStatus.filter((g) => g.status === 'DROPPED');
+  const ratingsGiven = user.userGamesStats.filter((g) => g.rating);
+  const avgRating = ratingsGiven.length > 0
+    ? ratingsGiven.reduce((sum, g) => sum + (g.rating || 0), 0) / ratingsGiven.length
     : 0;
-  const currentlyPlaying = user.currentlyPlaying;
+  const topGenres = topCounts(user.genreRows.map((g) => g.genre));
+  const topPlatforms = topCounts(user.platformRows.map((p) => p.platform));
+  const favoriteDevelopers = topCounts(
+    user.libraryByStatus.map((ug) => ug.game.developer).filter((d): d is string => !!d)
+  );
+
+  const shelves: { key: GameStatus; title: string; items: typeof wantToPlay }[] = [
+    { key: 'PLAYING', title: 'Currently Playing', items: playing },
+    { key: 'WANT_TO_PLAY', title: 'Want to Play', items: wantToPlay },
+    { key: 'COMPLETED', title: 'Completed', items: completed },
+    { key: 'DROPPED', title: 'Dropped', items: dropped },
+  ];
 
   return (
     <SessionProvider>
       <Navbar />
       <main className="main-content">
-        {/* Banner */}
         <div style={{
           height: '280px',
           marginTop: 'var(--navbar-height)',
@@ -119,38 +200,30 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           backgroundColor: 'var(--bg-surface)'
         }}>
           {user.bannerImage ? (
-            <img 
-              src={user.bannerImage} 
-              alt="Profile Banner" 
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-            />
+            <img src={user.bannerImage} alt="Profile Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
-            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, rgba(0, 229, 160, 0.15) 100%)' }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'url(/noise.png)', opacity: 0.05, mixBlendMode: 'overlay' }} />
-            </div>
+            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, rgba(0, 229, 160, 0.15) 100%)' }} />
           )}
-          {/* Dark gradient overlay so text is readable */}
-          <div style={{ 
-            position: 'absolute', 
-            inset: 0, 
-            background: 'linear-gradient(to bottom, rgba(13, 13, 26, 0.2) 0%, var(--bg-background) 100%)', 
-            pointerEvents: 'none' 
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to bottom, rgba(13, 13, 26, 0.2) 0%, var(--bg-background) 100%)',
+            pointerEvents: 'none'
           }} />
         </div>
 
         <div className="container" style={{ marginTop: '-100px', position: 'relative', zIndex: 2 }}>
-          {/* Profile header - Glassmorphic Card */}
-          <div style={{ 
-            background: 'rgba(26, 26, 46, 0.65)', 
+          <div style={{
+            background: 'rgba(26, 26, 46, 0.65)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid rgba(255, 255, 255, 0.05)',
             borderRadius: 'var(--radius-xl)',
             padding: 'var(--space-xl)',
-            display: 'flex', 
-            gap: 'var(--space-xl)', 
-            alignItems: 'center', 
-            marginBottom: 'var(--space-2xl)', 
+            display: 'flex',
+            gap: 'var(--space-xl)',
+            alignItems: 'center',
+            marginBottom: 'var(--space-2xl)',
             flexWrap: 'wrap',
             boxShadow: '0 20px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}>
@@ -162,56 +235,55 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               )}
             </div>
             <div style={{ flex: 1, minWidth: '250px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
                 <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: '4px' }}>
                   {user.name || user.username}
                 </h1>
+                {user.isPrivate && <span className="badge"><LockIcon size={12} /> Private</span>}
                 {user.equippedBadge && (
                   <span className="badge" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-background)' }}>
                     {BADGE_DEFINITIONS.find(b => b.id === user.equippedBadge)?.name || user.equippedBadge}
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-sm)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-sm)', flexWrap: 'wrap' }}>
                 <p style={{ color: 'var(--accent-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', margin: 0 }}>
                   @{user.username}
                 </p>
-                <div style={{ display: 'flex', gap: 'var(--space-xs)', alignItems: 'center', fontSize: 'var(--text-xs)' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>•</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>Level {calculateLevel(user.xp)}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>•</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{getTierFromLevel(calculateLevel(user.xp))} Tier</span>
-                  <span style={{ color: 'var(--text-muted)' }}>•</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{user.xp} XP</span>
-                </div>
+                <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>
+                  Level {calculateLevel(user.xp)} · {getTierFromLevel(calculateLevel(user.xp))} · {user.xp} XP
+                </span>
               </div>
-              {user.bio && <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)', maxWidth: '600px', lineHeight: 'var(--leading-relaxed)' }}>{user.bio}</p>}
-              <div style={{ display: 'flex', gap: 'var(--space-xl)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-md)' }}>
+              {user.bio && <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)', maxWidth: '600px' }}>{user.bio}</p>}
+              <div style={{ display: 'flex', gap: 'var(--space-xl)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', flexDirection: 'column' }}>
-                  <strong style={{ fontSize: 'var(--text-lg)' }}>{gamesPlayed}</strong> 
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{gamesPlayed}</strong>
                   <span style={{ color: 'var(--text-muted)' }}>Games</span>
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column' }}>
-                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user.favoriteGames.length}</strong> 
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user.favoriteGames.length}</strong>
                   <span style={{ color: 'var(--text-muted)' }}>Favorites</span>
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column' }}>
-                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.reviews}</strong> 
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.reviews}</strong>
                   <span style={{ color: 'var(--text-muted)' }}>Reviews</span>
                 </span>
-                <span style={{ display: 'flex', flexDirection: 'column' }}>
-                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.following}</strong> 
+                <Link href={`/profile/${user.username}/following`} style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit' }}>
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.following}</strong>
                   <span style={{ color: 'var(--text-muted)' }}>Following</span>
-                </span>
-                <span style={{ display: 'flex', flexDirection: 'column' }}>
-                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.followers}</strong> 
+                </Link>
+                <Link href={`/profile/${user.username}/followers`} style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit' }}>
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.followers}</strong>
                   <span style={{ color: 'var(--text-muted)' }}>Followers</span>
-                </span>
+                </Link>
               </div>
             </div>
-            <div style={{ alignSelf: 'flex-start' }}>
+            <div style={{ alignSelf: 'flex-start', display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
               {!isOwnProfile && (
-                <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn={!!session?.user} />
+                <>
+                  <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn={!!session?.user} />
+                  {session?.user && <ReportButton targetType="PROFILE" targetId={user.id} reportedUserId={user.id} />}
+                </>
               )}
               {isOwnProfile && (
                 <EditProfileWrapper user={{ name: user.name, bio: user.bio, image: user.image, bannerImage: user.bannerImage }} />
@@ -219,11 +291,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             </div>
           </div>
 
-          {/* Currently Playing */}
-          {currentlyPlaying.length > 0 && (
-            <div className="card" style={{ marginBottom: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+          {user.currentlyPlaying.length > 0 && (
+            <div className="card" style={{ marginBottom: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Currently Playing:</span>
-              {currentlyPlaying.slice(0, 3).map((ug) => (
+              {user.currentlyPlaying.map((ug) => (
                 <Link key={ug.id} href={`/games/${ug.game.slug}`} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', textDecoration: 'none', color: 'inherit' }}>
                   <div className="game-cover" style={{ width: '32px', height: '43px' }}>
                     {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} />}
@@ -234,7 +305,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             </div>
           )}
 
-          {/* Favorite Games */}
           {user.favoriteGames.length > 0 && (
             <div style={{ marginBottom: 'var(--space-2xl)' }}>
               <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>Favorite Games</h2>
@@ -250,7 +320,104 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             </div>
           )}
 
-          {/* Trophy Cabinet (Badges) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-lg)', marginBottom: 'var(--space-3xl)' }}>
+            {[
+              { label: 'Games Played', value: gamesPlayed, icon: <GamepadIcon size={24} color="var(--accent-primary)" /> },
+              { label: 'Completed', value: gamesCompleted, icon: <CheckCircleIcon size={24} color="var(--accent-primary)" /> },
+              { label: 'Avg Rating', value: avgRating > 0 ? avgRating.toFixed(1) : '—', icon: <StarIcon size={24} color="var(--accent-primary)" /> },
+              { label: 'Reviews', value: user._count.reviews, icon: <EditIcon size={24} color="var(--accent-primary)" /> },
+            ].map((stat) => (
+              <div key={stat.label} className="card" style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
+                <div style={{ marginBottom: 'var(--space-sm)' }}>{stat.icon}</div>
+                <div className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 900 }}>{stat.value}</div>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', fontWeight: 600 }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {(topGenres.length > 0 || topPlatforms.length > 0 || favoriteDevelopers.length > 0) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-lg)', marginBottom: 'var(--space-3xl)' }}>
+              {topGenres.length > 0 && (
+                <div className="card">
+                  <h3 style={{ fontWeight: 700, marginBottom: 'var(--space-md)' }}>Top Genres</h3>
+                  {topGenres.map(([name, count]) => (
+                    <div key={name} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 'var(--text-sm)' }}>
+                      <span>{name}</span><span style={{ color: 'var(--text-muted)' }}>{count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {topPlatforms.length > 0 && (
+                <div className="card">
+                  <h3 style={{ fontWeight: 700, marginBottom: 'var(--space-md)' }}>Top Platforms</h3>
+                  {topPlatforms.map(([name, count]) => (
+                    <div key={name} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 'var(--text-sm)' }}>
+                      <span>{name}</span><span style={{ color: 'var(--text-muted)' }}>{count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {favoriteDevelopers.length > 0 && (
+                <div className="card">
+                  <h3 style={{ fontWeight: 700, marginBottom: 'var(--space-md)' }}>Favorite Developers</h3>
+                  {favoriteDevelopers.map(([name, count]) => (
+                    <div key={name} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 'var(--text-sm)' }}>
+                      <span>{name}</span><span style={{ color: 'var(--text-muted)' }}>{count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {shelves.map((shelf) => (
+            shelf.items.length > 0 ? (
+              <div key={shelf.key} style={{ marginBottom: 'var(--space-2xl)' }}>
+                <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>
+                  {shelf.title} <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-base)' }}>({shelf.items.length})</span>
+                </h2>
+                <div className="scroll-row">
+                  {shelf.items.slice(0, 12).map((ug) => (
+                    <Link key={ug.id} href={`/games/${ug.game.slug}`} style={{ textDecoration: 'none', color: 'inherit', width: 120 }}>
+                      <div className="game-cover" style={{ width: '120px', height: '160px', marginBottom: 8, position: 'relative' }}>
+                        {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} />}
+                        <span className={`badge badge-${STATUS_COLORS[ug.status as GameStatus]}`} style={{ position: 'absolute', bottom: 6, left: 6, fontSize: '0.6rem' }}>
+                          {STATUS_LABELS[ug.status as GameStatus]}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ug.game.name}</div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null
+          ))}
+
+          {ownLists.length > 0 && (
+            <div style={{ marginBottom: 'var(--space-2xl)' }}>
+              <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                <ListIcon size={22} /> Lists
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 'var(--space-md)' }}>
+                {ownLists.map((list) => (
+                  <Link key={list.id} href={`/lists/${list.id}`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 'var(--space-md)' }}>
+                      {list.items.slice(0, 4).map((item) => (
+                        <div key={item.id} className="game-cover" style={{ width: 48, height: 64, flex: 1 }}>
+                          {item.game.coverImage && <img src={item.game.coverImage} alt="" />}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontWeight: 700 }}>{list.title}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+                      {list._count.items} games{isOwnProfile && list.visibility === 'PRIVATE' ? ' · Private' : ''}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {user.badges.length > 0 && (
             <div style={{ marginBottom: 'var(--space-2xl)' }}>
               <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>Trophy Cabinet</h2>
@@ -259,11 +426,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                   const badgeDef = BADGE_DEFINITIONS.find(b => b.id === userBadge.badgeId);
                   if (!badgeDef) return null;
                   return (
-                    <div key={userBadge.badgeId} className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: 'var(--space-lg)' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(0, 229, 160, 0.1)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 'var(--space-md)' }}>
-                        <StarIcon size={24} />
-                      </div>
-                      <h3 style={{ fontSize: 'var(--text-md)', fontWeight: 700, marginBottom: 'var(--space-xs)' }}>{badgeDef.name}</h3>
+                    <div key={userBadge.badgeId} className="card" style={{ textAlign: 'center', padding: 'var(--space-lg)' }}>
+                      <StarIcon size={24} color="var(--accent-primary)" />
+                      <h3 style={{ fontSize: 'var(--text-md)', fontWeight: 700, marginTop: 'var(--space-md)' }}>{badgeDef.name}</h3>
                       <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{badgeDef.description}</p>
                     </div>
                   );
@@ -272,54 +437,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             </div>
           )}
 
-          {/* Stats Card */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-lg)', marginBottom: 'var(--space-3xl)' }}>
-            {[
-              { label: 'Games Played', value: gamesPlayed, icon: <GamepadIcon size={24} color="var(--accent-primary)" /> },
-              { label: 'Completed', value: gamesCompleted, icon: <CheckCircleIcon size={24} color="var(--accent-primary)" /> },
-              { label: 'Avg Rating', value: avgRating > 0 ? avgRating.toFixed(1) : '—', icon: <StarIcon size={24} color="var(--accent-primary)" /> },
-              { label: 'Reviews', value: user._count.reviews, icon: <EditIcon size={24} color="var(--accent-primary)" /> },
-            ].map((stat) => (
-              <div key={stat.label} className="card card-interactive" style={{ textAlign: 'center', padding: 'var(--space-xl)', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'linear-gradient(180deg, rgba(26, 26, 46, 0.4) 0%, rgba(13, 13, 26, 0.6) 100%)', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
-                <div style={{ marginBottom: 'var(--space-sm)', width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(0, 229, 160, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{stat.icon}</div>
-                <div className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 900, marginBottom: '4px' }}>{stat.value}</div>
-                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Library */}
-          <div style={{ marginBottom: 'var(--space-2xl)' }}>
-            <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>Library</h2>
-            {user.libraryGames.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon"><GamepadIcon size={48} color="var(--text-muted)" /></div>
-                <div className="empty-state-title">No games in library</div>
-              </div>
-            ) : (
-              <div className="game-grid">
-                {user.libraryGames.map((ug) => (
-                  <Link key={ug.id} href={`/games/${ug.game.slug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="game-cover" style={{ marginBottom: 'var(--space-sm)', position: 'relative' }}>
-                      {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} />}
-                      <span
-                        className={`badge badge-${STATUS_COLORS[ug.status as GameStatus]}`}
-                        style={{ position: 'absolute', bottom: '8px', left: '8px' }}
-                      >
-                        {STATUS_LABELS[ug.status as GameStatus]}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {ug.game.name}
-                    </div>
-                    {ug.rating && <StarRating rating={ug.rating} size="sm" />}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Recent Reviews */}
           {user.reviews.length > 0 && (
             <div style={{ marginBottom: 'var(--space-2xl)' }}>
               <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>Recent Reviews</h2>
@@ -333,13 +450,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                         </div>
                       </Link>
                       <div style={{ flex: 1 }}>
-                        <Link href={`/games/${review.game.slug}`} style={{ fontWeight: 700, fontSize: 'var(--text-base)' }}>
-                          {review.game.name}
-                        </Link>
+                        <Link href={`/games/${review.game.slug}`} style={{ fontWeight: 700 }}>{review.game.name}</Link>
                         <div style={{ marginTop: '4px', marginBottom: 'var(--space-sm)' }}>
                           <StarRating rating={review.rating} size="sm" />
                         </div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', lineHeight: 'var(--leading-relaxed)' }}>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
                           {review.text.length > 200 ? review.text.slice(0, 200) + '...' : review.text}
                         </p>
                       </div>

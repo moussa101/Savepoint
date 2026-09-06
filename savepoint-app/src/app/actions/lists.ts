@@ -35,9 +35,9 @@ export async function toggleListLike(listId: string, currentLikeStatus: boolean)
       // Notification
       const list = await prisma.list.findUnique({
         where: { id: listId },
-        select: { userId: true }
+        select: { userId: true, user: { select: { notifyOnListLike: true } } }
       });
-      if (list && list.userId !== userId) {
+      if (list && list.userId !== userId && list.user.notifyOnListLike !== false) {
         await prisma.notification.create({
           data: {
             userId: list.userId,

@@ -2,14 +2,18 @@
 
 import { useState, useTransition } from 'react';
 import { formatRelativeTime } from '@/lib/utils';
-import { TrashIcon, MessageIcon } from '@/components/ui/Icons';
+import { TrashIcon, MessageIcon, HeartIcon } from '@/components/ui/Icons';
 import { createComment, deleteComment } from '@/app/actions/games';
+import { toggleCommentLike } from '@/app/actions/activities';
+import ReportButton from '@/components/ui/ReportButton';
 
 export interface CommentData {
   id: string;
   text: string;
   createdAt: string | Date;
   userId: string;
+  likeCount?: number;
+  likedByMe?: boolean;
   user: {
     username: string;
     name: string | null;
@@ -39,8 +43,6 @@ export default function ReviewComments({ reviewId, comments: initialComments, is
       const result = await createComment(reviewId, newComment);
       if (result.success) {
         setNewComment('');
-        // To be simple, we just reload the page.
-        // A better approach would be appending it locally, but we need the User object.
         window.location.reload();
       }
     });
@@ -48,21 +50,37 @@ export default function ReviewComments({ reviewId, comments: initialComments, is
 
   async function handleDeleteComment(commentId: string) {
     if (!confirm('Are you sure you want to delete this comment?')) return;
-    
+
     startTransition(async () => {
       await deleteComment(commentId);
       setComments(comments.filter(c => c.id !== commentId));
     });
   }
 
+  function handleLikeComment(commentId: string) {
+    if (!isLoggedIn) return;
+    setComments((prev) => prev.map((c) => {
+      if (c.id !== commentId) return c;
+      const liked = !!c.likedByMe;
+      return {
+        ...c,
+        likedByMe: !liked,
+        likeCount: Math.max(0, (c.likeCount || 0) + (liked ? -1 : 1)),
+      };
+    }));
+    startTransition(async () => {
+      await toggleCommentLike(commentId);
+    });
+  }
+
   return (
     <div style={{ marginTop: 'var(--space-md)' }}>
-      <button 
-        className="btn btn-ghost btn-sm" 
+      <button
+        className="btn btn-ghost btn-sm"
         onClick={() => setIsOpen(!isOpen)}
         style={{ color: 'var(--text-muted)' }}
       >
-        <MessageIcon size={16} /> 
+        <MessageIcon size={16} />
         {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
       </button>
 
@@ -72,7 +90,8 @@ export default function ReviewComments({ reviewId, comments: initialComments, is
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
               {comments.map(comment => {
                 const canDelete = currentUserId === comment.userId || currentUserId === reviewOwnerId;
-                
+                const isOwn = currentUserId === comment.userId;
+
                 return (
                   <div key={comment.id} style={{ display: 'flex', gap: 'var(--space-sm)' }}>
                     <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
@@ -92,18 +111,33 @@ export default function ReviewComments({ reviewId, comments: initialComments, is
                             {formatRelativeTime(comment.createdAt)}
                           </span>
                         </div>
-                        {canDelete && (
-                          <button 
-                            className="btn btn-ghost btn-icon" 
-                            style={{ padding: '4px', height: 'auto', minHeight: 'auto', color: 'var(--danger)' }}
-                            onClick={() => handleDeleteComment(comment.id)}
-                          >
-                            <TrashIcon size={14} />
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {canDelete && (
+                            <button
+                              className="btn btn-ghost btn-icon"
+                              style={{ padding: '4px', height: 'auto', minHeight: 'auto', color: 'var(--danger)' }}
+                              onClick={() => handleDeleteComment(comment.id)}
+                            >
+                              <TrashIcon size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: '4px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                         {comment.text}
+                      </div>
+                      <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 6, alignItems: 'center' }}>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          disabled={!isLoggedIn || isOwn || isPending}
+                          onClick={() => handleLikeComment(comment.id)}
+                          style={{ color: comment.likedByMe ? 'var(--accent-primary)' : 'var(--text-muted)', padding: '2px 6px' }}
+                        >
+                          <HeartIcon size={14} filled={!!comment.likedByMe} /> {comment.likeCount || 0}
+                        </button>
+                        {isLoggedIn && !isOwn && (
+                          <ReportButton targetType="COMMENT" targetId={comment.id} reportedUserId={comment.userId} label="Report" />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -118,10 +152,10 @@ export default function ReviewComments({ reviewId, comments: initialComments, is
 
           {isLoggedIn && (
             <form onSubmit={handlePostComment} style={{ marginTop: 'var(--space-md)', display: 'flex', gap: 'var(--space-sm)' }}>
-              <input 
-                type="text" 
-                className="input" 
-                placeholder="Write a comment..." 
+              <input
+                type="text"
+                className="input"
+                placeholder="Write a comment..."
                 value={newComment}
                 onChange={e => setNewComment(e.target.value)}
                 style={{ flex: 1 }}

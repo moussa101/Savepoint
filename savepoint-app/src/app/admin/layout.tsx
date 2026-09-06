@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import Link from 'next/link';
 import SessionProvider from '@/components/SessionProvider';
-import { LogOutIcon, UsersIcon, ActivityIcon, SettingsIcon, ShieldIcon } from '@/components/ui/Icons';
+import { LogOutIcon, UsersIcon, ActivityIcon, SettingsIcon, ShieldIcon, AlertTriangleIcon } from '@/components/ui/Icons';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -46,6 +46,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/admin/reviews" className="btn btn-ghost" style={{ justifyContent: 'flex-start', paddingLeft: 'var(--space-md)' }}>
               <ShieldIcon size={18} />
               Reviews
+            </Link>
+            <Link href="/admin/reports" className="btn btn-ghost" style={{ justifyContent: 'flex-start', paddingLeft: 'var(--space-md)' }}>
+              <AlertTriangleIcon size={18} />
+              Reports
             </Link>
             <Link href="/admin/settings" className="btn btn-ghost" style={{ justifyContent: 'flex-start', paddingLeft: 'var(--space-md)' }}>
               <SettingsIcon size={18} />
