@@ -47,12 +47,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email! },
-          select: { id: true, username: true, image: true },
+          select: { id: true, username: true, image: true, onboarded: true },
         });
         if (dbUser) {
           token.id = dbUser.id;
           token.username = dbUser.username;
           token.image = dbUser.image;
+          token.onboarded = dbUser.onboarded;
         }
       }
       return token;
@@ -62,6 +63,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.id as string;
         session.user.username = token.username as string;
         session.user.image = token.image as string | null;
+        (session.user as any).onboarded = token.onboarded;
       }
       return session;
     },

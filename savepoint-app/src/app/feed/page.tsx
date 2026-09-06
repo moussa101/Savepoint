@@ -14,6 +14,7 @@ export const metadata = { title: 'Feed — Savepoint' };
 export default async function FeedPage() {
   const session = await auth();
   if (!session) redirect('/login');
+  if ((session.user as any).onboarded === false) redirect('/onboarding');
 
   // Get users the current user follows
   const following = await prisma.follow.findMany({

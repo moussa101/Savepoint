@@ -12,6 +12,7 @@ export const metadata = { title: 'My Lists — Savepoint' };
 export default async function ListsPage() {
   const session = await auth();
   if (!session) redirect('/login');
+  if ((session.user as any).onboarded === false) redirect('/onboarding');
 
   const lists = await prisma.list.findMany({
     where: { userId: session.user.id },

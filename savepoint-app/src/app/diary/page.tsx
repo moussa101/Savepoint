@@ -15,6 +15,7 @@ export const metadata = { title: 'Gaming Diary — Savepoint' };
 export default async function DiaryPage() {
   const session = await auth();
   if (!session) redirect('/login');
+  if ((session.user as any).onboarded === false) redirect('/onboarding');
 
   const entries = await prisma.diaryEntry.findMany({
     where: { userId: session.user.id },

@@ -14,7 +14,7 @@ export async function searchIGDBGamesAutocomplete(query: string) {
     limit 10;
   `;
 
-  const results = await fetchIGDB('/games', igdbQuery);
+  const results = await fetchIGDB('games', igdbQuery);
 
   return results.map((game: any) => ({
     id: game.id.toString(),
@@ -39,7 +39,7 @@ export async function ensureGameExistsLocally(igdbId: string) {
     where id = ${igdbId};
   `;
 
-  const results = await fetchIGDB('/games', query);
+  const results = await fetchIGDB('games', query);
   if (!results || results.length === 0) throw new Error('Game not found on IGDB');
 
   const game = results[0];

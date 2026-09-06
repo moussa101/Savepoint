@@ -48,8 +48,7 @@ export default async function LandingPage() {
               Your Gaming Story,<br />Told Beautifully
             </h1>
             <p className="landing-hero-subtitle">
-              Track, rate, review, and share your gaming experiences.<br />
-              Build your gaming profile and discover your next favorite game.
+              Play. Rate. Review. Remember.
             </p>
             <div className="landing-hero-actions">
               <Link href="/register" className="btn btn-primary btn-lg">
@@ -167,7 +166,7 @@ export default async function LandingPage() {
 
         {/* Footer */}
         <footer style={{ borderTop: '1px solid var(--bg-surface-border)', padding: 'var(--space-xl)', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-          <p>© 2026 Savepoint. Your gaming story, told beautifully.</p>
+          <p>© 2026 Savepoint. Play. Rate. Review. Remember.</p>
         </footer>
       </main>
 

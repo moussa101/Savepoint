@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import SessionProvider from '@/components/SessionProvider';
+import { Suspense } from 'react';
 import StarRating from '@/components/ui/StarRating';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
+import LiveSearch from '@/components/ui/LiveSearch';
+import RecommendedGames from '@/components/ui/RecommendedGames';
 
 export const metadata = {
   title: 'Browse Games — Savepoint',
@@ -49,20 +52,28 @@ export default async function GamesPage({
         <div className="container container-wide">
           <h1 className="page-title font-display">Discover</h1>
 
+          {!q && (
+            <Suspense fallback={
+              <div style={{ marginBottom: 'var(--space-3xl)' }}>
+                <div style={{ width: '200px', height: '24px', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-md)' }} className="animate-pulse" />
+                <div className="scroll-row">
+                  {[1,2,3,4,5].map(i => (
+                    <div key={i} className="landing-game-card">
+                      <div className="game-cover" style={{ background: 'var(--bg-surface-hover)' }} className="animate-pulse" />
+                      <div className="landing-game-info">
+                        <div style={{ width: '80%', height: '16px', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-sm)', marginBottom: '4px' }} className="animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            }>
+              <RecommendedGames />
+            </Suspense>
+          )}
+
           {/* Search */}
-          <form style={{ marginBottom: 'var(--space-xl)', marginTop: 'var(--space-lg)' }}>
-            <div className="input-group">
-              <span className="input-icon">🔍</span>
-              <input
-                type="text"
-                name="q"
-                placeholder="Search the IGDB database..."
-                className="input input-with-icon"
-                defaultValue={q || ''}
-                style={{ maxWidth: '600px' }}
-              />
-            </div>
-          </form>
+          <LiveSearch initialQuery={q || ''} />
 
           {/* Sort options (only show if not searching) */}
           {!q && (
