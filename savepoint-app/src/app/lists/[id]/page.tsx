@@ -7,6 +7,7 @@ import { LockIcon } from '@/components/ui/Icons';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import ListGameManager from './ListGameManager';
+import ListLikeButton from './ListLikeButton';
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +21,12 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
         include: { game: { include: { genres: true } } },
         orderBy: { order: 'asc' },
       },
+      _count: {
+        select: { likes: true }
+      },
+      likes: session?.user?.id ? {
+        where: { userId: session.user.id }
+      } : false,
     },
   });
 
@@ -64,6 +71,14 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
                 <span className={`badge ${list.visibility === 'PUBLIC' ? 'badge-accent' : ''}`}>
                   {list.visibility === 'PUBLIC' ? 'Public' : <><LockIcon size={12} /> Private</>}
                 </span>
+              </div>
+              <div style={{ marginTop: 'var(--space-md)' }}>
+                <ListLikeButton 
+                  listId={list.id} 
+                  initialLiked={list.likes ? list.likes.length > 0 : false} 
+                  initialLikeCount={list._count.likes} 
+                  isLoggedIn={!!session} 
+                />
               </div>
             </div>
           </div>

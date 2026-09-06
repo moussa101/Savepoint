@@ -47,6 +47,32 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([email, token])
+}
+
+model TrafficLog {
+  id        String   @id @default(cuid())
+  path      String
+  method    String
+  ip        String?
+  userAgent String?
+  timestamp DateTime @default(now())
+}
+
+model BannedIP {
+  id        String   @id @default(cuid())
+  ip        String   @unique
+  reason    String?
+  createdAt DateTime @default(now())
+}
+
 // ============================================
 // Core Models
 // ============================================
@@ -62,8 +88,16 @@ model User {
   bio           String?
   bannerImage   String?
   onboarded     Boolean   @default(false)
+  isAdmin       Boolean   @default(false)
+  isBanned      Boolean   @default(false)
+  bannedReason  String?
+  lastIp        String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  // Gamification
+  xp            Int       @default(0)
+  equippedBadge String?
 
   // Relations
   accounts     Account[]
@@ -74,6 +108,7 @@ model User {
   lists        List[]
   diaryEntries DiaryEntry[]
   comments     Comment[]
+  listLikes    ListLike[]
 
   // Social
   followers Follow[] @relation("Following")
@@ -88,6 +123,14 @@ model User {
   // Notifications
   notificationsReceived  Notification[] @relation("ReceivedNotifications")
   notificationsTriggered Notification[] @relation("TriggeredNotifications")
+
+  // Feed Activities
+  activities       Activity[]
+  activityLikes    ActivityLike[]
+  activityComments ActivityComment[]
+
+  // Gamification
+  badges           UserBadge[]
 }
 
 model ImageUploadLog {
@@ -98,6 +141,21 @@ model ImageUploadLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+// ============================================
+// Gamification
+// ============================================
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String   // The code-level identifier for the badge
+  earnedAt  DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
 }
 
 model Game {
@@ -166,6 +224,7 @@ model UserGame {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  activity Activity?
 
   @@unique([userId, gameId])
   @@index([userId, status])
@@ -181,6 +240,7 @@ model FavoriteGame {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  activity Activity?
 
   @@unique([userId, gameId])
   @@index([userId])
@@ -205,6 +265,7 @@ model Review {
   likes         ReviewLike[]
   comments      Comment[]
   notifications Notification[]
+  activity      Activity?
 
   @@unique([userId, gameId])
   @@index([gameId])
@@ -238,9 +299,25 @@ model List {
 
   user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   items ListItem[]
+  likes ListLike[]
+  notifications Notification[]
+  activity Activity?
 
   @@index([userId])
   @@index([visibility])
+}
+
+model ListLike {
+  id        String   @id @default(cuid())
+  userId    String
+  listId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list List @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listId])
+  @@index([listId])
 }
 
 model ListItem {
@@ -279,6 +356,62 @@ model DiaryEntry {
 
   @@index([userId, date])
   @@index([gameId])
+}
+
+// ============================================
+// Activity Feed
+// ============================================
+
+model Activity {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // 'REVIEW', 'LIST', 'TRACKING', 'FAVORITE'
+  createdAt DateTime @default(now())
+
+  // Polymorphic relations
+  reviewId   String?  @unique
+  listId     String?  @unique
+  userGameId String?  @unique
+  favoriteId String?  @unique
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review       Review?       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  list         List?         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  userGame     UserGame?     @relation(fields: [userGameId], references: [id], onDelete: Cascade)
+  favorite     FavoriteGame? @relation(fields: [favoriteId], references: [id], onDelete: Cascade)
+  
+  likes        ActivityLike[]
+  comments     ActivityComment[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ActivityLike {
+  id         String   @id @default(cuid())
+  userId     String
+  activityId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityId])
+  @@index([activityId])
+}
+
+model ActivityComment {
+  id         String   @id @default(cuid())
+  userId     String
+  activityId String
+  text       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
 }
 
 // ============================================
@@ -324,15 +457,17 @@ model Comment {
 model Notification {
   id        String   @id @default(cuid())
   userId    String   // The user receiving the notification
-  type      String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT'
+  type      String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE'
   sourceId  String?  // ID of the user who triggered it
   reviewId  String?  // Optional reference to a review
+  listId    String?  // Optional reference to a list
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   user      User     @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
   source    User?    @relation("TriggeredNotifications", fields: [sourceId], references: [id], onDelete: Cascade)
   review    Review?  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  list      List?    @relation(fields: [listId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([sourceId])

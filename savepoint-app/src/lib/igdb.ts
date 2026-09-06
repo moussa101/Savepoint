@@ -73,6 +73,7 @@ export interface IGDBGame {
   genres?: { id: number; name: string }[];
   platforms?: { id: number; name: string }[];
   involved_companies?: { company: { name: string }; developer: boolean; publisher: boolean }[];
+  websites?: { type: number; url: string }[];
   total_rating?: number;
   total_rating_count?: number;
 }

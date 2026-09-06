@@ -27,28 +27,32 @@ export default function Navbar() {
   }, []);
 
   const navLinks = [
-    { href: '/games', label: 'Browse' },
-    { href: '/games?view=discover', label: 'Discover' },
+    { href: '/games', label: 'Discover' },
+    { href: '/lists', label: 'Lists' },
   ];
+
+  const isAdmin = (session?.user as any)?.isAdmin;
 
   return (
     <nav className="navbar">
-      <Link href={session ? '/feed' : '/'} className="navbar-brand">
+      <Link href={isAdmin ? '/admin' : (session ? '/feed' : '/')} className="navbar-brand">
         <span className="navbar-brand-icon">⟐</span>
         Savepoint
       </Link>
 
-      <div className="navbar-nav">
-        {navLinks.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={`navbar-link ${pathname === link.href ? 'navbar-link-active' : ''}`}
-          >
-            {link.label}
-          </Link>
-        ))}
-      </div>
+      {!isAdmin && (
+        <div className="navbar-nav">
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`navbar-link ${pathname === link.href ? 'navbar-link-active' : ''}`}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="navbar-actions">
         {session ? (
@@ -71,19 +75,23 @@ export default function Navbar() {
                 )}
               </button>
               <div className="dropdown-menu">
-                <Link
-                  href={`/profile/${session.user.username}`}
-                  className="dropdown-item"
-                  onClick={() => setDropdownOpen(false)}
-                >
-                  <UserIcon size={16} /> My Profile
-                </Link>
-                <Link href="/diary" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                  <BookOpenIcon size={16} /> My Diary
-                </Link>
-                <Link href="/lists" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                  <ListIcon size={16} /> My Lists
-                </Link>
+                {!isAdmin && (
+                  <>
+                    <Link
+                      href={`/profile/${session.user.username}`}
+                      className="dropdown-item"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      <UserIcon size={16} /> My Profile
+                    </Link>
+                    <Link href="/diary" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                      <BookOpenIcon size={16} /> My Diary
+                    </Link>
+                    <Link href="/lists" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                      <ListIcon size={16} /> My Lists
+                    </Link>
+                  </>
+                )}
                 <Link
                   href="/settings"
                   className="dropdown-item"
@@ -91,6 +99,19 @@ export default function Navbar() {
                 >
                   <SettingsIcon size={16} /> Settings
                 </Link>
+                {(session.user as any).isAdmin && (
+                  <>
+                    <div style={{ height: '1px', background: 'var(--bg-surface-border)', margin: '4px 0' }} />
+                    <Link
+                      href="/admin"
+                      className="dropdown-item"
+                      onClick={() => setDropdownOpen(false)}
+                      style={{ color: 'var(--accent-primary)' }}
+                    >
+                      Admin Dashboard
+                    </Link>
+                  </>
+                )}
                 <div style={{ height: '1px', background: 'var(--bg-surface-border)', margin: '4px 0' }} />
                 <button
                   className="dropdown-item"

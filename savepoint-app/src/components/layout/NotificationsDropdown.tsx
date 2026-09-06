@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { BellIcon, SettingsIcon, CheckCircleIcon, UsersIcon, StarIcon } from '@/components/ui/Icons';
+import { BellIcon, SettingsIcon, CheckCircleIcon, UsersIcon, StarIcon, MessageIcon } from '@/components/ui/Icons';
 import { formatRelativeTime } from '@/lib/utils';
 
 type Notification = {
@@ -151,6 +151,10 @@ export default function NotificationsDropdown() {
                   icon = <StarIcon size={16} color="var(--star-gold)" />;
                   text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> liked your review of <strong>{n.review?.game?.name}</strong></>;
                   link = `/games/${n.review?.game?.slug}`;
+                } else if (n.type === 'COMMENT') {
+                  icon = <MessageIcon size={16} color="var(--accent-secondary)" />;
+                  text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> commented on your review of <strong>{n.review?.game?.name}</strong></>;
+                  link = `/games/${n.review?.game?.slug}#comments`;
                 } else {
                   return null;
                 }

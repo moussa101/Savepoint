@@ -3,9 +3,9 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
-import { MailIcon, LockIcon } from '@/components/ui/Icons';
+import { MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
 
 function LoginForm() {
   const router = useRouter();
@@ -13,6 +13,7 @@ function LoginForm() {
   const registered = searchParams.get('registered');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,7 +40,14 @@ function LoginForm() {
       return;
     }
 
-    router.push('/feed');
+    // Check session to determine where to route
+    const session = await getSession();
+    if ((session?.user as any)?.isAdmin) {
+      router.push('/admin');
+    } else {
+      router.push('/feed');
+    }
+    
     router.refresh();
   }
 
@@ -87,18 +95,41 @@ function LoginForm() {
               <div className="input-group">
                 <span className="input-icon"><LockIcon size={16} /></span>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   name="password"
                   placeholder="Password"
                   className="input input-with-icon"
+                  style={{ paddingRight: '40px' }}
                   required
                   autoComplete="current-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0
+                  }}
+                  tabIndex={-1}
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                </button>
               </div>
             </div>
 
             <div style={{ textAlign: 'right', marginBottom: 'var(--space-lg)' }}>
-              <Link href="#" style={{ fontSize: 'var(--text-sm)' }}>
+              <Link href="/forgot-password" style={{ fontSize: 'var(--text-sm)' }}>
                 Forgot Password?
               </Link>
             </div>

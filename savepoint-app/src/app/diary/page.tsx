@@ -21,6 +21,10 @@ export default async function DiaryPage() {
     if (!dbUser?.onboarded) redirect('/onboarding');
   }
 
+  if ((session.user as any).isAdmin) {
+    redirect('/admin');
+  }
+
   const entries = await prisma.diaryEntry.findMany({
     where: { userId: session.user.id },
     include: { game: true },

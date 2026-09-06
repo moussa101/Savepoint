@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { fetchIGDB, getIGDBImageUrl } from '@/lib/igdb';
+import { grantXP, evaluateBadges, XP_REWARDS } from '@/lib/gamification';
 
 export async function searchIGDBGamesAutocomplete(query: string) {
   if (!query || query.trim().length < 2) return [];
@@ -83,7 +84,7 @@ export async function addToLibrary(gameId: string, status: string) {
     return { error: 'Not authenticated' };
   }
 
-  await prisma.userGame.upsert({
+  const userGame = await prisma.userGame.upsert({
     where: {
       userId_gameId: {
         userId: session.user.id,
@@ -97,6 +98,23 @@ export async function addToLibrary(gameId: string, status: string) {
       status,
     },
   });
+
+  await prisma.activity.upsert({
+    where: { userGameId: userGame.id },
+    update: {},
+    create: {
+      userId: session.user.id,
+      type: 'TRACKING',
+      userGameId: userGame.id,
+    }
+  });
+
+  if (status === 'COMPLETED') {
+    await grantXP(session.user.id, XP_REWARDS.COMPLETE_GAME);
+  } else {
+    await grantXP(session.user.id, XP_REWARDS.TRACK_GAME);
+  }
+  await evaluateBadges(session.user.id);
 
   revalidatePath(`/games/${gameId}`);
   revalidatePath(`/profile/${session.user.username}`);
@@ -148,14 +166,27 @@ export async function rateGame(gameId: string, rating: number) {
     });
   } else {
     // Add to library as completed if not already tracked
-    await prisma.userGame.create({
+    const userGame = await prisma.userGame.create({
       data: {
         userId: session.user.id,
         gameId,
-        status: 'COMPLETED',
         rating,
+        status: 'PLAYING',
       },
     });
+
+    await prisma.activity.upsert({
+      where: { userGameId: userGame.id },
+      update: {},
+      create: {
+        userId: session.user.id,
+        type: 'TRACKING',
+        userGameId: userGame.id,
+      }
+    });
+
+    await grantXP(session.user.id, XP_REWARDS.TRACK_GAME);
+    await evaluateBadges(session.user.id);
   }
 
   // Update game aggregate rating
@@ -209,21 +240,34 @@ export async function createReview(gameId: string, formData: FormData) {
     return { error: 'You have already reviewed this game' };
   }
 
-  await prisma.review.create({
+  const review = await prisma.review.create({
     data: {
       userId: session.user.id,
       gameId,
       rating,
-      text: text.trim(),
+      text,
       containsSpoilers,
     },
   });
+
+  await prisma.activity.create({
+    data: {
+      userId: session.user.id,
+      type: 'REVIEW',
+      reviewId: review.id,
+    }
+  });
+
+  await grantXP(session.user.id, XP_REWARDS.WRITE_REVIEW);
+  await evaluateBadges(session.user.id);
 
   // Update review count
   const reviewCount = await prisma.review.count({ where: { gameId } });
   await prisma.game.update({
     where: { id: gameId },
-    data: { reviewCount },
+    data: {
+      reviewCount,
+    },
   });
 
   // Also rate the game
@@ -416,6 +460,17 @@ export async function createList(formData: FormData) {
     },
   });
 
+  await prisma.activity.create({
+    data: {
+      userId: session.user.id,
+      type: 'LIST',
+      listId: list.id,
+    }
+  });
+
+  await grantXP(session.user.id, XP_REWARDS.CREATE_LIST);
+  await evaluateBadges(session.user.id);
+
   revalidatePath('/lists');
   return { success: true, listId: list.id };
 }
@@ -526,10 +581,20 @@ export async function createComment(reviewId: string, text: string) {
 
   const review = await prisma.review.findUnique({
     where: { id: reviewId },
-    select: { gameId: true },
+    select: { gameId: true, userId: true },
   });
 
   if (review) {
+    if (review.userId !== session.user.id) {
+      await prisma.notification.create({
+        data: {
+          userId: review.userId,
+          type: 'COMMENT',
+          sourceId: session.user.id,
+          reviewId,
+        }
+      });
+    }
     revalidatePath(`/games/${review.gameId}`);
   }
 
@@ -593,12 +658,25 @@ export async function toggleFavoriteGame(gameId: string) {
       return { error: 'You can only have up to 10 favorite games.' };
     }
 
-    await prisma.favoriteGame.create({
+    const maxOrder = await prisma.favoriteGame.aggregate({
+      where: { userId: session.user.id },
+      _max: { order: true }
+    });
+
+    const favorite = await prisma.favoriteGame.create({
       data: {
         userId: session.user.id,
         gameId,
-        order: count,
+        order: (maxOrder?._max.order ?? -1) + 1,
       },
+    });
+
+    await prisma.activity.create({
+      data: {
+        userId: session.user.id,
+        type: 'FAVORITE',
+        favoriteId: favorite.id,
+      }
     });
   }
 

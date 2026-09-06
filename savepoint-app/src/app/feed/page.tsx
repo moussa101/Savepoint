@@ -10,6 +10,7 @@ import StarRating from '@/components/ui/StarRating';
 import { formatRelativeTime, STATUS_LABELS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 import { SignalIcon, HeartIcon } from '@/components/ui/Icons';
+import ActivityActionBar from '@/components/feed/ActivityActionBar';
 
 export const metadata = { title: 'Feed — Savepoint' };
 
@@ -22,6 +23,10 @@ export default async function FeedPage() {
     if (!dbUser?.onboarded) {
       redirect('/onboarding');
     }
+  }
+
+  if ((session.user as any).isAdmin) {
+    redirect('/admin');
   }
 
   // Get users the current user follows and trending games in parallel
@@ -40,77 +45,21 @@ export default async function FeedPage() {
   const followingIds = following.map((f) => f.followingId);
   const feedUserIds = [...followingIds, session.user.id];
 
-  // Fetch all recent activity feeds in parallel
-  const [recentReviews, recentTracking, recentLists, recentFavorites] = await Promise.all([
-    prisma.review.findMany({
-      where: { userId: { in: feedUserIds } },
-      include: {
-        user: { select: { username: true, name: true, image: true } },
-        game: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    }),
-    prisma.userGame.findMany({
-      where: { userId: { in: feedUserIds } },
-      include: {
-        user: { select: { username: true, name: true, image: true } },
-        game: true,
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 10,
-    }),
-    prisma.list.findMany({
-      where: { userId: { in: feedUserIds }, visibility: 'PUBLIC' },
-      include: {
-        user: { select: { username: true, name: true, image: true } },
-        items: { include: { game: true }, take: 4 },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    }),
-    prisma.favoriteGame.findMany({
-      where: { userId: { in: feedUserIds } },
-      include: {
-        user: { select: { username: true, name: true, image: true } },
-        game: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    })
-  ]);
-
-  // Merge and sort by date
-  type FeedItem = {
-    type: 'review' | 'tracking' | 'list' | 'favorite';
-    date: Date;
-    data: Record<string, unknown>;
-  };
-
-  const feedItems: FeedItem[] = [
-    ...recentReviews.map((r) => ({
-      type: 'review' as const,
-      date: r.createdAt,
-      data: r as unknown as Record<string, unknown>,
-    })),
-    ...recentTracking.map((t) => ({
-      type: 'tracking' as const,
-      date: t.updatedAt,
-      data: t as unknown as Record<string, unknown>,
-    })),
-    ...recentLists.map((l) => ({
-      type: 'list' as const,
-      date: l.createdAt,
-      data: l as unknown as Record<string, unknown>,
-    })),
-    ...recentFavorites.map((f) => ({
-      type: 'favorite' as const,
-      date: f.createdAt,
-      data: f as unknown as Record<string, unknown>,
-    })),
-  ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 20);
-
-
+  // Fetch activities in a single query
+  const activities = await prisma.activity.findMany({
+    where: { userId: { in: feedUserIds } },
+    include: {
+      user: { select: { username: true, name: true, image: true } },
+      review: { include: { game: true } },
+      userGame: { include: { game: true } },
+      list: { include: { items: { include: { game: true }, take: 4 } } },
+      favorite: { include: { game: true } },
+      _count: { select: { likes: true, comments: true } },
+      likes: { where: { userId: session.user.id } }
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
 
   return (
     <SessionProvider>
@@ -122,7 +71,7 @@ export default async function FeedPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 'var(--space-xl)' }}>
           {/* Feed */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-            {feedItems.length === 0 ? (
+            {activities.length === 0 ? (
               <div className="empty-state card">
                 <div className="empty-state-icon"><SignalIcon size={48} color="var(--text-muted)" /></div>
                 <div className="empty-state-title">Your feed is empty</div>
@@ -130,12 +79,15 @@ export default async function FeedPage() {
                 <Link href="/games" className="btn btn-primary" style={{ marginTop: 'var(--space-md)' }}>Browse Games</Link>
               </div>
             ) : (
-              feedItems.map((item, i) => {
-                const d = item.data as Record<string, unknown>;
-                const user = d.user as { username: string; name: string | null; image: string | null };
-                const game = d.game as { slug: string; name: string; coverImage: string | null } | undefined;
+              activities.map((item, i) => {
+                const user = item.user;
+                const likesCount = item._count.likes;
+                const commentsCount = item._count.comments;
+                const hasLiked = item.likes.length > 0;
 
-                if (item.type === 'review') {
+                if (item.type === 'REVIEW' && item.review) {
+                  const d = item.review;
+                  const game = d.game;
                   return (
                     <div key={`review-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
@@ -159,7 +111,7 @@ export default async function FeedPage() {
                             {String(d.text || '').slice(0, 200)}...
                           </p>
                           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>
-                            {formatRelativeTime(item.date)}
+                            {formatRelativeTime(item.createdAt)}
                           </div>
                         </div>
                         {game?.coverImage && (
@@ -170,11 +122,20 @@ export default async function FeedPage() {
                           </Link>
                         )}
                       </div>
+                      <ActivityActionBar 
+                        activityId={item.id} 
+                        initialLikes={likesCount} 
+                        initialHasLiked={hasLiked} 
+                        commentsCount={commentsCount} 
+                        isLoggedIn={true} 
+                      />
                     </div>
                   );
                 }
 
-                if (item.type === 'tracking') {
+                if (item.type === 'TRACKING' && item.userGame) {
+                  const d = item.userGame;
+                  const game = d.game;
                   const status = d.status as string;
                   return (
                     <div key={`tracking-${i}`} className="card animate-fade-in">
@@ -203,7 +164,7 @@ export default async function FeedPage() {
                             </div>
                           )}
                           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-xs)' }}>
-                            {formatRelativeTime(item.date)}
+                            {formatRelativeTime(item.createdAt)}
                           </div>
                         </div>
                         {game?.coverImage && (
@@ -214,12 +175,20 @@ export default async function FeedPage() {
                           </Link>
                         )}
                       </div>
+                      <ActivityActionBar 
+                        activityId={item.id} 
+                        initialLikes={likesCount} 
+                        initialHasLiked={hasLiked} 
+                        commentsCount={commentsCount} 
+                        isLoggedIn={true} 
+                      />
                     </div>
                   );
                 }
 
-                if (item.type === 'list') {
-                  const items = (d.items as Array<{ game: { slug: string; name: string; coverImage: string | null } }>) || [];
+                if (item.type === 'LIST' && item.list) {
+                  const d = item.list;
+                  const items = d.items || [];
                   return (
                     <div key={`list-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
@@ -246,15 +215,24 @@ export default async function FeedPage() {
                             ))}
                           </div>
                           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>
-                            {formatRelativeTime(item.date)}
+                            {formatRelativeTime(item.createdAt)}
                           </div>
                         </div>
                       </div>
+                      <ActivityActionBar 
+                        activityId={item.id} 
+                        initialLikes={likesCount} 
+                        initialHasLiked={hasLiked} 
+                        commentsCount={commentsCount} 
+                        isLoggedIn={true} 
+                      />
                     </div>
                   );
                 }
 
-                if (item.type === 'favorite') {
+                if (item.type === 'FAVORITE' && item.favorite) {
+                  const d = item.favorite;
+                  const game = d.game;
                   return (
                     <div key={`favorite-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
@@ -275,7 +253,7 @@ export default async function FeedPage() {
                             <HeartIcon size={16} filled color="var(--accent-primary)" />
                           </span>
                           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-xs)' }}>
-                            {formatRelativeTime(item.date)}
+                            {formatRelativeTime(item.createdAt)}
                           </div>
                         </div>
                         {game?.coverImage && (
@@ -286,6 +264,13 @@ export default async function FeedPage() {
                           </Link>
                         )}
                       </div>
+                      <ActivityActionBar 
+                        activityId={item.id} 
+                        initialLikes={likesCount} 
+                        initialHasLiked={hasLiked} 
+                        commentsCount={commentsCount} 
+                        isLoggedIn={true} 
+                      />
                     </div>
                   );
                 }

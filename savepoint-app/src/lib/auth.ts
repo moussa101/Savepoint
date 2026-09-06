@@ -51,6 +51,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw new UnverifiedEmailError();
         }
 
+        if (user.isBanned) {
+          throw new Error('Your account has been banned.');
+        }
+
         const isPasswordValid = await compare(
           credentials.password as string,
           user.password
@@ -74,13 +78,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email! },
-          select: { id: true, username: true, image: true, onboarded: true },
+          select: { id: true, username: true, image: true, onboarded: true, isAdmin: true, isBanned: true },
         });
         if (dbUser) {
+          if (dbUser.isBanned) return token; // Skip attaching info to effectively void session capabilities in UI
           token.id = dbUser.id;
           token.username = dbUser.username;
           token.image = dbUser.image;
           token.onboarded = dbUser.onboarded;
+          token.isAdmin = dbUser.isAdmin;
         }
       }
       return token;
@@ -91,6 +97,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.username = token.username as string;
         session.user.image = token.image as string | null;
         (session.user as any).onboarded = token.onboarded;
+        (session.user as any).isAdmin = token.isAdmin;
       }
       return session;
     },

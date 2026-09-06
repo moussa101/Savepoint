@@ -6,13 +6,14 @@ import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import GameActions from './GameActions';
 import ReviewSection from './ReviewSection';
+import StorefrontLinks from '@/components/game/StorefrontLinks';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import { cache } from 'react';
 
 const getIGDBGame = cache(async (slug: string) => {
   const igdbResults = await fetchIGDB(
     'games',
-    `fields id, name, slug, summary, cover.image_id, artworks.image_id, screenshots.image_id, first_release_date, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, genres.name, platforms.name;
+    `fields id, name, slug, summary, cover.image_id, artworks.image_id, screenshots.image_id, first_release_date, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, genres.name, platforms.name, websites.type, websites.url;
      where slug = "${slug}"; limit 1;`
   );
   if (igdbResults && igdbResults.length > 0) {
@@ -265,6 +266,9 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
               />
             </div>
           </div>
+
+          {/* Storefronts */}
+          <StorefrontLinks websites={igdbGame.websites || []} />
 
           {/* Description */}
           {game.description && (

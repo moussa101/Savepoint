@@ -9,9 +9,11 @@ import LiveSearch from '@/components/ui/LiveSearch';
 import RecommendedGames from '@/components/ui/RecommendedGames';
 import GamesHeroCarousel from '@/components/ui/GamesHeroCarousel';
 import GameFilters from '@/components/ui/GameFilters';
+import { getPopularLists } from '@/app/actions/lists';
+import ListCard from '@/components/ui/ListCard';
 
 export const metadata = {
-  title: 'Browse Games — Savepoint',
+  title: 'Discover Games — Savepoint',
   description: 'Discover and explore video games. Find popular, highly rated, and trending games.',
 };
 
@@ -76,19 +78,23 @@ export default async function GamesPage({
 
   let games: IGDBGame[] = [];
   let heroGames: IGDBGame[] = [];
+  let popularLists: any[] = [];
+  
   try {
-    const [gamesRes, heroRes] = await Promise.all([
+    const [gamesRes, heroRes, listsRes] = await Promise.all([
       fetchIGDB('games', query),
       fetchIGDB('games', `
         fields name, slug, summary, total_rating, artworks.image_id, cover.image_id;
         where artworks != null & total_rating_count > 1000 & rating > 85;
         sort total_rating_count desc;
         limit 30;
-      `)
+      `),
+      getPopularLists(),
     ]);
     games = gamesRes;
     // Shuffle the top 30 games and pick 10 random ones for the carousel
     heroGames = heroRes.sort(() => 0.5 - Math.random()).slice(0, 10);
+    popularLists = listsRes;
   } catch (err) {
     console.error('Failed to fetch from IGDB:', err);
   }
@@ -141,6 +147,20 @@ export default async function GamesPage({
             <div className="discovery-content">
               {/* Search */}
               <LiveSearch initialQuery={q || ''} />
+
+              {/* Community Curated Lists */}
+              {!q && popularLists.length > 0 && (
+                <div style={{ marginBottom: 'var(--space-2xl)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                    <h2 className="section-title font-display" style={{ margin: 0 }}>Popular Community Lists</h2>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-xl)' }}>
+                    {popularLists.map(list => (
+                      <ListCard key={list.id} list={list} showAuthor={true} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
           {/* Games Grid */}
           {games.length === 0 ? (

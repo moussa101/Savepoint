@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { signIn } from '@/lib/auth';
-import { sendVerificationEmail } from '@/lib/mail';
+import { sendVerificationEmail, sendPasswordResetEmail } from '@/lib/mail';
 import crypto from 'crypto';
 
 export async function registerUser(formData: FormData) {
@@ -89,4 +89,60 @@ export async function loginUser(formData: FormData) {
   } catch {
     return { error: 'Invalid email or password' };
   }
+}
+
+export async function requestPasswordReset(formData: FormData) {
+  const email = formData.get('email') as string;
+  if (!email) return { error: 'Email is required' };
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    // Return success anyway to prevent email enumeration
+    return { success: true };
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
+  await prisma.passwordResetToken.create({
+    data: {
+      email,
+      token,
+      expires,
+    }
+  });
+
+  await sendPasswordResetEmail(email, token);
+
+  return { success: true };
+}
+
+export async function resetPassword(formData: FormData) {
+  const token = formData.get('token') as string;
+  const password = formData.get('password') as string;
+  const confirmPassword = formData.get('confirmPassword') as string;
+
+  if (!token || !password) return { error: 'Missing required fields' };
+  if (password !== confirmPassword) return { error: 'Passwords do not match' };
+  if (password.length < 8) return { error: 'Password must be at least 8 characters' };
+
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { token }
+  });
+
+  if (!resetToken) return { error: 'Invalid token' };
+  if (new Date() > resetToken.expires) return { error: 'Token has expired' };
+
+  const hashedPassword = await hash(password, 12);
+
+  await prisma.user.update({
+    where: { email: resetToken.email },
+    data: { password: hashedPassword }
+  });
+
+  await prisma.passwordResetToken.delete({
+    where: { id: resetToken.id }
+  });
+
+  return { success: true };
 }

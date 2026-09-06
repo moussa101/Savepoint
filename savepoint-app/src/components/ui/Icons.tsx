@@ -162,3 +162,41 @@ export function TargetIcon(props: IconProps) {
 export function FilterIcon(props: IconProps) {
   return <Icon {...props}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></Icon>;
 }
+
+// Platforms & Storefronts
+export function LinkIcon(props: IconProps) {
+  return <Icon {...props}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></Icon>;
+}
+
+export function SteamIcon(props: IconProps) {
+  return <Icon {...props}><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" /><path d="M9.1 11.2l-3.3 1.3s-.5-1-.2-1.3c.3-.4 1.1-.9 2.2-1 .4.2 1 .7 1.3 1z" /><path d="M13 10.3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z" /><path d="M17.7 7s-1-.3-1.6 0l-1.9 3.1A3 3 0 0 0 13 10.3l1.8-3.4s.2-.5.5-.7c.3-.2.8 0 .8 0l1.6.8z" /></Icon>;
+}
+
+export function AppleIcon(props: IconProps) {
+  return <Icon {...props}><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z" /><path d="M10 2c1 .5 2 2 2 5" /></Icon>;
+}
+
+export function AndroidIcon(props: IconProps) {
+  return <Icon {...props}><path d="M17.5 19H9a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h8.5a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2Z" /><path d="M11 5.5v-2" /><path d="M15.5 5.5v-2" /></Icon>;
+}
+
+export function ExternalLinkIcon(props: IconProps) {
+  return <Icon {...props}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></Icon>;
+}
+
+export function EyeIcon(props: IconProps) {
+  return <Icon {...props}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></Icon>;
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return <Icon {...props}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></Icon>;
+}
+
+export function ActivityIcon(props: IconProps) {
+  return <Icon {...props}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></Icon>;
+}
+
+export function ServerIcon(props: IconProps) {
+  return <Icon {...props}><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></Icon>;
+}
+

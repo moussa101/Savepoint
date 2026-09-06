@@ -10,6 +10,7 @@ import EditProfileWrapper from '@/components/profile/EditProfileWrapper';
 import { STATUS_LABELS, STATUS_COLORS, formatRelativeTime } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon } from '@/components/ui/Icons';
+import { calculateLevel, getTierFromLevel, BADGE_DEFINITIONS } from '@/lib/gamification';
 
 import { cache } from 'react';
 
@@ -31,6 +32,9 @@ const getUser = cache(async (username: string) => {
       _count: {
         select: { followers: true, following: true, reviews: true, lists: true },
       },
+      badges: {
+        select: { badgeId: true }
+      }
     },
   });
 
@@ -158,13 +162,28 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               )}
             </div>
             <div style={{ flex: 1, minWidth: '250px' }}>
-              <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: '4px' }}>
-                {user.name || user.username}
-              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+                <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: '4px' }}>
+                  {user.name || user.username}
+                </h1>
+                {user.equippedBadge && (
+                  <span className="badge" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-background)' }}>
+                    {BADGE_DEFINITIONS.find(b => b.id === user.equippedBadge)?.name || user.equippedBadge}
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-sm)' }}>
                 <p style={{ color: 'var(--accent-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', margin: 0 }}>
                   @{user.username}
                 </p>
+                <div style={{ display: 'flex', gap: 'var(--space-xs)', alignItems: 'center', fontSize: 'var(--text-xs)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>•</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Level {calculateLevel(user.xp)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>•</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{getTierFromLevel(calculateLevel(user.xp))} Tier</span>
+                  <span style={{ color: 'var(--text-muted)' }}>•</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{user.xp} XP</span>
+                </div>
               </div>
               {user.bio && <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)', maxWidth: '600px', lineHeight: 'var(--leading-relaxed)' }}>{user.bio}</p>}
               <div style={{ display: 'flex', gap: 'var(--space-xl)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-md)' }}>
@@ -227,6 +246,28 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                     </div>
                   </Link>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Trophy Cabinet (Badges) */}
+          {user.badges.length > 0 && (
+            <div style={{ marginBottom: 'var(--space-2xl)' }}>
+              <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>Trophy Cabinet</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-md)' }}>
+                {user.badges.map((userBadge) => {
+                  const badgeDef = BADGE_DEFINITIONS.find(b => b.id === userBadge.badgeId);
+                  if (!badgeDef) return null;
+                  return (
+                    <div key={userBadge.badgeId} className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: 'var(--space-lg)' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(0, 229, 160, 0.1)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 'var(--space-md)' }}>
+                        <StarIcon size={24} />
+                      </div>
+                      <h3 style={{ fontSize: 'var(--text-md)', fontWeight: 700, marginBottom: 'var(--space-xs)' }}>{badgeDef.name}</h3>
+                      <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{badgeDef.description}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

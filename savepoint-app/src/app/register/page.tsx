@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { registerUser } from '@/app/actions/auth';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
-import { MailIcon, LockIcon } from '@/components/ui/Icons';
+import { UserIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -93,14 +95,37 @@ export default function RegisterPage() {
               <div className="input-group">
                 <span className="input-icon"><LockIcon size={16} /></span>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   name="password"
                   placeholder="Password"
                   className="input input-with-icon"
+                  style={{ paddingRight: '40px' }}
                   required
                   minLength={8}
                   autoComplete="new-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0
+                  }}
+                  tabIndex={-1}
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                </button>
               </div>
             </div>
 
@@ -108,14 +133,37 @@ export default function RegisterPage() {
               <div className="input-group">
                 <span className="input-icon"><LockIcon size={16} /></span>
                 <input
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   name="confirmPassword"
                   placeholder="Confirm Password"
                   className="input input-with-icon"
+                  style={{ paddingRight: '40px' }}
                   required
                   minLength={8}
                   autoComplete="new-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0
+                  }}
+                  tabIndex={-1}
+                  title={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                </button>
               </div>
             </div>
 

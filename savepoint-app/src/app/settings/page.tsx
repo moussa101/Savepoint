@@ -18,6 +18,7 @@ export default async function SettingsPage() {
   });
 
   if (!user) redirect('/login');
+  if (user.isAdmin) redirect('/admin/settings');
 
   return (
     <SessionProvider>
