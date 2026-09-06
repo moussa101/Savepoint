@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// Auth.js Models
+// ============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// Core Models
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String    @unique
+  email         String    @unique
+  emailVerified DateTime?
+  password      String
+  image         String?
+  bio           String?
+  bannerImage   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts     Account[]
+  sessions     Session[]
+  userGames    UserGame[]
+  reviews      Review[]
+  reviewLikes  ReviewLike[]
+  lists        List[]
+  diaryEntries DiaryEntry[]
+  comments     Comment[]
+
+  // Social
+  followers Follow[] @relation("Following")
+  following Follow[] @relation("Follower")
+
+  // Favorites
+  favoriteGames FavoriteGame[]
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  coverImage  String?
+  bannerImage String?
+  releaseDate DateTime?
+  developer   String?
+  publisher   String?
+  igdbId      Int?     @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Aggregated stats (denormalized for performance)
+  avgRating    Float  @default(0)
+  ratingCount  Int    @default(0)
+  reviewCount  Int    @default(0)
+
+  // Relations
+  genres       GameGenre[]
+  platforms    GamePlatform[]
+  userGames    UserGame[]
+  reviews      Review[]
+  listItems    ListItem[]
+  diaryEntries DiaryEntry[]
+  favoriteOf   FavoriteGame[]
+}
+
+model GameGenre {
+  id     String @id @default(cuid())
+  gameId String
+  genre  String
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, genre])
+  @@index([genre])
+}
+
+model GamePlatform {
+  id       String @id @default(cuid())
+  gameId   String
+  platform String
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, platform])
+  @@index([platform])
+}
+
+// ============================================
+// Game Tracking
+// ============================================
+
+model UserGame {
+  id        String   @id @default(cuid())
+  userId    String
+  gameId    String
+  status    String   // WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED
+  rating    Float?   // 0.5 to 5.0, half-star increments
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+  @@index([userId, status])
+  @@index([gameId])
+}
+
+model FavoriteGame {
+  id        String   @id @default(cuid())
+  userId    String
+  gameId    String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+  @@index([userId])
+}
+
+// ============================================
+// Reviews
+// ============================================
+
+model Review {
+  id               String   @id @default(cuid())
+  userId           String
+  gameId           String
+  rating           Float    // 0.5 to 5.0
+  text             String
+  containsSpoilers Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game     Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  likes    ReviewLike[]
+  comments Comment[]
+
+  @@unique([userId, gameId])
+  @@index([gameId])
+  @@index([createdAt])
+}
+
+model ReviewLike {
+  id        String   @id @default(cuid())
+  userId    String
+  reviewId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reviewId])
+}
+
+// ============================================
+// Lists
+// ============================================
+
+model List {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  visibility  String   @default("PUBLIC") // PUBLIC, PRIVATE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ListItem[]
+
+  @@index([userId])
+  @@index([visibility])
+}
+
+model ListItem {
+  id        String   @id @default(cuid())
+  listId    String
+  gameId    String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  list List @relation(fields: [listId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, gameId])
+  @@index([listId])
+}
+
+// ============================================
+// Gaming Diary
+// ============================================
+
+model DiaryEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  gameId    String
+  date      DateTime
+  status    String?  // WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED
+  rating    Float?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([gameId])
+}
+
+// ============================================
+// Social
+// ============================================
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ============================================
+// Comments
+// ============================================
+
+model Comment {
+  id        String   @id @default(cuid())
+  userId    String
+  reviewId  String
+  text      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+}
