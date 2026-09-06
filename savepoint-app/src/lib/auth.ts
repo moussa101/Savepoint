@@ -1,6 +1,8 @@
 import NextAuth, { CredentialsSignin } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
+import Discord from 'next-auth/providers/discord';
+import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { PrismaAdapter } from '@auth/prisma-adapter';
@@ -27,6 +29,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
+    Discord({
+      clientId: process.env.DISCORD_CLIENT_ID,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET,
+    }),
+    MicrosoftEntraID({
+      clientId: process.env.XBOX_CLIENT_ID,
+      clientSecret: process.env.XBOX_CLIENT_SECRET,
+      tenantId: 'common', // Crucial: Allows personal Xbox accounts
     }),
     Credentials({
       name: 'credentials',

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { registerUser } from '@/app/actions/auth';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
+import DiscordSignInButton from '@/components/ui/DiscordSignInButton';
+import XboxSignInButton from '@/components/ui/XboxSignInButton';
 import { UserIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
 
 export default function RegisterPage() {
@@ -182,6 +184,8 @@ export default function RegisterPage() {
 
           <div className="auth-social">
             <GoogleSignInButton />
+            <DiscordSignInButton />
+            <XboxSignInButton />
           </div>
 
           <p className="auth-footer">
@@ -248,11 +252,13 @@ export default function RegisterPage() {
         }
         .auth-social {
           display: flex;
+          flex-direction: column;
           gap: var(--space-sm);
         }
         .auth-social .btn {
-          flex: 1;
-          opacity: 0.5;
+          width: 100%;
+          padding: 0.75rem;
+          font-weight: 600;
         }
         .auth-footer {
           text-align: center;

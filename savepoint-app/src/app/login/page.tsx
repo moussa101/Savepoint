@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn, getSession } from 'next-auth/react';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
+import DiscordSignInButton from '@/components/ui/DiscordSignInButton';
+import XboxSignInButton from '@/components/ui/XboxSignInButton';
 import { MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
 
 function LoginForm() {
@@ -145,6 +147,8 @@ function LoginForm() {
 
           <div className="auth-social">
             <GoogleSignInButton />
+            <DiscordSignInButton />
+            <XboxSignInButton />
           </div>
 
           <p className="auth-footer">
@@ -220,11 +224,13 @@ function LoginForm() {
         }
         .auth-social {
           display: flex;
+          flex-direction: column;
           gap: var(--space-sm);
         }
         .auth-social .btn {
-          flex: 1;
-          opacity: 0.5;
+          width: 100%;
+          padding: 0.75rem;
+          font-weight: 600;
         }
         .auth-footer {
           text-align: center;
