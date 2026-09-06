@@ -158,3 +158,7 @@ export function MailCheckIcon(props: IconProps) {
 export function TargetIcon(props: IconProps) {
   return <Icon {...props}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></Icon>;
 }
+
+export function FilterIcon(props: IconProps) {
+  return <Icon {...props}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></Icon>;
+}

@@ -22,6 +22,15 @@ export async function followUser(targetUserId: string) {
       },
     });
 
+    // Create Notification
+    await prisma.notification.create({
+      data: {
+        userId: targetUserId,
+        type: 'FOLLOW',
+        sourceId: session.user.id,
+      },
+    });
+
     const targetUser = await prisma.user.findUnique({
       where: { id: targetUserId },
       select: { username: true }
@@ -53,6 +62,15 @@ export async function unfollowUser(targetUserId: string) {
           followerId: session.user.id,
           followingId: targetUserId,
         },
+      },
+    });
+
+    // Clean up notification
+    await prisma.notification.deleteMany({
+      where: {
+        userId: targetUserId,
+        type: 'FOLLOW',
+        sourceId: session.user.id,
       },
     });
 

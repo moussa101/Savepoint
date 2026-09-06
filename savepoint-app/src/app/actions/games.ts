@@ -320,6 +320,19 @@ export async function toggleReviewLike(reviewId: string) {
 
   if (existing) {
     await prisma.reviewLike.delete({ where: { id: existing.id } });
+    
+    // Delete the notification
+    const review = await prisma.review.findUnique({ where: { id: reviewId } });
+    if (review && review.userId !== session.user.id) {
+      await prisma.notification.deleteMany({
+        where: {
+          userId: review.userId,
+          type: 'REVIEW_LIKE',
+          sourceId: session.user.id,
+          reviewId,
+        }
+      });
+    }
   } else {
     await prisma.reviewLike.create({
       data: {
@@ -327,6 +340,19 @@ export async function toggleReviewLike(reviewId: string) {
         reviewId,
       },
     });
+
+    // Create a notification
+    const review = await prisma.review.findUnique({ where: { id: reviewId } });
+    if (review && review.userId !== session.user.id) {
+      await prisma.notification.create({
+        data: {
+          userId: review.userId,
+          type: 'REVIEW_LIKE',
+          sourceId: session.user.id,
+          reviewId,
+        }
+      });
+    }
   }
 
   revalidatePath('/');

@@ -84,6 +84,10 @@ model User {
 
   // Upload Tracking
   imageUploads ImageUploadLog[]
+
+  // Notifications
+  notificationsReceived  Notification[] @relation("ReceivedNotifications")
+  notificationsTriggered Notification[] @relation("TriggeredNotifications")
 }
 
 model ImageUploadLog {
@@ -196,10 +200,11 @@ model Review {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  game     Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  likes    ReviewLike[]
-  comments Comment[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game          Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  likes         ReviewLike[]
+  comments      Comment[]
+  notifications Notification[]
 
   @@unique([userId, gameId])
   @@index([gameId])
@@ -311,3 +316,26 @@ model Comment {
 
   @@index([reviewId])
 }
+
+// ============================================
+// Notifications
+// ============================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   // The user receiving the notification
+  type      String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT'
+  sourceId  String?  // ID of the user who triggered it
+  reviewId  String?  // Optional reference to a review
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  source    User?    @relation("TriggeredNotifications", fields: [sourceId], references: [id], onDelete: Cascade)
+  review    Review?  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([sourceId])
+  @@index([createdAt])
+}
+

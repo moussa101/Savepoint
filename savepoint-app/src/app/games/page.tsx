@@ -8,6 +8,7 @@ import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import LiveSearch from '@/components/ui/LiveSearch';
 import RecommendedGames from '@/components/ui/RecommendedGames';
 import GamesHeroCarousel from '@/components/ui/GamesHeroCarousel';
+import GameFilters from '@/components/ui/GameFilters';
 
 export const metadata = {
   title: 'Browse Games — Savepoint',
@@ -17,10 +18,10 @@ export const metadata = {
 export default async function GamesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; q?: string }>;
+  searchParams: Promise<{ sort?: string; q?: string; genres?: string; platforms?: string; year?: string }>;
 }) {
   const params = await searchParams;
-  const { sort, q } = params;
+  const { sort, q, genres, platforms, year } = params;
 
   let query = `
     fields id, name, slug, total_rating, total_rating_count, first_release_date, 
@@ -28,16 +29,49 @@ export default async function GamesPage({
     limit 48;
   `;
 
+  let whereClauses: string[] = [];
+  
+  if (genres) {
+    whereClauses.push(`genres = (${genres})`);
+  }
+  
+  if (platforms) {
+    whereClauses.push(`platforms = (${platforms})`);
+  }
+  
+  if (year) {
+    const startOfYear = Math.floor(new Date(`${year}-01-01`).getTime() / 1000);
+    const endOfYear = Math.floor(new Date(`${year}-12-31T23:59:59`).getTime() / 1000);
+    whereClauses.push(`first_release_date >= ${startOfYear}`);
+    whereClauses.push(`first_release_date <= ${endOfYear}`);
+  }
+
   if (q) {
     query += `\nsearch "${q.replace(/"/g, '')}";`;
   } else {
-    if (sort === 'rating') {
-      query += `\nsort total_rating desc;\nwhere total_rating_count > 50;`;
+    if (sort === 'rating_desc') {
+      whereClauses.push('total_rating_count > 50');
+      query += `\nsort total_rating desc;`;
+    } else if (sort === 'rating_asc') {
+      whereClauses.push('total_rating_count > 50');
+      query += `\nsort total_rating asc;`;
     } else if (sort === 'newest') {
-      query += `\nsort first_release_date desc;\nwhere first_release_date != null;`;
-    } else {
-      query += `\nsort total_rating_count desc;\nwhere total_rating_count != null;`;
+      whereClauses.push('first_release_date != null');
+      query += `\nsort first_release_date desc;`;
+    } else if (sort === 'oldest') {
+      whereClauses.push('first_release_date != null');
+      query += `\nsort first_release_date asc;`;
+    } else if (sort === 'popular_asc') {
+      whereClauses.push('total_rating_count != null');
+      query += `\nsort total_rating_count asc;`;
+    } else { // popular_desc or default
+      whereClauses.push('total_rating_count != null');
+      query += `\nsort total_rating_count desc;`;
     }
+  }
+
+  if (whereClauses.length > 0) {
+    query += `\nwhere ${whereClauses.join(' & ')};`;
   }
 
   let games: IGDBGame[] = [];
@@ -99,28 +133,14 @@ export default async function GamesPage({
             </p>
           </div>
 
-          {/* Search */}
-          <LiveSearch initialQuery={q || ''} />
-
-          {/* Sort options (only show if not searching) */}
-          {!q && (
-            <div className="filter-pills" style={{ marginBottom: 'var(--space-2xl)' }}>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginRight: 'var(--space-sm)' }}>Sort by:</span>
-              {[
-                { value: '', label: 'Popular' },
-                { value: 'rating', label: 'Highest Rated' },
-                { value: 'newest', label: 'Newest' },
-              ].map((s) => (
-                <Link
-                  key={s.label}
-                  href={`/games?${s.value ? `sort=${s.value}` : ''}`}
-                  className={`filter-pill ${(sort || '') === s.value ? 'filter-pill-active' : ''}`}
-                >
-                  {s.label}
-                </Link>
-              ))}
-            </div>
-          )}
+          <div className="discovery-layout">
+            <aside className="discovery-sidebar">
+              <GameFilters />
+            </aside>
+            
+            <div className="discovery-content">
+              {/* Search */}
+              <LiveSearch initialQuery={q || ''} />
 
           {/* Games Grid */}
           {games.length === 0 ? (
@@ -178,6 +198,8 @@ export default async function GamesPage({
               })}
             </div>
           )}
+            </div>
+          </div>
         </div>
       </main>
     </SessionProvider>
