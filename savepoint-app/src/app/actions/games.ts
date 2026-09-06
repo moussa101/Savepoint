@@ -3,6 +3,78 @@
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { fetchIGDB, getIGDBImageUrl } from '@/lib/igdb';
+
+export async function searchIGDBGamesAutocomplete(query: string) {
+  if (!query || query.trim().length < 2) return [];
+
+  const igdbQuery = `
+    search "${query.replace(/"/g, '')}";
+    fields name, cover.image_id, first_release_date;
+    limit 10;
+  `;
+
+  const results = await fetchIGDB('/games', igdbQuery);
+
+  return results.map((game: any) => ({
+    id: game.id.toString(),
+    name: game.name,
+    coverImage: game.cover?.image_id ? getIGDBImageUrl(game.cover.image_id, 'cover_small') : null,
+    releaseYear: game.first_release_date ? new Date(game.first_release_date * 1000).getFullYear() : null,
+  }));
+}
+
+export async function ensureGameExistsLocally(igdbId: string) {
+  // First check if we already have it
+  const existing = await prisma.game.findUnique({
+    where: { id: igdbId }
+  });
+  if (existing) return existing.id;
+
+  // Otherwise, fetch full details from IGDB and upsert
+  const query = `
+    fields name, summary, cover.image_id, first_release_date,
+    genres.name, platforms.name,
+    involved_companies.company.name, involved_companies.developer;
+    where id = ${igdbId};
+  `;
+
+  const results = await fetchIGDB('/games', query);
+  if (!results || results.length === 0) throw new Error('Game not found on IGDB');
+
+  const game = results[0];
+  const developer = game.involved_companies?.find((c: any) => c.developer)?.company?.name || null;
+  const genres = game.genres?.map((g: any) => g.name) || [];
+  const platforms = game.platforms?.map((p: any) => p.name) || [];
+
+  const localGame = await prisma.game.upsert({
+    where: { id: igdbId },
+    update: {}, // Already exists, do nothing
+    create: {
+      id: igdbId,
+      name: game.name,
+      slug: `${game.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${igdbId}`,
+      description: game.summary,
+      coverImage: game.cover?.image_id ? getIGDBImageUrl(game.cover.image_id, 'cover_big') : null,
+      releaseDate: game.first_release_date ? new Date(game.first_release_date * 1000) : null,
+      developer,
+      genres: {
+        connectOrCreate: genres.map((name: string) => ({
+          where: { name },
+          create: { name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') }
+        }))
+      },
+      platforms: {
+        connectOrCreate: platforms.map((name: string) => ({
+          where: { name },
+          create: { name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') }
+        }))
+      }
+    }
+  });
+
+  return localGame.id;
+}
 
 export async function addToLibrary(gameId: string, status: string) {
   const session = await auth();

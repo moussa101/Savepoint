@@ -55,7 +55,7 @@ export async function fetchIGDB(endpoint: string, query: string) {
 }
 
 // Helpers for processing image URLs
-export function getIGDBImageUrl(imageId: string | undefined | null, size: 'cover_big' | '1080p' = 'cover_big') {
+export function getIGDBImageUrl(imageId: string | undefined | null, size: 'cover_small' | 'cover_big' | '1080p' = 'cover_big') {
   if (!imageId) return null;
   return `https://images.igdb.com/igdb/image/upload/t_${size}/${imageId}.jpg`;
 }

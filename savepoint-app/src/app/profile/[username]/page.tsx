@@ -6,6 +6,7 @@ import Navbar from '@/components/layout/Navbar';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import FollowButton from './FollowButton';
+import EditProfileWrapper from '@/components/profile/EditProfileWrapper';
 import { STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 
@@ -110,9 +111,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                 <span><strong>{user._count.followers}</strong> <span style={{ color: 'var(--text-muted)' }}>Followers</span></span>
               </div>
             </div>
-            {!isOwnProfile && session && (
+            {!isOwnProfile && session ? (
               <FollowButton targetUserId={user.id} initialFollowing={isFollowing} />
-            )}
+            ) : isOwnProfile ? (
+              <EditProfileWrapper user={{ name: user.name, bio: user.bio, image: user.image, bannerImage: user.bannerImage }} />
+            ) : null}
           </div>
 
           {/* Currently Playing */}

@@ -3,14 +3,16 @@
 import { useState, useTransition } from 'react';
 import StarRating from '@/components/ui/StarRating';
 import { createDiaryEntry } from '@/app/actions/games';
+import GameAutocomplete from '@/components/ui/GameAutocomplete';
 
 interface DiaryFormProps {
-  games: { id: string; name: string }[];
+  games?: { id: string; name: string }[]; // Optional now since we fetch live
 }
 
-export default function DiaryForm({ games }: DiaryFormProps) {
+export default function DiaryForm({ games = [] }: DiaryFormProps) {
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(0);
+  const [selectedGameId, setSelectedGameId] = useState('');
   const [isPending, startTransition] = useTransition();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -45,12 +47,8 @@ export default function DiaryForm({ games }: DiaryFormProps) {
               <div className="modal-body">
                 <div className="form-group">
                   <label className="form-label">Game</label>
-                  <select name="gameId" className="input" required>
-                    <option value="">Select a game...</option>
-                    {games.map((game) => (
-                      <option key={game.id} value={game.id}>{game.name}</option>
-                    ))}
-                  </select>
+                  <input type="hidden" name="gameId" value={selectedGameId} required />
+                  <GameAutocomplete onSelect={setSelectedGameId} placeholder="Search IGDB for a game..." />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Date</label>
