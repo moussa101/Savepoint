@@ -76,7 +76,7 @@ export default async function ListsPage() {
             <div className="empty-state-text">Create your first list or favorite a game to curate and share your games.</div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 'var(--space-xl)' }}>
+          <div className="responsive-card-grid" style={{ gap: 'var(--space-xl)' }}>
             {allLists.map((list) => (
               <ListCard 
                 key={list.id} 

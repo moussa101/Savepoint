@@ -38,7 +38,12 @@ Make sure you have Node.js installed, and an active PostgreSQL database (we reco
 npm install
 ```
 
-2. Configure your environment variables. Create a `.env` file in the root directory and add the following keys:
+2. Configure your environment variables. Copy `.env.example` to `.env` and fill in the values (see also [DEPLOY.md](./DEPLOY.md) for production):
+```bash
+cp .env.example .env
+```
+
+Required keys are documented in `.env.example`. Summary:
 ```env
 # Database
 DATABASE_URL="your_postgres_pooler_url"

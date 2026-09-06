@@ -120,7 +120,7 @@ export default async function GamesPage({
   return (
     <SessionProvider>
       <Navbar />
-      <main className="main-content" style={{ padding: 'var(--space-xl)', paddingTop: 'var(--navbar-height)' }}>
+      <main className="main-content" style={{ padding: 'var(--space-xl)' }}>
         
         {!q && heroGames.length > 0 && (
           <GamesHeroCarousel games={heroGames} />
@@ -172,7 +172,7 @@ export default async function GamesPage({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
                     <h2 className="section-title font-display" style={{ margin: 0 }}>Popular Community Lists</h2>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-xl)' }}>
+                  <div className="responsive-card-grid" style={{ gap: 'var(--space-xl)' }}>
                     {popularLists.map(list => (
                       <ListCard key={list.id} list={list} showAuthor={true} />
                     ))}

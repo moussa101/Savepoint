@@ -32,13 +32,17 @@ export default function NotificationsDropdown() {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setNotificationsOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {
@@ -99,8 +103,9 @@ export default function NotificationsDropdown() {
   return (
     <div className={`dropdown ${notificationsOpen ? 'dropdown-open' : ''}`} ref={notifRef}>
       <button 
-        className={`btn btn-ghost btn-icon ${notificationsOpen ? 'active' : ''}`} 
+        className={`btn btn-ghost btn-icon touch-target ${notificationsOpen ? 'active' : ''}`} 
         title="Notifications"
+        aria-label="Notifications"
         onClick={handleToggle}
         style={{ position: 'relative' }}
       >
@@ -120,7 +125,7 @@ export default function NotificationsDropdown() {
       </button>
 
       {notificationsOpen && (
-        <div className="dropdown-menu dropdown-menu-right" style={{ width: '380px', padding: 0, maxHeight: '80vh', overflowY: 'auto' }}>
+        <div className="dropdown-menu dropdown-menu-right notifications-panel" style={{ padding: 0, maxHeight: 'min(80vh, 80dvh)', overflowY: 'auto' }}>
           <div style={{ padding: 'var(--space-md)', borderBottom: '1px solid var(--bg-surface-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, backgroundColor: 'var(--bg-surface)', zIndex: 10 }}>
             <h3 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600 }}>Notifications</h3>
             <Link href="/settings" style={{ color: 'var(--text-muted)' }} onClick={() => setNotificationsOpen(false)}>
