@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
+import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 
 function LoginForm() {
   const router = useRouter();
@@ -28,7 +29,11 @@ function LoginForm() {
     });
 
     if (result?.error) {
-      setError('Invalid email or password');
+      if (result.error.includes('unverified_email') || result.code === 'unverified_email') {
+        setError('Please verify your email address before signing in. Check your inbox.');
+      } else {
+        setError('Invalid email or password');
+      }
       setLoading(false);
       return;
     }
@@ -107,15 +112,7 @@ function LoginForm() {
           </div>
 
           <div className="auth-social">
-            <button className="btn btn-secondary" disabled>
-              <span>G</span> Google
-            </button>
-            <button className="btn btn-secondary" disabled>
-              <span>🍎</span> Apple
-            </button>
-            <button className="btn btn-secondary" disabled>
-              <span>🎮</span> Steam
-            </button>
+            <GoogleSignInButton />
           </div>
 
           <p className="auth-footer">

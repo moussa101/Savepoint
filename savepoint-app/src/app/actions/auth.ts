@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { signIn } from '@/lib/auth';
+import { sendVerificationEmail } from '@/lib/mail';
+import crypto from 'crypto';
 
 export async function registerUser(formData: FormData) {
   const username = formData.get('username') as string;
@@ -42,7 +44,7 @@ export async function registerUser(formData: FormData) {
 
   const hashedPassword = await hash(password, 12);
 
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       username,
       email,
@@ -51,16 +53,20 @@ export async function registerUser(formData: FormData) {
     },
   });
 
-  // Auto sign in after registration
-  try {
-    await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-  } catch {
-    // Sign in might throw redirect, that's ok
-  }
+  // Generate Verification Token
+  const token = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(new Date().getTime() + 1000 * 60 * 60 * 24); // 24 hours
+  
+  await prisma.verificationToken.create({
+    data: {
+      identifier: email,
+      token,
+      expires
+    }
+  });
+
+  // Send the email
+  await sendVerificationEmail(email, token);
 
   return { success: true };
 }

@@ -1,10 +1,33 @@
-import NextAuth from 'next-auth';
+import NextAuth, { CredentialsSignin } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import Google from 'next-auth/providers/google';
 import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/db';
+import { PrismaAdapter } from '@auth/prisma-adapter';
+
+class UnverifiedEmailError extends CredentialsSignin {
+  code = "unverified_email"
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  adapter: {
+    ...PrismaAdapter(prisma),
+    createUser: async (user) => {
+      // Generate a random username if not provided (for OAuth users)
+      const username = user.email.split('@')[0] + Math.floor(Math.random() * 10000);
+      return prisma.user.create({
+        data: {
+          ...user,
+          username,
+        }
+      });
+    }
+  },
   providers: [
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
     Credentials({
       name: 'credentials',
       credentials: {
@@ -22,6 +45,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!user || !user.password) {
           return null;
+        }
+
+        if (!user.emailVerified) {
+          throw new UnverifiedEmailError();
         }
 
         const isPasswordValid = await compare(

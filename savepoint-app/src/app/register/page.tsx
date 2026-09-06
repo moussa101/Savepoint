@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { registerUser } from '@/app/actions/auth';
+import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -131,15 +132,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="auth-social">
-            <button className="btn btn-secondary" disabled>
-              <span>G</span> Google
-            </button>
-            <button className="btn btn-secondary" disabled>
-              <span>🍎</span> Apple
-            </button>
-            <button className="btn btn-secondary" disabled>
-              <span>🎮</span> Steam
-            </button>
+            <GoogleSignInButton />
           </div>
 
           <p className="auth-footer">
