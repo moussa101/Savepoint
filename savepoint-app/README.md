@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ⟐ Savepoint
 
-## Getting Started
+> **Play. Rate. Review. Remember.**
 
-First, run the development server:
+Savepoint is a modern, beautifully designed social gaming platform built for gamers who want to track their gaming journey, rate and review titles, and discover their next favorite game. Think of it as Letterboxd or Spotify, but tailor-made for video games.
 
+## ✨ Features
+
+- **Massive Game Database**: Fully integrated with the IGDB API. Search a live catalog of over 300,000 video games in real-time.
+- **AI-Powered Recommendations**: Powered by Google Gemini (`@google/genai`), Savepoint analyzes your unique gaming taste profile to recommend highly personalized games you'll absolutely love.
+- **Advanced Authentication**: 
+  - Seamless "Continue with Google" OAuth powered by Auth.js.
+  - Bulletproof Email/Password registration with cryptographic email verification powered by Nodemailer.
+- **Zero-Egress Media Storage**: Upload custom avatars and profile banners instantly. Media is securely stored on Cloudflare R2 and served lightning-fast globally.
+- **NSFW Moderation**: All uploaded images are automatically scanned by Sightengine to keep the community safe.
+- **Glassmorphic UI**: A stunning, premium dark-mode interface with vibrant neon accents and fluid micro-animations.
+
+## 🚀 Tech Stack
+
+- **Framework**: [Next.js 15 (App Router)](https://nextjs.org/)
+- **Language**: TypeScript
+- **Database**: PostgreSQL (via Supabase)
+- **ORM**: [Prisma](https://www.prisma.io/)
+- **Authentication**: [Auth.js (NextAuth v5)](https://authjs.dev/)
+- **Styling**: Vanilla CSS (Custom Design System)
+- **Media Storage**: AWS SDK + Cloudflare R2
+- **AI**: Google Gemini API
+
+## 🛠️ Getting Started
+
+### Prerequisites
+Make sure you have Node.js installed, and an active PostgreSQL database (we recommend Supabase).
+
+### Installation
+
+1. Clone the repository and install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Configure your environment variables. Create a `.env` file in the root directory and add the following keys:
+```env
+# Database
+DATABASE_URL="your_postgres_pooler_url"
+DIRECT_URL="your_postgres_direct_url"
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# Authentication
+AUTH_SECRET="your_secure_secret"
+NEXTAUTH_URL="http://localhost:3000"
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# IGDB (Twitch) API
+TWITCH_CLIENT_ID="your_twitch_client_id"
+TWITCH_CLIENT_SECRET="your_twitch_client_secret"
 
-## Learn More
+# Cloudflare R2 Storage
+R2_ACCOUNT_ID="your_r2_account_id"
+R2_ACCESS_KEY_ID="your_r2_access_key"
+R2_SECRET_ACCESS_KEY="your_r2_secret_key"
+R2_BUCKET_NAME="savepoint-assets"
+NEXT_PUBLIC_R2_PUBLIC_URL="your_r2_public_domain"
 
-To learn more about Next.js, take a look at the following resources:
+# NSFW Moderation
+SIGHTENGINE_API_USER="your_sightengine_user"
+SIGHTENGINE_API_SECRET="your_sightengine_secret"
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# AI Recommendations
+GEMINI_API_KEY="your_gemini_api_key"
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Email Verification (Gmail SMTP)
+GMAIL_USER="your_gmail_address"
+GMAIL_APP_PASSWORD="your_16_char_app_password"
+```
 
-## Deploy on Vercel
+3. Push the Prisma schema to your database:
+```bash
+npx prisma db push
+npx prisma generate
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+4. Start the development server:
+```bash
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Visit `http://localhost:3000` to start your gaming journey!
+
+---
+*© 2026 Savepoint.*
