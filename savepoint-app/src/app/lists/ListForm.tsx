@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { createList } from '@/app/actions/games';
+import { PlusIcon, XIcon } from '@/components/ui/Icons';
 
 export default function ListForm() {
   const [open, setOpen] = useState(false);
@@ -23,7 +24,7 @@ export default function ListForm() {
   return (
     <>
       <button className="btn btn-primary" onClick={() => setOpen(true)}>
-        ✨ Create New List
+        <PlusIcon size={16} /> Create New List
       </button>
 
       {open && (
@@ -31,7 +32,7 @@ export default function ListForm() {
           <div className="modal animate-slide-up">
             <div className="modal-header">
               <h2 className="font-display" style={{ fontWeight: 700 }}>Create New List</h2>
-              <button className="btn btn-ghost btn-icon" onClick={() => setOpen(false)}>✕</button>
+              <button className="btn btn-ghost btn-icon" onClick={() => setOpen(false)}><XIcon size={18} /></button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
@@ -46,8 +47,8 @@ export default function ListForm() {
                 <div className="form-group">
                   <label className="form-label">Visibility</label>
                   <select name="visibility" className="input">
-                    <option value="PUBLIC">🌐 Public</option>
-                    <option value="PRIVATE">🔒 Private</option>
+                    <option value="PUBLIC">Public</option>
+                    <option value="PRIVATE">Private</option>
                   </select>
                 </div>
               </div>

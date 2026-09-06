@@ -53,42 +53,68 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
   const releaseDate = igdbGame.first_release_date ? new Date(igdbGame.first_release_date * 1000) : null;
 
   // 2. Upsert into local database to ensure relationships work
-  const game = await prisma.game.upsert({
-    where: { slug: igdbGame.slug },
-    update: {
-      name: igdbGame.name,
-      description: igdbGame.summary,
-      coverImage,
-      bannerImage,
-      releaseDate,
-      developer,
-      publisher,
-    },
-    create: {
-      slug: igdbGame.slug,
-      igdbId: igdbGame.id,
-      name: igdbGame.name,
-      description: igdbGame.summary,
-      coverImage,
-      bannerImage,
-      releaseDate,
-      developer,
-      publisher,
-    },
-    include: {
-      reviews: {
-        include: {
-          user: { select: { id: true, username: true, name: true, image: true } },
-          likes: true,
-          _count: { select: { comments: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
+  const gameId = igdbGame.id.toString();
+  
+  let game;
+  try {
+    game = await prisma.game.upsert({
+      where: { slug: igdbGame.slug },
+      update: {
+        name: igdbGame.name,
+        slug: igdbGame.slug,
+        description: igdbGame.summary,
+        coverImage,
+        bannerImage,
+        releaseDate,
+        developer,
+        publisher,
       },
-    },
-  });
+      create: {
+        id: gameId,
+        slug: igdbGame.slug,
+        igdbId: igdbGame.id,
+        name: igdbGame.name,
+        description: igdbGame.summary,
+        coverImage,
+        bannerImage,
+        releaseDate,
+        developer,
+        publisher,
+      },
+      include: {
+        reviews: {
+          include: {
+            user: { select: { id: true, username: true, name: true, image: true } },
+            likes: true,
+            _count: { select: { comments: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
+        _count: { select: { reviews: true, userGames: true } },
+      },
+    });
+  } catch (err: any) {
+    // If a concurrent request created it just now, or there's a slug conflict, try fetching it
+    game = await prisma.game.findUnique({
+      where: { id: gameId },
+      include: {
+        reviews: {
+          include: {
+            user: { select: { id: true, username: true, name: true, image: true } },
+            likes: true,
+            _count: { select: { comments: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        _count: { select: { reviews: true, userGames: true } },
+      }
+    });
+    
+    if (!game) throw err;
+  }
 
-  // Get user's tracking status for this game
+  // 3. Determine user contextracking status for this game
   let userGame = null;
   if (session?.user?.id) {
     userGame = await prisma.userGame.findUnique({

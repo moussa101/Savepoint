@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import { fetchIGDB, getIGDBImageUrl } from '@/lib/igdb';
 import OnboardingClient from './OnboardingClient';
@@ -10,7 +11,16 @@ export const metadata = {
 export default async function OnboardingPage() {
   const session = await auth();
   if (!session) redirect('/login');
-  if ((session.user as any).onboarded) redirect('/feed');
+  
+  if ((session.user as any).onboarded) {
+    redirect('/feed');
+  } else {
+    // Fallback check against DB in case session token is stale
+    const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (dbUser?.onboarded) {
+      redirect('/feed');
+    }
+  }
 
   // Fetch ~30 highly popular games for the user to rate
   let popularGames = [];

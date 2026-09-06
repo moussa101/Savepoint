@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { useState, useRef, useEffect } from 'react';
+import { SearchIcon, BellIcon, UserIcon, BookOpenIcon, ListIcon, SettingsIcon, LogOutIcon } from '@/components/ui/Icons';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -49,10 +50,10 @@ export default function Navbar() {
         {session ? (
           <>
             <Link href="/games" className="btn btn-ghost btn-icon" title="Search">
-              🔍
+              <SearchIcon size={18} />
             </Link>
             <Link href="/feed" className="btn btn-ghost btn-icon" title="Notifications">
-              🔔
+              <BellIcon size={18} />
             </Link>
             <div className={`dropdown ${dropdownOpen ? 'dropdown-open' : ''}`} ref={dropdownRef}>
               <button
@@ -72,27 +73,27 @@ export default function Navbar() {
                   className="dropdown-item"
                   onClick={() => setDropdownOpen(false)}
                 >
-                  👤 My Profile
+                  <UserIcon size={16} /> My Profile
                 </Link>
                 <Link href="/diary" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                  📖 My Diary
+                  <BookOpenIcon size={16} /> My Diary
                 </Link>
                 <Link href="/lists" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                  📋 My Lists
+                  <ListIcon size={16} /> My Lists
                 </Link>
                 <Link
                   href="/settings"
                   className="dropdown-item"
                   onClick={() => setDropdownOpen(false)}
                 >
-                  ⚙️ Settings
+                  <SettingsIcon size={16} /> Settings
                 </Link>
                 <div style={{ height: '1px', background: 'var(--bg-surface-border)', margin: '4px 0' }} />
                 <button
                   className="dropdown-item"
                   onClick={() => signOut({ callbackUrl: '/' })}
                 >
-                  🚪 Sign Out
+                  <LogOutIcon size={16} /> Sign Out
                 </button>
               </div>
             </div>

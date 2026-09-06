@@ -3,7 +3,31 @@
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { ensureGameExistsLocally } from './games';
+import { fetchIGDB, getIGDBImageUrl } from '@/lib/igdb';
 import { redirect } from 'next/navigation';
+
+export async function getSimilarGamesForOnboarding(gameId: string) {
+  try {
+    const query = `
+      fields similar_games.name, similar_games.cover.image_id;
+      where id = ${gameId};
+    `;
+    const results = await fetchIGDB('games', query);
+    
+    if (!results || results.length === 0 || !results[0].similar_games) {
+      return [];
+    }
+    
+    return results[0].similar_games.map((g: any) => ({
+      id: g.id.toString(),
+      name: g.name,
+      coverUrl: getIGDBImageUrl(g.cover?.image_id, 'cover_big')
+    })).slice(0, 5); // Return up to 5 similar games
+  } catch (err) {
+    console.error('Failed to fetch similar games for onboarding', err);
+    return [];
+  }
+}
 
 export async function submitOnboarding(ratings: { id: string; rating: 'LIKE' | 'DISLIKE' }[]) {
   const session = await auth();
@@ -13,32 +37,11 @@ export async function submitOnboarding(ratings: { id: string; rating: 'LIKE' | '
   
   for (const { id: igdbId, rating } of ratings) {
     try {
-      // Fetch and save game metadata to our local DB
-      const localGameId = await ensureGameExistsLocally(igdbId);
-      
-      // Save the user's rating
-      const numericRating = rating === 'LIKE' ? 5.0 : 1.0;
-      
-      await prisma.userGame.upsert({
-        where: {
-          userId_gameId: {
-            userId: session.user.id,
-            gameId: localGameId
-          }
-        },
-        update: {
-          status: 'COMPLETED',
-          rating: numericRating
-        },
-        create: {
-          userId: session.user.id,
-          gameId: localGameId,
-          status: 'COMPLETED',
-          rating: numericRating
-        }
-      });
+      // Save game metadata to our local DB for future recommendations
+      // but do NOT add it to the user's library — onboarding is just taste profiling
+      await ensureGameExistsLocally(igdbId);
     } catch (err) {
-      console.error(`Failed to save onboarding rating for game ${igdbId}`, err);
+      console.error(`Failed to save onboarding game ${igdbId}`, err);
     }
   }
 

@@ -3,6 +3,7 @@ import Navbar from '@/components/layout/Navbar';
 import SessionProvider from '@/components/SessionProvider';
 import { Suspense } from 'react';
 import StarRating from '@/components/ui/StarRating';
+import { GamepadIcon } from '@/components/ui/Icons';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import LiveSearch from '@/components/ui/LiveSearch';
 import RecommendedGames from '@/components/ui/RecommendedGames';
@@ -54,14 +55,14 @@ export default async function GamesPage({
 
           {!q && (
             <Suspense fallback={
-              <div style={{ marginBottom: 'var(--space-3xl)' }}>
+              <div style={{ marginBottom: 'var(--space-xl)' }}>
                 <div style={{ width: '200px', height: '24px', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-md)' }} className="animate-pulse" />
                 <div className="scroll-row">
                   {[1,2,3,4,5].map(i => (
                     <div key={i} className="landing-game-card">
-                      <div className="game-cover" style={{ background: 'var(--bg-surface-hover)' }} className="animate-pulse" />
+                      <div className="game-cover animate-pulse" style={{ background: 'var(--bg-surface-hover)' }} />
                       <div className="landing-game-info">
-                        <div style={{ width: '80%', height: '16px', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-sm)', marginBottom: '4px' }} className="animate-pulse" />
+                        <div className="animate-pulse" style={{ width: '80%', height: '16px', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-sm)', marginBottom: '4px' }} />
                       </div>
                     </div>
                   ))}
@@ -71,6 +72,14 @@ export default async function GamesPage({
               <RecommendedGames />
             </Suspense>
           )}
+
+          {/* Search Section Header */}
+          <div style={{ marginBottom: 'var(--space-md)' }}>
+            <h2 className="section-title font-display">Explore All Games</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+              Search the complete IGDB database of over 200,000 games.
+            </p>
+          </div>
 
           {/* Search */}
           <LiveSearch initialQuery={q || ''} />
@@ -98,7 +107,7 @@ export default async function GamesPage({
           {/* Games Grid */}
           {games.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">🎮</div>
+              <div className="empty-state-icon"><GamepadIcon size={48} color="var(--text-muted)" /></div>
               <div className="empty-state-title">No games found</div>
               <div className="empty-state-text">Try adjusting your search query.</div>
             </div>

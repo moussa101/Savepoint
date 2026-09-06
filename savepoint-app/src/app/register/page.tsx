@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { registerUser } from '@/app/actions/auth';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
+import { MailIcon, LockIcon } from '@/components/ui/Icons';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -76,7 +77,7 @@ export default function RegisterPage() {
 
             <div className="form-group">
               <div className="input-group">
-                <span className="input-icon">✉</span>
+                <span className="input-icon"><MailIcon size={16} /></span>
                 <input
                   type="email"
                   name="email"
@@ -90,7 +91,7 @@ export default function RegisterPage() {
 
             <div className="form-group">
               <div className="input-group">
-                <span className="input-icon">🔒</span>
+                <span className="input-icon"><LockIcon size={16} /></span>
                 <input
                   type="password"
                   name="password"
@@ -105,7 +106,7 @@ export default function RegisterPage() {
 
             <div className="form-group">
               <div className="input-group">
-                <span className="input-icon">🔒</span>
+                <span className="input-icon"><LockIcon size={16} /></span>
                 <input
                   type="password"
                   name="confirmPassword"

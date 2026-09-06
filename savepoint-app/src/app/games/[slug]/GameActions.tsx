@@ -3,12 +3,14 @@
 import { useState, useTransition } from 'react';
 import StarRating from '@/components/ui/StarRating';
 import { addToLibrary, removeFromLibrary, rateGame } from '@/app/actions/games';
+import { PinIcon, GamepadIcon, CheckCircleIcon, XCircleIcon, TrashIcon } from '@/components/ui/Icons';
+import { ReactNode } from 'react';
 
-const STATUSES = [
-  { value: 'WANT_TO_PLAY', label: 'Want to Play', emoji: '📌' },
-  { value: 'PLAYING', label: 'Playing', emoji: '🎮' },
-  { value: 'COMPLETED', label: 'Completed', emoji: '✅' },
-  { value: 'DROPPED', label: 'Dropped', emoji: '❌' },
+const STATUSES: { value: string; label: string; icon: ReactNode }[] = [
+  { value: 'WANT_TO_PLAY', label: 'Want to Play', icon: <PinIcon size={16} /> },
+  { value: 'PLAYING', label: 'Playing', icon: <GamepadIcon size={16} /> },
+  { value: 'COMPLETED', label: 'Completed', icon: <CheckCircleIcon size={16} /> },
+  { value: 'DROPPED', label: 'Dropped', icon: <XCircleIcon size={16} /> },
 ];
 
 interface GameActionsProps {
@@ -76,7 +78,7 @@ export default function GameActions({ gameId, currentStatus, currentRating, isLo
           onClick={() => setDropdownOpen(!dropdownOpen)}
           disabled={isPending}
         >
-          {isPending ? '...' : currentStatusObj ? `${currentStatusObj.emoji} ${currentStatusObj.label}` : '+ Add to Library'}
+          {isPending ? '...' : currentStatusObj ? <>{currentStatusObj.icon} {currentStatusObj.label}</> : '+ Add to Library'}
         </button>
         <div className="dropdown-menu" style={{ width: '100%', left: 0, right: 0 }}>
           {STATUSES.map((s) => (
@@ -86,14 +88,14 @@ export default function GameActions({ gameId, currentStatus, currentRating, isLo
               onClick={() => handleStatusChange(s.value)}
               style={{ fontWeight: s.value === status ? 700 : 400, color: s.value === status ? 'var(--accent-primary)' : undefined }}
             >
-              {s.emoji} {s.label}
+              {s.icon} {s.label}
             </button>
           ))}
           {status && (
             <>
               <div style={{ height: '1px', background: 'var(--bg-surface-border)', margin: '4px 0' }} />
               <button className="dropdown-item" onClick={handleRemove} style={{ color: 'var(--danger)' }}>
-                🗑️ Remove from Library
+                <TrashIcon size={16} /> Remove from Library
               </button>
             </>
           )}

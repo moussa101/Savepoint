@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import Navbar from '@/components/layout/Navbar';
+import { LockIcon } from '@/components/ui/Icons';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import ListGameManager from './ListGameManager';
@@ -61,7 +62,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
                 </Link>
                 <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>• {list.items.length} games</span>
                 <span className={`badge ${list.visibility === 'PUBLIC' ? 'badge-accent' : ''}`}>
-                  {list.visibility === 'PUBLIC' ? '🌐 Public' : '🔒 Private'}
+                  {list.visibility === 'PUBLIC' ? 'Public' : <><LockIcon size={12} /> Private</>}
                 </span>
               </div>
             </div>

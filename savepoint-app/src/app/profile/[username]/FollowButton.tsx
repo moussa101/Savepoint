@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { toggleFollow } from '@/app/actions/games';
+import { CheckIcon } from '@/components/ui/Icons';
 
 export default function FollowButton({ targetUserId, initialFollowing }: { targetUserId: string; initialFollowing: boolean }) {
   const [following, setFollowing] = useState(initialFollowing);
@@ -23,7 +24,7 @@ export default function FollowButton({ targetUserId, initialFollowing }: { targe
       onClick={handleClick}
       disabled={isPending}
     >
-      {following ? 'Following ✓' : 'Follow'}
+      {following ? <><CheckIcon size={14} /> Following</> : 'Follow'}
     </button>
   );
 }

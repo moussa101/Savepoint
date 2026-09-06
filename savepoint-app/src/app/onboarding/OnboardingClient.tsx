@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { submitOnboarding } from '@/app/actions/onboarding';
+import { submitOnboarding, getSimilarGamesForOnboarding } from '@/app/actions/onboarding';
 
 interface Game {
   id: string;
@@ -14,15 +14,45 @@ interface OnboardingClientProps {
 }
 
 export default function OnboardingClient({ games }: OnboardingClientProps) {
-  // Store the user's ratings as { [gameId]: 'LIKE' | 'DISLIKE' }
+  const [gameList, setGameList] = useState<Game[]>(games);
+  const [fetchedSimilar, setFetchedSimilar] = useState<Set<string>>(new Set());
   const [ratings, setRatings] = useState<Record<string, 'LIKE' | 'DISLIKE'>>({});
   const [isPending, startTransition] = useTransition();
 
-  const handleRate = (gameId: string, rating: 'LIKE' | 'DISLIKE') => {
-    setRatings(prev => ({
-      ...prev,
-      [gameId]: prev[gameId] === rating ? undefined : rating, // Toggle off if clicked again
-    } as Record<string, 'LIKE' | 'DISLIKE'>));
+  const handleRate = async (gameId: string, rating: 'LIKE' | 'DISLIKE') => {
+    let isRemoving = false;
+
+    setRatings(prev => {
+      isRemoving = prev[gameId] === rating;
+      return { ...prev, [gameId]: isRemoving ? undefined : rating } as Record<string, 'LIKE' | 'DISLIKE'>;
+    });
+      
+    // Side effects must happen outside the setState updater function in React!
+    if (rating === 'LIKE' && !isRemoving && !fetchedSimilar.has(gameId)) {
+      setFetchedSimilar(prev => new Set(prev).add(gameId));
+      
+      try {
+        const similarGames = await getSimilarGamesForOnboarding(gameId);
+        if (similarGames && similarGames.length > 0) {
+          setGameList(prevList => {
+            const existingIds = new Set(prevList.map(g => g.id));
+            const newGames = similarGames.filter((g: any) => !existingIds.has(g.id));
+            
+            if (newGames.length === 0) return prevList;
+            
+            const likedIndex = prevList.findIndex(g => g.id === gameId);
+            if (likedIndex !== -1) {
+              const newList = [...prevList];
+              newList.splice(likedIndex + 1, 0, ...newGames);
+              return newList;
+            }
+            return [...prevList, ...newGames];
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
   };
 
   const ratedCount = Object.values(ratings).filter(Boolean).length;
@@ -78,7 +108,7 @@ export default function OnboardingClient({ games }: OnboardingClientProps) {
 
       {/* Games Grid */}
       <div className="game-grid game-grid-lg">
-        {games.map((game) => {
+        {gameList.map((game) => {
           const currentRating = ratings[game.id];
           return (
             <div key={game.id} className="card card-interactive" style={{ padding: 'var(--space-sm)', position: 'relative', overflow: 'hidden' }}>
@@ -96,7 +126,11 @@ export default function OnboardingClient({ games }: OnboardingClientProps) {
                     background: currentRating === 'LIKE' ? 'rgba(0, 229, 160, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                     fontSize: '4rem', textShadow: '0 4px 12px rgba(0,0,0,0.5)'
                   }}>
-                    {currentRating === 'LIKE' ? '👍' : '👎'}
+                    {currentRating === 'LIKE' ? (
+                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#00e5a0" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    ) : (
+                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    )}
                   </div>
                 )}
               </div>
@@ -109,24 +143,24 @@ export default function OnboardingClient({ games }: OnboardingClientProps) {
                 <button
                   onClick={() => handleRate(game.id, 'DISLIKE')}
                   style={{
-                    flex: 1, padding: '0.5rem', borderRadius: 'var(--radius-md)',
+                    flex: 1, padding: '0.5rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: currentRating === 'DISLIKE' ? 'var(--danger)' : 'var(--bg-surface-hover)',
                     color: currentRating === 'DISLIKE' ? 'white' : 'var(--text-secondary)',
                     border: '1px solid var(--bg-surface-border)', transition: 'all 0.2s'
                   }}
                 >
-                  👎
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
                 <button
                   onClick={() => handleRate(game.id, 'LIKE')}
                   style={{
-                    flex: 1, padding: '0.5rem', borderRadius: 'var(--radius-md)',
+                    flex: 1, padding: '0.5rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: currentRating === 'LIKE' ? 'var(--accent-primary)' : 'var(--bg-surface-hover)',
-                    color: currentRating === 'LIKE' ? '#000' : 'var(--text-secondary)',
+                    color: currentRating === 'LIKE' ? '#0a0a0f' : 'var(--text-secondary)',
                     border: '1px solid var(--bg-surface-border)', transition: 'all 0.2s'
                   }}
                 >
-                  👍
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 </button>
               </div>
             </div>

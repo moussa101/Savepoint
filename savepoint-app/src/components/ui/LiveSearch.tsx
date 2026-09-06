@@ -3,6 +3,7 @@
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useDebounce } from 'use-debounce';
+import { SearchIcon } from '@/components/ui/Icons';
 
 export default function LiveSearch({ initialQuery = '' }: { initialQuery?: string }) {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function LiveSearch({ initialQuery = '' }: { initialQuery?: strin
   return (
     <div style={{ marginBottom: 'var(--space-xl)', marginTop: 'var(--space-lg)' }}>
       <div className="input-group">
-        <span className="input-icon">🔍</span>
+        <span className="input-icon"><SearchIcon size={16} /></span>
         <input
           type="text"
           placeholder="Search the IGDB database..."

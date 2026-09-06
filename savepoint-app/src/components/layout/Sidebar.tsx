@@ -3,13 +3,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { HomeIcon, GamepadIcon, BookOpenIcon, ListIcon, SettingsIcon, UserIcon } from '@/components/ui/Icons';
+import { ReactNode } from 'react';
 
-const sidebarLinks = [
-  { href: '/feed', label: 'Home', icon: '🏠' },
-  { href: '/games', label: 'Browse Games', icon: '🎮' },
-  { href: '/diary', label: 'My Diary', icon: '📖' },
-  { href: '/lists', label: 'My Lists', icon: '📋' },
-  { href: '/settings', label: 'Settings', icon: '⚙️' },
+const sidebarLinks: { href: string; label: string; icon: ReactNode }[] = [
+  { href: '/feed', label: 'Home', icon: <HomeIcon size={18} /> },
+  { href: '/games', label: 'Browse Games', icon: <GamepadIcon size={18} /> },
+  { href: '/diary', label: 'My Diary', icon: <BookOpenIcon size={18} /> },
+  { href: '/lists', label: 'My Lists', icon: <ListIcon size={18} /> },
+  { href: '/settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
 ];
 
 export default function Sidebar() {
@@ -37,9 +39,6 @@ export default function Sidebar() {
           if (link.href === '/games' && pathname.startsWith('/games')) isActive = true;
           if (link.href === '/feed' && pathname === '/feed') isActive = true;
 
-          // Profile link
-          const profileHref = `/profile/${session.user.username}`;
-          
           return (
             <Link
               key={link.href}
@@ -55,7 +54,7 @@ export default function Sidebar() {
           href={`/profile/${session.user.username}`}
           className={`sidebar-link ${pathname.startsWith('/profile') ? 'sidebar-link-active' : ''}`}
         >
-          <span>👤</span>
+          <span><UserIcon size={18} /></span>
           My Profile
         </Link>
       </nav>

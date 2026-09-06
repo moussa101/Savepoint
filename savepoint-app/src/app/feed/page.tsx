@@ -2,58 +2,74 @@ import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import { formatRelativeTime, STATUS_LABELS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
+import { SignalIcon } from '@/components/ui/Icons';
 
 export const metadata = { title: 'Feed — Savepoint' };
 
 export default async function FeedPage() {
   const session = await auth();
   if (!session) redirect('/login');
-  if ((session.user as any).onboarded === false) redirect('/onboarding');
+  if ((session.user as any).onboarded === false) {
+    // Fallback check in case the session token is stale
+    const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (!dbUser?.onboarded) {
+      redirect('/onboarding');
+    }
+  }
 
-  // Get users the current user follows
-  const following = await prisma.follow.findMany({
-    where: { followerId: session.user.id },
-    select: { followingId: true },
-  });
+  // Get users the current user follows and trending games in parallel
+  const [following, trending] = await Promise.all([
+    prisma.follow.findMany({
+      where: { followerId: session.user.id },
+      select: { followingId: true },
+    }),
+    prisma.game.findMany({
+      orderBy: { ratingCount: 'desc' },
+      take: 5,
+      include: { genres: true },
+    })
+  ]);
+
   const followingIds = following.map((f) => f.followingId);
   const feedUserIds = [...followingIds, session.user.id];
 
-  // Get recent activity from followed users (and self)
-  const recentReviews = await prisma.review.findMany({
-    where: { userId: { in: feedUserIds } },
-    include: {
-      user: { select: { username: true, name: true, image: true } },
-      game: true,
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-  });
-
-  const recentTracking = await prisma.userGame.findMany({
-    where: { userId: { in: feedUserIds } },
-    include: {
-      user: { select: { username: true, name: true, image: true } },
-      game: true,
-    },
-    orderBy: { updatedAt: 'desc' },
-    take: 10,
-  });
-
-  const recentLists = await prisma.list.findMany({
-    where: { userId: { in: feedUserIds }, visibility: 'PUBLIC' },
-    include: {
-      user: { select: { username: true, name: true, image: true } },
-      items: { include: { game: true }, take: 4 },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-  });
+  // Fetch all recent activity feeds in parallel
+  const [recentReviews, recentTracking, recentLists] = await Promise.all([
+    prisma.review.findMany({
+      where: { userId: { in: feedUserIds } },
+      include: {
+        user: { select: { username: true, name: true, image: true } },
+        game: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    prisma.userGame.findMany({
+      where: { userId: { in: feedUserIds } },
+      include: {
+        user: { select: { username: true, name: true, image: true } },
+        game: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+    }),
+    prisma.list.findMany({
+      where: { userId: { in: feedUserIds }, visibility: 'PUBLIC' },
+      include: {
+        user: { select: { username: true, name: true, image: true } },
+        items: { include: { game: true }, take: 4 },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    })
+  ]);
 
   // Merge and sort by date
   type FeedItem = {
@@ -80,12 +96,7 @@ export default async function FeedPage() {
     })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 20);
 
-  // Trending games
-  const trending = await prisma.game.findMany({
-    orderBy: { ratingCount: 'desc' },
-    take: 5,
-    include: { genres: true },
-  });
+
 
   return (
     <SessionProvider>
@@ -99,7 +110,7 @@ export default async function FeedPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             {feedItems.length === 0 ? (
               <div className="empty-state card">
-                <div className="empty-state-icon">📡</div>
+                <div className="empty-state-icon"><SignalIcon size={48} color="var(--text-muted)" /></div>
                 <div className="empty-state-title">Your feed is empty</div>
                 <div className="empty-state-text">Follow other gamers or start tracking games to see activity here.</div>
                 <Link href="/games" className="btn btn-primary" style={{ marginTop: 'var(--space-md)' }}>Browse Games</Link>

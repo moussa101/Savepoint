@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
+import { MailIcon, LockIcon } from '@/components/ui/Icons';
 
 function LoginForm() {
   const router = useRouter();
@@ -70,7 +71,7 @@ function LoginForm() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <div className="input-group">
-                <span className="input-icon">✉</span>
+                <span className="input-icon"><MailIcon size={16} /></span>
                 <input
                   type="email"
                   name="email"
@@ -84,7 +85,7 @@ function LoginForm() {
 
             <div className="form-group">
               <div className="input-group">
-                <span className="input-icon">🔒</span>
+                <span className="input-icon"><LockIcon size={16} /></span>
                 <input
                   type="password"
                   name="password"

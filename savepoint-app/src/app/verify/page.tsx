@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
+import { CheckCircleIcon, XCircleIcon } from '@/components/ui/Icons';
 
 export const metadata = {
   title: 'Verify Email — Savepoint',
@@ -61,7 +62,7 @@ function VerifyMessage({ type, title, message }: { type: 'success' | 'error', ti
     <main className="main-content" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div className="card card-glass" style={{ maxWidth: '400px', width: '100%', textAlign: 'center', padding: 'var(--space-2xl)' }}>
         <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)' }}>
-          {type === 'success' ? '✅' : '❌'}
+          {type === 'success' ? <CheckCircleIcon size={48} color="var(--status-completed)" /> : <XCircleIcon size={48} color="var(--danger)" />}
         </div>
         <h1 className="font-display" style={{ fontSize: 'var(--text-2xl)', marginBottom: 'var(--space-sm)' }}>
           {title}

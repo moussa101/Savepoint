@@ -9,6 +9,7 @@ import StarRating from '@/components/ui/StarRating';
 import DiaryForm from './DiaryForm';
 import { formatDate, STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
+import { BookOpenIcon } from '@/components/ui/Icons';
 
 export const metadata = { title: 'Gaming Diary — Savepoint' };
 
@@ -67,7 +68,7 @@ export default async function DiaryPage() {
           <div>
             {Object.keys(grouped).length === 0 ? (
               <div className="empty-state card">
-                <div className="empty-state-icon">📖</div>
+                <div className="empty-state-icon"><BookOpenIcon size={48} color="var(--text-muted)" /></div>
                 <div className="empty-state-title">No diary entries yet</div>
                 <div className="empty-state-text">Start logging your gaming sessions to build your timeline.</div>
               </div>
@@ -89,9 +90,9 @@ export default async function DiaryPage() {
                   </h2>
                   <div className="timeline" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
                     {monthEntries.map((entry) => (
-                      <div key={entry.id} style={{ position: 'relative' }}>
+                      <div key={entry.id} className="timeline-item" style={{ position: 'relative' }}>
                         <div className="timeline-dot" />
-                        <div className="card" style={{ marginLeft: 'var(--space-md)' }}>
+                        <div className="card card-interactive" style={{ marginLeft: 'var(--space-md)' }}>
                           <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
                             <Link href={`/games/${entry.game.slug}`}>
                               <div className="game-cover" style={{ width: '70px', height: '93px', flexShrink: 0 }}>

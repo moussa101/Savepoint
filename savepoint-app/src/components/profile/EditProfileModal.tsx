@@ -1,5 +1,7 @@
 'use client';
 
+import { XIcon, UserIcon } from '@/components/ui/Icons';
+
 import { useState, useRef } from 'react';
 import { getPresignedPostPolicy, verifyAndSaveProfileImage, updateProfileBio } from '@/app/actions/upload';
 import { useRouter } from 'next/navigation';
@@ -121,7 +123,7 @@ export default function EditProfileModal({ user, onClose }: EditProfileModalProp
         {/* Header */}
         <div style={{ padding: 'var(--space-md)', borderBottom: '1px solid var(--bg-surface-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 600 }}>Edit Profile</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}><XIcon size={20} /></button>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -157,7 +159,7 @@ export default function EditProfileModal({ user, onClose }: EditProfileModalProp
                 }}
                 onClick={() => avatarInputRef.current?.click()}
               >
-                {!avatarPreview && <span style={{ color: 'var(--text-muted)', fontSize: '2rem' }}>👤</span>}
+                {!avatarPreview && <span style={{ color: 'var(--text-muted)' }}><UserIcon size={32} /></span>}
               </div>
               <input type="file" hidden ref={avatarInputRef} onChange={(e) => handleFileChange(e, 'avatar')} accept="image/*" />
               <div style={{ marginTop: '30px' }}>

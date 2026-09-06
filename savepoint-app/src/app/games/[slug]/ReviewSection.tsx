@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import StarRating from '@/components/ui/StarRating';
 import { createReview, deleteReview, toggleReviewLike } from '@/app/actions/games';
 import { formatRelativeTime } from '@/lib/utils';
+import { EditIcon, PenToolIcon, HeartIcon, MessageIcon, AlertTriangleIcon, TrashIcon } from '@/components/ui/Icons';
 
 interface ReviewData {
   id: string;
@@ -84,7 +85,7 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
         </h2>
         {isLoggedIn && !hasReviewed && (
           <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-            ✍️ Write a Review
+            <EditIcon size={16} /> Write a Review
           </button>
         )}
       </div>
@@ -124,7 +125,7 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
       {/* Reviews List */}
       {reviews.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">📝</div>
+          <div className="empty-state-icon"><PenToolIcon size={48} color="var(--text-muted)" /></div>
           <div className="empty-state-title">No reviews yet</div>
           <div className="empty-state-text">Be the first to share your thoughts about this game.</div>
         </div>
@@ -155,7 +156,7 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
                     {review.containsSpoilers && (
-                      <span className="badge badge-spoiler">⚠️ Spoilers</span>
+                      <span className="badge badge-spoiler"><AlertTriangleIcon size={14} /> Spoilers</span>
                     )}
                     <StarRating rating={review.rating} size="sm" />
                   </div>
@@ -172,7 +173,7 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
                       className="spoiler-reveal-btn"
                       onClick={() => setRevealedSpoilers(new Set([...revealedSpoilers, review.id]))}
                     >
-                      ⚠️ Contains spoilers — click to reveal
+                      <AlertTriangleIcon size={16} /> Contains spoilers — click to reveal
                     </button>
                   </div>
                 ) : (
@@ -188,10 +189,10 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
                     style={{ color: review.isLiked ? 'var(--accent-primary)' : 'var(--text-muted)' }}
                     disabled={!isLoggedIn || review.isOwn}
                   >
-                    {review.isLiked ? '❤️' : '🤍'} {review.likeCount}
+                    <HeartIcon size={16} filled={review.isLiked} /> {review.likeCount}
                   </button>
                   <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    💬 {review.commentCount}
+                    <MessageIcon size={16} /> {review.commentCount}
                   </span>
                   {review.isOwn && (
                     <button
@@ -199,7 +200,7 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
                       onClick={() => handleDelete(review.id)}
                       style={{ color: 'var(--danger)', marginLeft: 'auto' }}
                     >
-                      🗑️ Delete
+                      <TrashIcon size={16} /> Delete
                     </button>
                   )}
                 </div>

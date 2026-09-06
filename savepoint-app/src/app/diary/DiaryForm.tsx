@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import StarRating from '@/components/ui/StarRating';
 import { createDiaryEntry } from '@/app/actions/games';
 import GameAutocomplete from '@/components/ui/GameAutocomplete';
+import { EditIcon, XIcon } from '@/components/ui/Icons';
 
 interface DiaryFormProps {
   games?: { id: string; name: string }[]; // Optional now since we fetch live
@@ -33,7 +34,7 @@ export default function DiaryForm({ games = [] }: DiaryFormProps) {
   return (
     <>
       <button className="btn btn-primary" onClick={() => setOpen(true)}>
-        📝 Log Game
+        <EditIcon size={16} /> Log Game
       </button>
 
       {open && (
@@ -41,7 +42,7 @@ export default function DiaryForm({ games = [] }: DiaryFormProps) {
           <div className="modal animate-slide-up">
             <div className="modal-header">
               <h2 className="font-display" style={{ fontWeight: 700 }}>Log Game</h2>
-              <button className="btn btn-ghost btn-icon" onClick={() => setOpen(false)}>✕</button>
+              <button className="btn btn-ghost btn-icon" onClick={() => setOpen(false)}><XIcon size={18} /></button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">

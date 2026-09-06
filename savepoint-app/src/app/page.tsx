@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import Navbar from '@/components/layout/Navbar';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
+import { GamepadIcon, StarIcon, UsersIcon } from '@/components/ui/Icons';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 
 export default async function LandingPage() {
@@ -68,21 +69,21 @@ export default async function LandingPage() {
           </h2>
           <div className="landing-features-grid">
             <div className="card card-glass landing-feature-card">
-              <div className="landing-feature-icon">🎮</div>
+              <div className="landing-feature-icon"><GamepadIcon size={32} color="var(--accent-primary)" /></div>
               <h3 className="landing-feature-title">Track Your Games</h3>
               <p className="landing-feature-desc">
                 Organize your gaming library with statuses — Playing, Completed, Want to Play, Dropped. Never lose track of your backlog again.
               </p>
             </div>
             <div className="card card-glass landing-feature-card">
-              <div className="landing-feature-icon">⭐</div>
+              <div className="landing-feature-icon"><StarIcon size={32} color="var(--accent-primary)" /></div>
               <h3 className="landing-feature-title">Rate & Review</h3>
               <p className="landing-feature-desc">
                 Share your thoughts with half-star precision. Write reviews, mark spoilers, and see what the community thinks.
               </p>
             </div>
             <div className="card card-glass landing-feature-card">
-              <div className="landing-feature-icon">👥</div>
+              <div className="landing-feature-icon"><UsersIcon size={32} color="var(--accent-primary)" /></div>
               <h3 className="landing-feature-title">Social Discovery</h3>
               <p className="landing-feature-desc">
                 Follow gamers with great taste. Discover games through people you trust, not just algorithms.

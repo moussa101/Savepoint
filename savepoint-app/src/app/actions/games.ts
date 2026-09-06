@@ -33,7 +33,7 @@ export async function ensureGameExistsLocally(igdbId: string) {
 
   // Otherwise, fetch full details from IGDB and upsert
   const query = `
-    fields name, summary, cover.image_id, first_release_date,
+    fields name, summary, cover.image_id, first_release_date, slug,
     genres.name, platforms.name,
     involved_companies.company.name, involved_companies.developer;
     where id = ${igdbId};
@@ -47,27 +47,28 @@ export async function ensureGameExistsLocally(igdbId: string) {
   const genres = game.genres?.map((g: any) => g.name) || [];
   const platforms = game.platforms?.map((p: any) => p.name) || [];
 
+  const slug = game.slug || `${game.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${igdbId}`;
+
   const localGame = await prisma.game.upsert({
-    where: { id: igdbId },
+    where: { slug },
     update: {}, // Already exists, do nothing
     create: {
       id: igdbId,
+      igdbId: parseInt(igdbId),
       name: game.name,
-      slug: `${game.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${igdbId}`,
+      slug,
       description: game.summary,
       coverImage: game.cover?.image_id ? getIGDBImageUrl(game.cover.image_id, 'cover_big') : null,
       releaseDate: game.first_release_date ? new Date(game.first_release_date * 1000) : null,
       developer,
       genres: {
-        connectOrCreate: genres.map((name: string) => ({
-          where: { name },
-          create: { name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') }
+        create: genres.map((name: string) => ({
+          genre: name
         }))
       },
       platforms: {
-        connectOrCreate: platforms.map((name: string) => ({
-          where: { name },
-          create: { name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') }
+        create: platforms.map((name: string) => ({
+          platform: name
         }))
       }
     }

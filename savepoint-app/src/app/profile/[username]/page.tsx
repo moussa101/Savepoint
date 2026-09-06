@@ -9,19 +9,12 @@ import FollowButton from './FollowButton';
 import EditProfileWrapper from '@/components/profile/EditProfileWrapper';
 import { STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
+import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon } from '@/components/ui/Icons';
 
-export async function generateMetadata({ params }: { params: Promise<{ username: string }> }) {
-  const { username } = await params;
-  const user = await prisma.user.findUnique({ where: { username } });
-  if (!user) return { title: 'User Not Found' };
-  return { title: `${user.name || user.username} — Savepoint` };
-}
+import { cache } from 'react';
 
-export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
-  const { username } = await params;
-  const session = await auth();
-
-  const user = await prisma.user.findUnique({
+const getUser = cache(async (username: string) => {
+  return await prisma.user.findUnique({
     where: { username },
     include: {
       userGames: {
@@ -49,6 +42,20 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       },
     },
   });
+});
+
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }) {
+  const { username } = await params;
+  const user = await getUser(username);
+  if (!user) return { title: 'User Not Found' };
+  return { title: `${user.name || user.username} — Savepoint` };
+}
+
+export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
+  const { username } = await params;
+  const session = await auth();
+
+  const user = await getUser(username);
 
   if (!user) notFound();
 
@@ -78,44 +85,79 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       <main className="main-content">
         {/* Banner */}
         <div style={{
-          height: '200px',
+          height: '280px',
           background: user.bannerImage
-            ? `url(${user.bannerImage}) center/cover`
-            : 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, rgba(0, 229, 160, 0.1) 100%)',
+            ? `linear-gradient(to bottom, rgba(13, 13, 26, 0.2), var(--bg-background)), url(${user.bannerImage}) center/cover`
+            : 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, rgba(0, 229, 160, 0.15) 100%)',
           marginTop: 'var(--navbar-height)',
-        }} />
+          position: 'relative',
+        }}>
+          {!user.bannerImage && (
+            <div style={{ position: 'absolute', inset: 0, background: 'url(/noise.png)', opacity: 0.05, mixBlendMode: 'overlay' }} />
+          )}
+        </div>
 
-        <div className="container" style={{ marginTop: '-60px', position: 'relative', zIndex: 2 }}>
-          {/* Profile header */}
-          <div style={{ display: 'flex', gap: 'var(--space-xl)', alignItems: 'flex-end', marginBottom: 'var(--space-xl)', flexWrap: 'wrap' }}>
-            <div className="avatar avatar-2xl avatar-ring">
+        <div className="container" style={{ marginTop: '-100px', position: 'relative', zIndex: 2 }}>
+          {/* Profile header - Glassmorphic Card */}
+          <div style={{ 
+            background: 'rgba(26, 26, 46, 0.65)', 
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            borderRadius: 'var(--radius-xl)',
+            padding: 'var(--space-xl)',
+            display: 'flex', 
+            gap: 'var(--space-xl)', 
+            alignItems: 'center', 
+            marginBottom: 'var(--space-2xl)', 
+            flexWrap: 'wrap',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
+          }}>
+            <div className="avatar avatar-ring" style={{ width: '120px', height: '120px', fontSize: '3rem' }}>
               {user.image ? (
                 <img src={user.image} alt={user.name || user.username} />
               ) : (
                 (user.name || user.username).charAt(0).toUpperCase()
               )}
             </div>
-            <div style={{ flex: 1 }}>
-              <h1 className="font-display" style={{ fontSize: 'var(--text-3xl)', fontWeight: 800 }}>
+            <div style={{ flex: 1, minWidth: '250px' }}>
+              <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: '4px' }}>
                 {user.name || user.username}
               </h1>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-sm)' }}>
+              <p style={{ color: 'var(--accent-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: 'var(--space-sm)' }}>
                 @{user.username}
               </p>
-              {user.bio && <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)' }}>{user.bio}</p>}
-              <div style={{ display: 'flex', gap: 'var(--space-xl)', fontSize: 'var(--text-sm)' }}>
-                <span><strong>{gamesPlayed}</strong> <span style={{ color: 'var(--text-muted)' }}>Games</span></span>
-                <span><strong>{user.favoriteGames.length}</strong> <span style={{ color: 'var(--text-muted)' }}>Favorites</span></span>
-                <span><strong>{user._count.reviews}</strong> <span style={{ color: 'var(--text-muted)' }}>Reviews</span></span>
-                <span><strong>{user._count.following}</strong> <span style={{ color: 'var(--text-muted)' }}>Following</span></span>
-                <span><strong>{user._count.followers}</strong> <span style={{ color: 'var(--text-muted)' }}>Followers</span></span>
+              {user.bio && <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)', maxWidth: '600px', lineHeight: 'var(--leading-relaxed)' }}>{user.bio}</p>}
+              <div style={{ display: 'flex', gap: 'var(--space-xl)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-md)' }}>
+                <span style={{ display: 'flex', flexDirection: 'column' }}>
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{gamesPlayed}</strong> 
+                  <span style={{ color: 'var(--text-muted)' }}>Games</span>
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column' }}>
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user.favoriteGames.length}</strong> 
+                  <span style={{ color: 'var(--text-muted)' }}>Favorites</span>
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column' }}>
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.reviews}</strong> 
+                  <span style={{ color: 'var(--text-muted)' }}>Reviews</span>
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column' }}>
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.following}</strong> 
+                  <span style={{ color: 'var(--text-muted)' }}>Following</span>
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column' }}>
+                  <strong style={{ fontSize: 'var(--text-lg)' }}>{user._count.followers}</strong> 
+                  <span style={{ color: 'var(--text-muted)' }}>Followers</span>
+                </span>
               </div>
             </div>
-            {!isOwnProfile && session ? (
-              <FollowButton targetUserId={user.id} initialFollowing={isFollowing} />
-            ) : isOwnProfile ? (
-              <EditProfileWrapper user={{ name: user.name, bio: user.bio, image: user.image, bannerImage: user.bannerImage }} />
-            ) : null}
+            <div style={{ alignSelf: 'flex-start' }}>
+              {!isOwnProfile && session ? (
+                <FollowButton targetUserId={user.id} initialFollowing={isFollowing} />
+              ) : isOwnProfile ? (
+                <EditProfileWrapper user={{ name: user.name, bio: user.bio, image: user.image, bannerImage: user.bannerImage }} />
+              ) : null}
+            </div>
           </div>
 
           {/* Currently Playing */}
@@ -150,17 +192,17 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           )}
 
           {/* Stats Card */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 'var(--space-md)', marginBottom: 'var(--space-2xl)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-lg)', marginBottom: 'var(--space-3xl)' }}>
             {[
-              { label: 'Games Played', value: gamesPlayed, icon: '🎮' },
-              { label: 'Completed', value: gamesCompleted, icon: '✅' },
-              { label: 'Avg Rating', value: avgRating > 0 ? avgRating.toFixed(1) : '—', icon: '⭐' },
-              { label: 'Reviews', value: user._count.reviews, icon: '📝' },
+              { label: 'Games Played', value: gamesPlayed, icon: <GamepadIcon size={24} color="var(--accent-primary)" /> },
+              { label: 'Completed', value: gamesCompleted, icon: <CheckCircleIcon size={24} color="var(--accent-primary)" /> },
+              { label: 'Avg Rating', value: avgRating > 0 ? avgRating.toFixed(1) : '—', icon: <StarIcon size={24} color="var(--accent-primary)" /> },
+              { label: 'Reviews', value: user._count.reviews, icon: <EditIcon size={24} color="var(--accent-primary)" /> },
             ].map((stat) => (
-              <div key={stat.label} className="card" style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', marginBottom: 'var(--space-xs)' }}>{stat.icon}</div>
-                <div className="font-display" style={{ fontSize: 'var(--text-2xl)', fontWeight: 800 }}>{stat.value}</div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{stat.label}</div>
+              <div key={stat.label} className="card card-interactive" style={{ textAlign: 'center', padding: 'var(--space-xl)', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'linear-gradient(180deg, rgba(26, 26, 46, 0.4) 0%, rgba(13, 13, 26, 0.6) 100%)', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+                <div style={{ marginBottom: 'var(--space-sm)', width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(0, 229, 160, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{stat.icon}</div>
+                <div className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 900, marginBottom: '4px' }}>{stat.value}</div>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
               </div>
             ))}
           </div>
@@ -170,7 +212,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>Library</h2>
             {user.userGames.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-state-icon">📚</div>
+                <div className="empty-state-icon"><GamepadIcon size={48} color="var(--text-muted)" /></div>
                 <div className="empty-state-title">No games in library</div>
               </div>
             ) : (
