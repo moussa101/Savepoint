@@ -1,16 +1,16 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
+import { GoogleIcon } from '@/components/ui/Icons';
 
 export default function GoogleSignInButton() {
   return (
-    <button 
-      type="button" 
+    <button
+      type="button"
       onClick={() => signIn('google', { callbackUrl: '/onboarding' })}
-      className="btn btn-secondary" 
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', background: 'white', color: '#000', border: 'none' }}
+      className="btn btn-oauth"
     >
-      <img src="https://authjs.dev/img/providers/google.svg" alt="Google" width={24} height={24} />
+      <GoogleIcon size={22} />
       Continue with Google
     </button>
   );

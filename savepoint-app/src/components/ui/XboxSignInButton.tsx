@@ -7,19 +7,10 @@ export default function XboxSignInButton() {
   return (
     <button
       type="button"
-      className="btn"
-      style={{
-        backgroundColor: '#107C10',
-        color: '#ffffff',
-        border: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 'var(--space-sm)'
-      }}
+      className="btn btn-oauth"
       onClick={() => signIn('microsoft-entra-id', { callbackUrl: '/onboarding' })}
     >
-      <XboxIcon size={20} />
+      <XboxIcon size={22} />
       Continue with Xbox
     </button>
   );

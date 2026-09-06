@@ -7,19 +7,10 @@ export default function DiscordSignInButton() {
   return (
     <button
       type="button"
-      className="btn"
-      style={{
-        backgroundColor: '#5865F2',
-        color: '#ffffff',
-        border: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 'var(--space-sm)'
-      }}
+      className="btn btn-oauth"
       onClick={() => signIn('discord', { callbackUrl: '/onboarding' })}
     >
-      <DiscordIcon size={20} />
+      <DiscordIcon size={22} />
       Continue with Discord
     </button>
   );

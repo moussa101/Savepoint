@@ -222,16 +222,6 @@ function LoginForm() {
           margin-bottom: var(--space-lg);
           border: 1px solid rgba(34, 197, 94, 0.2);
         }
-        .auth-social {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-sm);
-        }
-        .auth-social .btn {
-          width: 100%;
-          padding: 0.75rem;
-          font-weight: 600;
-        }
         .auth-footer {
           text-align: center;
           margin-top: var(--space-xl);
