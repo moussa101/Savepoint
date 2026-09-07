@@ -16,8 +16,6 @@ import { recomputePlaytimeAverages } from '@/lib/playtime';
 
 const STEAM_SYNC_LIMIT = 500;
 const XBOX_SYNC_LIMIT = 150;
-/** How often we auto-refresh a linked Steam library when the user opens Library. */
-export const STEAM_AUTO_SYNC_MS = 6 * 60 * 60 * 1000;
 
 function requireUserId() {
   return auth().then((session) => {
@@ -269,16 +267,6 @@ export async function syncSteamLibraryForUser(userId: string) {
 export async function syncSteamLibrary() {
   const userId = await requireUserId();
   return syncSteamLibraryForUser(userId);
-}
-
-/** True when we should pull Steam again (never synced, just linked, or older than TTL). */
-export function shouldAutoSyncSteam(
-  steamLastSyncAt: Date | null | undefined,
-  force = false
-) {
-  if (force) return true;
-  if (!steamLastSyncAt) return true;
-  return Date.now() - steamLastSyncAt.getTime() >= STEAM_AUTO_SYNC_MS;
 }
 
 export async function linkXboxGamertag(gamertag: string) {

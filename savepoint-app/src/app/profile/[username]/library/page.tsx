@@ -10,8 +10,6 @@ import { formatPlaytimeHours } from '@/lib/playtime';
 import { GamepadIcon, LockIcon } from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
 
-export const metadata = { title: 'Library — Savepoint' };
-
 const SHELVES: GameStatus[] = ['PLAYING', 'WANT_TO_PLAY', 'COMPLETED', 'DROPPED'];
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }) {

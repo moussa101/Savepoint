@@ -9,10 +9,8 @@ import StarRating from '@/components/ui/StarRating';
 import { STATUS_LABELS, STATUS_COLORS, type GameStatus } from '@/lib/utils';
 import { GamepadIcon, SteamIcon } from '@/components/ui/Icons';
 import SteamSyncButton from './SteamSyncButton';
-import {
-  shouldAutoSyncSteam,
-  syncSteamLibraryForUser,
-} from '@/app/actions/library-sync';
+import { syncSteamLibraryForUser } from '@/app/actions/library-sync';
+import { shouldAutoSyncSteam } from '@/lib/steam-sync';
 import { formatPlaytimeHours } from '@/lib/playtime';
 
 export const metadata = { title: 'My Library — Savepoint' };
