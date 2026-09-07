@@ -137,9 +137,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   ]);
   const isFollowing = !!followRecord;
 
-  // Private profiles are owner-only (FR privacy: Public or Private)
+  // Private profiles hide reviews/lists/social; library visibility is separate (libraryPublic).
   const canViewPrivate = isOwnProfile || !user.isPrivate;
-  if (!canViewPrivate) {
+  const canViewLibrary = isOwnProfile || user.libraryPublic;
+
+  if (!canViewPrivate && !canViewLibrary) {
     return (
       <SessionProvider>
         <Navbar />
@@ -150,13 +152,50 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               @{user.username} is private
             </h1>
             <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
-              This profile is private. Only the owner can view their library, reviews, and lists.
+              This profile and library are private.
             </p>
             {session?.user ? (
               <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn />
             ) : (
               <Link href="/login" className="btn btn-primary">Sign in</Link>
             )}
+          </div>
+        </main>
+      </SessionProvider>
+    );
+  }
+
+  if (!canViewPrivate) {
+    // Profile private but library public — show a compact header + library CTA.
+    return (
+      <SessionProvider>
+        <Navbar />
+        <main className="main-content" style={{ paddingTop: 'calc(var(--navbar-height) + var(--space-3xl))' }}>
+          <div className="container" style={{ maxWidth: 640, textAlign: 'center' }}>
+            <UserAvatar
+              className="avatar"
+              style={{ width: 88, height: 88, margin: '0 auto', fontSize: '2rem' }}
+              src={user.image}
+              name={user.name}
+              username={user.username}
+            />
+            <h1 className="font-display" style={{ fontSize: 'var(--text-3xl)', marginTop: 'var(--space-md)' }}>
+              {user.name || user.username}
+            </h1>
+            <p style={{ color: 'var(--text-muted)' }}>@{user.username} · Private profile</p>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
+              Reviews and lists are hidden, but their library is public.
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Link href={`/profile/${user.username}/library`} className="btn btn-primary">
+                View library
+              </Link>
+              {session?.user ? (
+                <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn />
+              ) : (
+                <Link href="/login" className="btn btn-secondary">Sign in</Link>
+              )}
+            </div>
           </div>
         </main>
       </SessionProvider>
@@ -291,7 +330,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             </div>
           </div>
 
-          {user.currentlyPlaying.length > 0 && (
+          {canViewLibrary && user.currentlyPlaying.length > 0 && (
             <div className="card" style={{ marginBottom: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Currently Playing:</span>
               {user.currentlyPlaying.map((ug) => (
@@ -370,28 +409,43 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             </div>
           )}
 
-          {shelves.map((shelf) => (
-            shelf.items.length > 0 ? (
-              <div key={shelf.key} style={{ marginBottom: 'var(--space-2xl)' }}>
-                <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>
-                  {shelf.title} <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-base)' }}>({shelf.items.length})</span>
-                </h2>
-                <div className="scroll-row">
-                  {shelf.items.slice(0, 12).map((ug) => (
-                    <Link key={ug.id} href={`/games/${ug.game.slug}`} style={{ textDecoration: 'none', color: 'inherit', width: 120 }}>
-                      <div className="game-cover" style={{ width: '120px', height: '160px', marginBottom: 8, position: 'relative' }}>
-                        {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} loading="lazy" decoding="async" />}
-                        <span className={`badge badge-${STATUS_COLORS[ug.status as GameStatus]}`} style={{ position: 'absolute', bottom: 6, left: 6, fontSize: '0.6rem' }}>
-                          {STATUS_LABELS[ug.status as GameStatus]}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ug.game.name}</div>
-                    </Link>
-                  ))}
-                </div>
+          {canViewLibrary ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)', flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
+                <h2 className="section-title font-display" style={{ margin: 0 }}>Library</h2>
+                <Link href={`/profile/${user.username}/library`} className="btn btn-secondary btn-sm">
+                  View full library
+                </Link>
               </div>
-            ) : null
-          ))}
+              {shelves.map((shelf) => (
+                shelf.items.length > 0 ? (
+                  <div key={shelf.key} style={{ marginBottom: 'var(--space-2xl)' }}>
+                    <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-lg)' }}>
+                      {shelf.title} <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-base)' }}>({shelf.items.length})</span>
+                    </h2>
+                    <div className="scroll-row">
+                      {shelf.items.slice(0, 12).map((ug) => (
+                        <Link key={ug.id} href={`/games/${ug.game.slug}`} style={{ textDecoration: 'none', color: 'inherit', width: 120 }}>
+                          <div className="game-cover" style={{ width: '120px', height: '160px', marginBottom: 8, position: 'relative' }}>
+                            {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} loading="lazy" decoding="async" />}
+                            <span className={`badge badge-${STATUS_COLORS[ug.status as GameStatus]}`} style={{ position: 'absolute', bottom: 6, left: 6, fontSize: '0.6rem' }}>
+                              {STATUS_LABELS[ug.status as GameStatus]}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ug.game.name}</div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              ))}
+            </>
+          ) : (
+            <div className="card" style={{ marginBottom: 'var(--space-2xl)', textAlign: 'center' }}>
+              <LockIcon size={24} color="var(--text-muted)" />
+              <p style={{ color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>This user’s library is private.</p>
+            </div>
+          )}
 
           {ownLists.length > 0 && (
             <div style={{ marginBottom: 'var(--space-2xl)' }}>

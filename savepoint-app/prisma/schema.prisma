@@ -93,6 +93,8 @@ model User {
   bannedReason  String?
   lastIp        String?
   isPrivate     Boolean   @default(false)
+  /// When true, other users can view this user's full library (even if profile is private).
+  libraryPublic Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -101,6 +103,7 @@ model User {
   notifyOnReviewLike Boolean @default(true)
   notifyOnComment    Boolean @default(true)
   notifyOnListLike   Boolean @default(true)
+  notifyOnGameRelease Boolean @default(true)
 
   // Gamification
   xp            Int       @default(0)
@@ -133,6 +136,9 @@ model User {
 
   // Favorites
   favoriteGames FavoriteGame[]
+
+  // Release watches (notify when unreleased games launch)
+  releaseWatches GameReleaseWatch[]
 
   // Upload Tracking
   imageUploads ImageUploadLog[]
@@ -198,6 +204,10 @@ model Game {
   avgRating    Float  @default(0)
   ratingCount  Int    @default(0)
   reviewCount  Int    @default(0)
+  /// Mean playtime across users who imported hours (Steam/Xbox), in minutes
+  avgPlaytimeMinutes  Float @default(0)
+  /// How many user libraries contributed to avgPlaytimeMinutes
+  playtimeSampleCount Int   @default(0)
 
   // Relations
   genres       GameGenre[]
@@ -207,6 +217,24 @@ model Game {
   listItems    ListItem[]
   diaryEntries DiaryEntry[]
   favoriteOf   FavoriteGame[]
+  releaseWatches GameReleaseWatch[]
+  notifications  Notification[]
+}
+
+/// Users waiting for an unreleased title; notified once after releaseDate passes.
+model GameReleaseWatch {
+  id         String    @id @default(cuid())
+  userId     String
+  gameId     String
+  createdAt  DateTime  @default(now())
+  notifiedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+  @@index([gameId, notifiedAt])
+  @@index([userId])
 }
 
 model GameGenre {
@@ -515,10 +543,11 @@ model Report {
 model Notification {
   id        String   @id @default(cuid())
   userId    String   // The user receiving the notification
-  type      String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE'
+  type      String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE', 'GAME_RELEASED'
   sourceId  String?  // ID of the user who triggered it
   reviewId  String?  // Optional reference to a review
   listId    String?  // Optional reference to a list
+  gameId    String?  // Optional reference to a game (e.g. release alerts)
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -526,9 +555,11 @@ model Notification {
   source    User?    @relation("TriggeredNotifications", fields: [sourceId], references: [id], onDelete: Cascade)
   review    Review?  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   list      List?    @relation(fields: [listId], references: [id], onDelete: Cascade)
+  game      Game?    @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([sourceId])
+  @@index([gameId])
   @@index([createdAt])
 }
 

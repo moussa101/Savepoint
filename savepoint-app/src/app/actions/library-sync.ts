@@ -12,9 +12,12 @@ import {
   toLocalGameRow,
 } from '@/lib/igdb-external';
 import { fetchXboxTitleHistory, resolveXboxGamertag } from '@/lib/xbox';
+import { recomputePlaytimeAverages } from '@/lib/playtime';
 
 const STEAM_SYNC_LIMIT = 500;
 const XBOX_SYNC_LIMIT = 150;
+/** How often we auto-refresh a linked Steam library when the user opens Library. */
+export const STEAM_AUTO_SYNC_MS = 6 * 60 * 60 * 1000;
 
 function requireUserId() {
   return auth().then((session) => {
@@ -90,12 +93,10 @@ async function mapConcurrent<T, R>(items: T[], limit: number, fn: (item: T) => P
 }
 
 /**
- * Steam library import. Everything is done in batches — a few IGDB requests
- * and a handful of database round-trips regardless of library size — so a
- * 500-game library syncs in seconds rather than minutes.
+ * Steam library import for a known user id (used by the signed-in action and
+ * by auto-sync after linking / stale Library visits).
  */
-export async function syncSteamLibrary() {
-  const userId = await requireUserId();
+export async function syncSteamLibraryForUser(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { steamId: true },
@@ -243,12 +244,15 @@ export async function syncSteamLibrary() {
       data: { steamLastSyncAt: now },
     });
 
+    // 7. Refresh community average playtime for every game we touched.
+    await recomputePlaytimeAverages(targets.map((t) => t.gameId));
+
     revalidatePath('/settings');
     revalidatePath('/library');
     revalidatePath('/profile', 'layout');
 
     return {
-      success: true,
+      success: true as const,
       imported: toCreate.length,
       updated: toUpdate.length,
       skipped,
@@ -260,6 +264,21 @@ export async function syncSteamLibrary() {
       error: error instanceof Error ? error.message : 'Steam sync failed',
     };
   }
+}
+
+export async function syncSteamLibrary() {
+  const userId = await requireUserId();
+  return syncSteamLibraryForUser(userId);
+}
+
+/** True when we should pull Steam again (never synced, just linked, or older than TTL). */
+export function shouldAutoSyncSteam(
+  steamLastSyncAt: Date | null | undefined,
+  force = false
+) {
+  if (force) return true;
+  if (!steamLastSyncAt) return true;
+  return Date.now() - steamLastSyncAt.getTime() >= STEAM_AUTO_SYNC_MS;
 }
 
 export async function linkXboxGamertag(gamertag: string) {
@@ -361,6 +380,15 @@ export async function syncXboxLibrary() {
       where: { id: userId },
       data: { xboxLastSyncAt: new Date() },
     });
+
+    // Refresh community averages for titles we just wrote.
+    // (Xbox sync is per-title; collect game ids from this user's Xbox rows.)
+    const xboxGames = await prisma.userGame.findMany({
+      where: { userId, source: 'XBOX' },
+      select: { gameId: true },
+      take: XBOX_SYNC_LIMIT,
+    });
+    await recomputePlaytimeAverages(xboxGames.map((g) => g.gameId));
 
     revalidatePath('/settings');
     revalidatePath('/library');

@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { BellIcon, SettingsIcon, CheckCircleIcon, UsersIcon, StarIcon, MessageIcon } from '@/components/ui/Icons';
+import { BellIcon, SettingsIcon, CheckCircleIcon, UsersIcon, StarIcon, MessageIcon, GamepadIcon } from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { formatRelativeTime } from '@/lib/utils';
 
 type Notification = {
   id: string;
-  type: string; // 'FOLLOW', 'REVIEW_LIKE'
+  type: string; // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE', 'GAME_RELEASED'
   isRead: boolean;
   createdAt: string;
   source?: {
@@ -21,6 +21,11 @@ type Notification = {
       name: string;
       slug: string;
     }
+  } | null;
+  game?: {
+    name: string;
+    slug: string;
+    coverImage: string | null;
   } | null;
 };
 
@@ -161,6 +166,14 @@ export default function NotificationsDropdown() {
                   icon = <MessageIcon size={16} color="var(--accent-secondary)" />;
                   text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> commented on your review of <strong>{n.review?.game?.name}</strong></>;
                   link = `/games/${n.review?.game?.slug}#comments`;
+                } else if (n.type === 'GAME_RELEASED') {
+                  icon = <GamepadIcon size={16} color="var(--accent-primary)" />;
+                  text = <><strong>{n.game?.name || 'A game'}</strong> you were watching is out now</>;
+                  link = `/games/${n.game?.slug || ''}`;
+                } else if (n.type === 'LIST_LIKE') {
+                  icon = <StarIcon size={16} color="var(--star-gold)" />;
+                  text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> liked your list</>;
+                  link = `/profile/${n.source?.username}`;
                 } else {
                   return null;
                 }

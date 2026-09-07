@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import EditProfileModal from './EditProfileModal';
 
 interface EditProfileWrapperProps {
@@ -14,16 +14,15 @@ interface EditProfileWrapperProps {
 
 export default function EditProfileWrapper({ user }: EditProfileWrapperProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const close = useCallback(() => setIsOpen(false), []);
 
   return (
     <>
-      <button className="btn btn-outline" onClick={() => setIsOpen(true)}>
+      <button type="button" className="btn btn-outline" onClick={() => setIsOpen(true)}>
         Edit Profile
       </button>
 
-      {isOpen && (
-        <EditProfileModal user={user} onClose={() => setIsOpen(false)} />
-      )}
+      {isOpen && <EditProfileModal user={user} onClose={close} />}
     </>
   );
 }

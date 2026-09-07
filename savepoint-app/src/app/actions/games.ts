@@ -6,6 +6,18 @@ import { revalidatePath } from 'next/cache';
 import { invalidateListsCache, invalidateReviewsCache } from '@/lib/cached-queries';
 import { fetchIGDB, getIGDBImageUrl } from '@/lib/igdb';
 import { grantXP, evaluateBadges, XP_REWARDS } from '@/lib/gamification';
+import { isGameUnreleased } from '@/lib/game-release';
+import { notifyReleaseWatchersForGame } from '@/lib/release-notify';
+
+const ALLOWED_STATUSES = new Set(['WANT_TO_PLAY', 'PLAYING', 'COMPLETED', 'DROPPED']);
+
+async function getGameReleaseDate(gameId: string) {
+  const game = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: { releaseDate: true },
+  });
+  return game?.releaseDate ?? null;
+}
 
 export async function searchIGDBGamesAutocomplete(query: string) {
   if (!query || query.trim().length < 2) return [];
@@ -100,6 +112,15 @@ export async function addToLibrary(gameId: string, status: string) {
     return { error: 'Not authenticated' };
   }
 
+  if (!ALLOWED_STATUSES.has(status)) {
+    return { error: 'Invalid status' };
+  }
+
+  const releaseDate = await getGameReleaseDate(gameId);
+  if (isGameUnreleased(releaseDate) && status !== 'WANT_TO_PLAY') {
+    return { error: 'Unreleased games can only be wishlisted (Want to Play).' };
+  }
+
   const userGame = await prisma.userGame.upsert({
     where: {
       userId_gameId: {
@@ -135,6 +156,7 @@ export async function addToLibrary(gameId: string, status: string) {
 
   revalidatePath(`/games/${gameId}`);
   revalidatePath(`/profile/${session.user.username}`);
+  revalidatePath('/library');
   return { success: true };
 }
 
@@ -166,6 +188,11 @@ export async function rateGame(gameId: string, rating: number) {
     return { error: 'Rating must be between 0.5 and 5' };
   }
 
+  const releaseDate = await getGameReleaseDate(gameId);
+  if (isGameUnreleased(releaseDate)) {
+    return { error: 'You can’t rate a game before it releases. Wishlist it or turn on release notifications instead.' };
+  }
+
   // Ensure the game is in the library
   const userGame = await prisma.userGame.findUnique({
     where: {
@@ -182,7 +209,7 @@ export async function rateGame(gameId: string, rating: number) {
       data: { rating },
     });
   } else {
-    // Add to library as completed if not already tracked
+    // Add to library as playing if not already tracked
     const userGame = await prisma.userGame.create({
       data: {
         userId: session.user.id,
@@ -241,6 +268,11 @@ export async function createReview(gameId: string, formData: FormData) {
 
   if (!rating || rating < 0.5 || rating > 5) {
     return { error: 'A valid rating is required' };
+  }
+
+  const releaseDate = await getGameReleaseDate(gameId);
+  if (isGameUnreleased(releaseDate)) {
+    return { error: 'You can’t review a game before it releases.' };
   }
 
   // Check if user already reviewed this game
@@ -319,6 +351,11 @@ export async function updateReview(reviewId: string, formData: FormData) {
 
   if (!review || review.userId !== session.user.id) {
     return { error: 'Not authorized' };
+  }
+
+  const releaseDate = await getGameReleaseDate(review.gameId);
+  if (isGameUnreleased(releaseDate)) {
+    return { error: 'You can’t review a game before it releases.' };
   }
 
   await prisma.review.update({
@@ -665,6 +702,11 @@ export async function createDiaryEntry(formData: FormData) {
     return { error: 'Game and date are required' };
   }
 
+  const releaseDate = await getGameReleaseDate(gameId);
+  if (isGameUnreleased(releaseDate)) {
+    return { error: 'You can’t log diary play for an unreleased game.' };
+  }
+
   const rating = ratingStr ? parseFloat(ratingStr) : null;
 
   await prisma.diaryEntry.create({
@@ -827,5 +869,38 @@ export async function toggleFavoriteGame(gameId: string) {
   revalidatePath(`/profile/${session.user.username}`);
   
   return { success: true, isFavorited: !existing };
+}
+
+/** Opt in/out of a one-shot notification when an unreleased game launches. */
+export async function toggleReleaseNotify(gameId: string) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: 'Not authenticated' };
+  }
+
+  const releaseDate = await getGameReleaseDate(gameId);
+  if (!isGameUnreleased(releaseDate)) {
+    // Game already out — flush any pending watches for this title.
+    await notifyReleaseWatchersForGame(gameId);
+    return { error: 'This game is already released.' };
+  }
+
+  const existing = await prisma.gameReleaseWatch.findUnique({
+    where: {
+      userId_gameId: { userId: session.user.id, gameId },
+    },
+  });
+
+  if (existing) {
+    await prisma.gameReleaseWatch.delete({ where: { id: existing.id } });
+    revalidatePath(`/games/${gameId}`);
+    return { success: true, watching: false };
+  }
+
+  await prisma.gameReleaseWatch.create({
+    data: { userId: session.user.id, gameId },
+  });
+  revalidatePath(`/games/${gameId}`);
+  return { success: true, watching: true };
 }
 

@@ -8,15 +8,30 @@ import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import LiveSearch from '@/components/ui/LiveSearch';
 import RecommendedGames from '@/components/ui/RecommendedGames';
 import GamesHeroCarousel from '@/components/ui/GamesHeroCarousel';
+import TrendingSpotlight from '@/components/ui/TrendingSpotlight';
 import GameFilters from '@/components/ui/GameFilters';
 import ListCard from '@/components/ui/ListCard';
-import { getPopularListsCached, getRecentReviewsCached } from '@/lib/cached-queries';
+import { getPopularListsCached, getRecentReviewsCached, getTrendingGamesCached } from '@/lib/cached-queries';
 import { formatRelativeTime } from '@/lib/utils';
+import { shuffleCopy, shuffleTier } from '@/lib/shuffle';
 
 export const metadata = {
   title: 'Discover Games — Savepoint',
   description: 'Discover and explore video games. Find popular, highly rated, and trending games.',
 };
+
+/** Page is intentionally dynamic so hero/trending shuffles feel fresh. */
+export const dynamic = 'force-dynamic';
+
+function dedupeById<T extends { id: number | string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = String(item.id);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 export default async function GamesPage({
   searchParams,
@@ -32,16 +47,16 @@ export default async function GamesPage({
     limit 48;
   `;
 
-  let whereClauses: string[] = [];
-  
+  const whereClauses: string[] = [];
+
   if (genres) {
     whereClauses.push(`genres = (${genres})`);
   }
-  
+
   if (platforms) {
     whereClauses.push(`platforms = (${platforms})`);
   }
-  
+
   if (year) {
     const startOfYear = Math.floor(new Date(`${year}-01-01`).getTime() / 1000);
     const endOfYear = Math.floor(new Date(`${year}-12-31T23:59:59`).getTime() / 1000);
@@ -67,7 +82,7 @@ export default async function GamesPage({
     } else if (sort === 'popular_asc') {
       whereClauses.push('total_rating_count != null');
       query += `\nsort total_rating_count asc;`;
-    } else { // popular_desc or default
+    } else {
       whereClauses.push('total_rating_count != null');
       query += `\nsort total_rating_count desc;`;
     }
@@ -79,23 +94,113 @@ export default async function GamesPage({
 
   let games: IGDBGame[] = [];
   let heroGames: IGDBGame[] = [];
-  let popularLists: any[] = [];
+  let trendingGames: Parameters<typeof TrendingSpotlight>[0]['games'] = [];
+  let popularLists: Awaited<ReturnType<typeof getPopularListsCached>> = [];
   let recentReviews: Awaited<ReturnType<typeof getRecentReviewsCached>> = [];
-  
+
   try {
-    const [gamesRes, heroRes, listsRes, reviewsRes] = await Promise.all([
-      fetchIGDB('games', query),
-      fetchIGDB('games', `
-        fields name, slug, summary, total_rating, artworks.image_id, cover.image_id;
-        where artworks != null & total_rating_count > 1000 & rating > 85;
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const twoYearsAgo = nowUnix - 60 * 60 * 24 * 730;
+
+    const [gamesRes, popularPool, recentHits, cultFavorites, communityTrending, listsRes, reviewsRes] =
+      await Promise.all([
+        fetchIGDB('games', query),
+        // Blockbusters — popular & well-rated
+        fetchIGDB(
+          'games',
+          `
+        fields id, name, slug, summary, total_rating, total_rating_count, artworks.image_id, cover.image_id;
+        where artworks != null & total_rating_count > 800 & total_rating > 78;
         sort total_rating_count desc;
-        limit 30;
-      `),
-      getPopularListsCached(),
-      getRecentReviewsCached(),
-    ]);
+        limit 40;
+      `
+        ),
+        // Recent popular releases
+        fetchIGDB(
+          'games',
+          `
+        fields id, name, slug, summary, total_rating, total_rating_count, artworks.image_id, cover.image_id;
+        where first_release_date > ${twoYearsAgo} & first_release_date < ${nowUnix}
+          & total_rating_count > 200 & total_rating > 70 & cover != null;
+        sort total_rating_count desc;
+        limit 24;
+      `
+        ),
+        // Highly rated with fewer ratings (cult / underrated)
+        fetchIGDB(
+          'games',
+          `
+        fields id, name, slug, summary, total_rating, total_rating_count, artworks.image_id, cover.image_id;
+        where total_rating > 88 & total_rating_count > 80 & total_rating_count < 2500 & cover != null;
+        sort total_rating desc;
+        limit 20;
+      `
+        ),
+        getTrendingGamesCached(),
+        getPopularListsCached(),
+        getRecentReviewsCached(),
+      ]);
+
     games = gamesRes;
-    heroGames = heroRes.sort(() => 0.5 - Math.random()).slice(0, 10);
+
+    // Hero: shuffle within tiers so every visit feels random but still popular-heavy.
+    const heroPool = dedupeById(
+      shuffleTier([
+        popularPool.slice(0, 18) as IGDBGame[],
+        recentHits.slice(0, 12) as IGDBGame[],
+        cultFavorites.slice(0, 10) as IGDBGame[],
+      ])
+    ).filter((g) => g.artworks?.[0]?.image_id || g.cover?.image_id);
+
+    heroGames = heroPool.slice(0, 12);
+
+    // Trending spotlight: community activity + IGDB heat, shuffled, ranked layout.
+    const communityMapped = shuffleCopy(communityTrending).map((g, i) => ({
+      id: g.id,
+      name: g.name,
+      slug: g.slug,
+      coverUrl: g.coverImage,
+      rating: g.avgRating,
+      ratingScale: 5 as const,
+      heat: Math.max(g.ratingCount, 1) * 3 + (12 - i),
+      sourceLabel: 'Community',
+      blurb: g.ratingCount > 0 ? `${g.ratingCount} ratings on Savepoint` : null,
+    }));
+
+    const igdbMapped = shuffleCopy(
+      dedupeById([...recentHits, ...popularPool.slice(0, 15), ...cultFavorites])
+    )
+      .filter((g) => !communityMapped.some((c) => c.slug === g.slug))
+      .slice(0, 14)
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        slug: g.slug,
+        coverImageId: g.cover?.image_id || null,
+        rating: g.total_rating ?? null,
+        ratingScale: 100 as const,
+        heat: g.total_rating_count || 1,
+        sourceLabel: (g.total_rating_count || 0) > 2000 ? 'Popular' : 'Rising',
+        blurb: g.summary || null,
+      }));
+
+    // Interleave community + IGDB, keep community presence, then reshuffle lightly in windows.
+    const interleaved: typeof trendingGames = [];
+    const a = communityMapped.slice(0, 5);
+    const b = igdbMapped;
+    const maxLen = Math.max(a.length, b.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < a.length) interleaved.push(a[i]);
+      if (i < b.length) interleaved.push(b[i]);
+    }
+
+    trendingGames = shuffleCopy(interleaved).slice(0, 9);
+    // Promote one high-heat title to #1 so the featured slot still feels “trending”.
+    trendingGames.sort((x, y) => (y.heat || 0) - (x.heat || 0));
+    const top = trendingGames[0];
+    const rest = shuffleCopy(trendingGames.slice(1));
+    trendingGames = top ? [top, ...rest] : rest;
+
     popularLists = listsRes;
     recentReviews = reviewsRes;
   } catch (err) {
@@ -106,35 +211,43 @@ export default async function GamesPage({
     <SessionProvider>
       <Navbar />
       <main className="main-content" style={{ padding: 'var(--space-xl)' }}>
-        
-        {!q && heroGames.length > 0 && (
-          <GamesHeroCarousel games={heroGames} />
-        )}
+        {!q && heroGames.length > 0 && <GamesHeroCarousel games={heroGames} />}
 
         <div className="container container-wide">
-          <h1 className="page-title font-display" style={{ marginTop: q ? 'var(--space-xl)' : 0 }}>Discover</h1>
+          <h1 className="page-title font-display" style={{ marginTop: q ? 'var(--space-xl)' : 0 }}>
+            Discover
+          </h1>
+
+          {!q && trendingGames.length > 0 && <TrendingSpotlight games={trendingGames} />}
 
           {!q && (
-            <Suspense fallback={
-              <div style={{ marginBottom: 'var(--space-xl)' }}>
-                <div style={{ width: '200px', height: '24px', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-md)' }} className="animate-pulse" />
-                <div className="scroll-row">
-                  {[1,2,3,4,5].map(i => (
-                    <div key={i} className="landing-game-card">
-                      <div className="game-cover animate-pulse" style={{ background: 'var(--bg-surface-hover)' }} />
-                      <div className="landing-game-info">
-                        <div className="animate-pulse" style={{ width: '80%', height: '16px', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-sm)', marginBottom: '4px' }} />
+            <Suspense
+              fallback={
+                <div className="discover-rail">
+                  <div
+                    style={{
+                      width: 220,
+                      height: 24,
+                      background: 'var(--bg-surface-hover)',
+                      borderRadius: 'var(--radius-sm)',
+                      marginBottom: 'var(--space-md)',
+                    }}
+                    className="animate-pulse"
+                  />
+                  <div className="scroll-row">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="discover-rail-card landing-game-card">
+                        <div className="game-cover animate-pulse" style={{ background: 'var(--bg-surface-hover)' }} />
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            }>
+              }
+            >
               <RecommendedGames />
             </Suspense>
           )}
 
-          {/* Search Section Header */}
           <div style={{ marginBottom: 'var(--space-md)' }}>
             <h2 className="section-title font-display">Explore All Games</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
@@ -146,19 +259,26 @@ export default async function GamesPage({
             <aside className="discovery-sidebar">
               <GameFilters />
             </aside>
-            
+
             <div className="discovery-content">
-              {/* Search */}
               <LiveSearch initialQuery={q || ''} />
 
-              {/* Community Curated Lists */}
               {!q && popularLists.length > 0 && (
                 <div style={{ marginBottom: 'var(--space-2xl)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-                    <h2 className="section-title font-display" style={{ margin: 0 }}>Popular Community Lists</h2>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 'var(--space-md)',
+                    }}
+                  >
+                    <h2 className="section-title font-display" style={{ margin: 0 }}>
+                      Popular Community Lists
+                    </h2>
                   </div>
                   <div className="responsive-card-grid" style={{ gap: 'var(--space-xl)' }}>
-                    {popularLists.map(list => (
+                    {popularLists.map((list) => (
                       <ListCard key={list.id} list={list} showAuthor={true} />
                     ))}
                   </div>
@@ -167,12 +287,21 @@ export default async function GamesPage({
 
               {!q && recentReviews.length > 0 && (
                 <div style={{ marginBottom: 'var(--space-2xl)' }}>
-                  <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-md)' }}>Recently Reviewed</h2>
+                  <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-md)' }}>
+                    Recently Reviewed
+                  </h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                     {recentReviews.map((review) => (
-                      <Link key={review.id} href={`/games/${review.game.slug}`} className="card" style={{ display: 'flex', gap: 'var(--space-md)', textDecoration: 'none', color: 'inherit' }}>
+                      <Link
+                        key={review.id}
+                        href={`/games/${review.game.slug}`}
+                        className="card"
+                        style={{ display: 'flex', gap: 'var(--space-md)', textDecoration: 'none', color: 'inherit' }}
+                      >
                         <div className="game-cover" style={{ width: 48, height: 64, flexShrink: 0 }}>
-                          {review.game.coverImage && <img src={review.game.coverImage} alt="" loading="lazy" decoding="async" />}
+                          {review.game.coverImage && (
+                            <img src={review.game.coverImage} alt="" loading="lazy" decoding="async" />
+                          )}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700 }}>{review.game.name}</div>
@@ -180,7 +309,16 @@ export default async function GamesPage({
                             by {review.user.name || review.user.username} · {formatRelativeTime(review.createdAt)}
                           </div>
                           <StarRating rating={review.rating} size="sm" />
-                          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <p
+                            style={{
+                              fontSize: 'var(--text-sm)',
+                              color: 'var(--text-secondary)',
+                              marginTop: 4,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {review.text}
                           </p>
                         </div>
@@ -190,62 +328,77 @@ export default async function GamesPage({
                 </div>
               )}
 
-          {/* Games Grid */}
-          {games.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon"><GamepadIcon size={48} color="var(--text-muted)" /></div>
-              <div className="empty-state-title">No games found</div>
-              <div className="empty-state-text">Try adjusting your search query.</div>
-            </div>
-          ) : (
-            <div className="game-grid game-grid-lg">
-              {games.map((game) => {
-                const coverUrl = getIGDBImageUrl(game.cover?.image_id, 'cover_big');
-                // Convert 0-100 rating to 0-5
-                const normalizedRating = game.total_rating ? (game.total_rating / 100) * 5 : 0;
-                
-                return (
-                  <Link
-                    key={game.id}
-                    href={`/games/${game.slug}`}
-                    style={{ textDecoration: 'none', color: 'inherit' }}
-                  >
-                    <div className="game-cover" style={{ marginBottom: 'var(--space-sm)' }}>
-                      {coverUrl ? (
-                        <img src={coverUrl} alt={game.name} loading="lazy" decoding="async" />
-                      ) : (
-                        <div style={{ width: '100%', height: '100%', background: 'var(--bg-surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                          No Cover
+              {games.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">
+                    <GamepadIcon size={48} color="var(--text-muted)" />
+                  </div>
+                  <div className="empty-state-title">No games found</div>
+                  <div className="empty-state-text">Try adjusting your search query.</div>
+                </div>
+              ) : (
+                <div className="game-grid game-grid-lg">
+                  {games.map((game) => {
+                    const coverUrl = getIGDBImageUrl(game.cover?.image_id, 'cover_big');
+                    const normalizedRating = game.total_rating ? (game.total_rating / 100) * 5 : 0;
+
+                    return (
+                      <Link key={game.id} href={`/games/${game.slug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                        <div className="game-cover" style={{ marginBottom: 'var(--space-sm)' }}>
+                          {coverUrl ? (
+                            <img src={coverUrl} alt={game.name} loading="lazy" decoding="async" />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                background: 'var(--bg-surface-hover)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--text-muted)',
+                              }}
+                            >
+                              No Cover
+                            </div>
+                          )}
+                          <div className="game-cover-overlay">
+                            <span className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+                              View Game
+                            </span>
+                          </div>
                         </div>
-                      )}
-                      <div className="game-cover-overlay">
-                        <span className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
-                          View Game
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {game.name}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-                      {normalizedRating > 0 ? (
-                        <StarRating rating={normalizedRating} size="sm" showValue />
-                      ) : (
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Not rated</span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
-                      {game.genres?.slice(0, 2).map((g) => (
-                        <span key={g.id} className="pill" style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem' }}>
-                          {g.name}
-                        </span>
-                      ))}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+                        <div
+                          style={{
+                            fontSize: 'var(--text-sm)',
+                            fontWeight: 600,
+                            marginBottom: '4px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {game.name}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                          {normalizedRating > 0 ? (
+                            <StarRating rating={normalizedRating} size="sm" showValue />
+                          ) : (
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Not rated</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
+                          {game.genres?.slice(0, 2).map((g) => (
+                            <span key={g.id} className="pill" style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem' }}>
+                              {g.name}
+                            </span>
+                          ))}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

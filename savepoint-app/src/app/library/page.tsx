@@ -9,20 +9,17 @@ import StarRating from '@/components/ui/StarRating';
 import { STATUS_LABELS, STATUS_COLORS, type GameStatus } from '@/lib/utils';
 import { GamepadIcon, SteamIcon } from '@/components/ui/Icons';
 import SteamSyncButton from './SteamSyncButton';
+import {
+  shouldAutoSyncSteam,
+  syncSteamLibraryForUser,
+} from '@/app/actions/library-sync';
+import { formatPlaytimeHours } from '@/lib/playtime';
 
 export const metadata = { title: 'My Library — Savepoint' };
-// Steam sync is a server action invoked from this route; allow time for big libraries.
+// Steam sync (auto or manual) can take a while for large libraries.
 export const maxDuration = 60;
 
 const SHELVES: GameStatus[] = ['PLAYING', 'WANT_TO_PLAY', 'COMPLETED', 'DROPPED'];
-
-function formatHours(minutes: number | null | undefined) {
-  const m = minutes || 0;
-  if (m <= 0) return null;
-  const hours = m / 60;
-  if (hours < 1) return `${m}m`;
-  return `${hours % 1 === 0 ? hours.toFixed(0) : hours.toFixed(1)}h`;
-}
 
 export default async function LibraryPage({
   searchParams,
@@ -39,19 +36,47 @@ export default async function LibraryPage({
     redirect('/admin');
   }
 
-  const [userGames, steamLink] = await Promise.all([
-    prisma.userGame.findMany({
-      where: { userId: session.user.id },
-      include: {
-        game: { select: { id: true, name: true, slug: true, coverImage: true } },
-      },
-      orderBy: [{ updatedAt: 'desc' }],
-    }),
-    prisma.user.findUnique({
+  let steamLink = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { steamId: true, steamLastSyncAt: true },
+  });
+
+  let autoSyncNote: string | null = null;
+  const forceSync = steamQuery === 'linked';
+  if (steamLink?.steamId && shouldAutoSyncSteam(steamLink.steamLastSyncAt, forceSync)) {
+    const result = await syncSteamLibraryForUser(session.user.id);
+    if (result && 'error' in result && result.error) {
+      autoSyncNote = result.error;
+    } else if (result && 'success' in result && result.success) {
+      const parts: string[] = [];
+      if (result.imported) parts.push(`${result.imported} added`);
+      if (result.updated) parts.push(`${result.updated} updated`);
+      autoSyncNote = parts.length
+        ? `Steam library synced automatically (${parts.join(', ')}).`
+        : 'Steam library is up to date.';
+    }
+    steamLink = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { steamId: true, steamLastSyncAt: true },
-    }),
-  ]);
+    });
+  }
+
+  const userGames = await prisma.userGame.findMany({
+    where: { userId: session.user.id },
+    include: {
+      game: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          coverImage: true,
+          avgPlaytimeMinutes: true,
+          playtimeSampleCount: true,
+        },
+      },
+    },
+    orderBy: [{ updatedAt: 'desc' }],
+  });
   const steamLinked = !!steamLink?.steamId;
 
   const byStatus = Object.fromEntries(
@@ -95,17 +120,17 @@ export default async function LibraryPage({
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 700 }}>Steam library</div>
               <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                {steamQuery === 'linked'
-                  ? 'Steam connected. Sync to import games and playtime.'
-                  : steamQuery === 'taken'
-                    ? 'That Steam account is already linked to another Savepoint user.'
-                    : steamQuery === 'invalid' || steamQuery === 'error'
-                      ? 'Steam connection failed. Try again.'
+                {steamQuery === 'taken'
+                  ? 'That Steam account is already linked to another Savepoint user.'
+                  : steamQuery === 'invalid' || steamQuery === 'error'
+                    ? 'Steam connection failed. Try again.'
+                    : autoSyncNote
+                      ? autoSyncNote
                       : steamLinked
                         ? steamLink?.steamLastSyncAt
-                          ? `Last synced ${new Date(steamLink.steamLastSyncAt).toLocaleString()}`
-                          : 'Connected — run your first sync to import your games and playtime.'
-                        : 'Link Steam to this Savepoint account (works alongside Google, Discord, or Xbox).'}
+                          ? `Auto-syncs when you open Library (last sync ${new Date(steamLink.steamLastSyncAt).toLocaleString()}).`
+                          : 'Connected — importing your library…'
+                        : 'Link Steam to this Savepoint account. Your library syncs automatically after connecting.'}
               </div>
             </div>
           </div>
@@ -126,7 +151,7 @@ export default async function LibraryPage({
             <div className="empty-state-title">Your library is empty</div>
             <div className="empty-state-text">
               {steamLinked
-                ? 'Hit “Sync now” above to import your Steam library, or add games from Discover.'
+                ? 'Syncing usually fills this automatically. You can also add games from Discover.'
                 : 'Connect Steam above to import your games, or add them from Discover.'}
             </div>
             <Link href="/games" className="btn btn-primary" style={{ marginTop: 'var(--space-md)' }}>
@@ -162,7 +187,8 @@ export default async function LibraryPage({
                 ) : (
                   <div className="scroll-row">
                     {items.map((ug) => {
-                      const hours = formatHours(ug.playtimeMinutes);
+                      const yours = formatPlaytimeHours(ug.playtimeMinutes);
+                      const avg = formatPlaytimeHours(ug.game.avgPlaytimeMinutes);
                       return (
                         <Link
                           key={ug.id}
@@ -191,7 +217,10 @@ export default async function LibraryPage({
                                 color: 'var(--text-muted)',
                               }}
                             >
-                              {hours && <span>{hours}</span>}
+                              {yours && <span>You {yours}</span>}
+                              {avg && ug.game.playtimeSampleCount > 0 && (
+                                <span>Avg {avg}</span>
+                              )}
                               {ug.source === 'STEAM' && <span className="pill">Steam</span>}
                               {ug.source === 'XBOX' && <span className="pill">Xbox</span>}
                             </div>

@@ -12,6 +12,9 @@ import ReviewSection from './ReviewSection';
 import StorefrontLinks from '@/components/game/StorefrontLinks';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
+import { formatPlaytimeHours } from '@/lib/playtime';
+import { isGameUnreleased } from '@/lib/game-release';
+import { notifyReleaseWatchersForGame } from '@/lib/release-notify';
 import { cache } from 'react';
 
 const getIGDBGame = cache(async (slug: string) => {
@@ -96,6 +99,9 @@ function loadCommunity(gameId: string, userId: string | undefined) {
     userId
       ? prisma.favoriteGame.findUnique({ where: { userId_gameId: { userId, gameId } } })
       : Promise.resolve(null),
+    userId
+      ? prisma.gameReleaseWatch.findUnique({ where: { userId_gameId: { userId, gameId } } })
+      : Promise.resolve(null),
   ]);
 }
 type CommunityData = Awaited<ReturnType<typeof loadCommunity>>;
@@ -173,6 +179,13 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
 
   if (!game) notFound();
 
+  const unreleased = isGameUnreleased(game.releaseDate);
+
+  // Fire release alerts if this title just launched and people were watching.
+  if (!unreleased) {
+    void notifyReleaseWatchersForGame(game.id).catch(() => null);
+  }
+
   // 3. Kick off the heavy community queries now, but don't block the header on them.
   const community = loadCommunity(game.id, session?.user?.id);
 
@@ -199,7 +212,33 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
                 {game.developer && <span>Developer: <strong>{game.developer}</strong></span>}
                 {game.publisher && <span> | Publisher: <strong>{game.publisher}</strong></span>}
                 {game.releaseDate && (
-                  <span> | Release: <strong>{new Date(game.releaseDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong></span>
+                  <span>
+                    {' '}
+                    | {unreleased ? 'Releases' : 'Release'}:{' '}
+                    <strong>
+                      {new Date(game.releaseDate).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </strong>
+                    {unreleased && (
+                      <span className="pill" style={{ marginLeft: 8 }}>
+                        Coming soon
+                      </span>
+                    )}
+                  </span>
+                )}
+                {game.avgPlaytimeMinutes > 0 && game.playtimeSampleCount > 0 && (
+                  <span>
+                    {' '}
+                    | Avg playtime:{' '}
+                    <strong>{formatPlaytimeHours(game.avgPlaytimeMinutes)}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+                      {' '}
+                      ({game.playtimeSampleCount} player{game.playtimeSampleCount !== 1 ? 's' : ''})
+                    </span>
+                  </span>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', marginBottom: 'var(--space-sm)' }}>
@@ -223,6 +262,7 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
               avgRating={game.avgRating}
               ratingCount={game.ratingCount}
               session={session}
+              isUnreleased={unreleased}
             />
           </Suspense>
 
@@ -243,7 +283,12 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
 
           {/* Lists, players, reviews — streamed */}
           <Suspense fallback={<CommunitySkeleton />}>
-            <CommunitySection community={community} gameId={game.id} session={session} />
+            <CommunitySection
+              community={community}
+              gameId={game.id}
+              session={session}
+              isUnreleased={unreleased}
+            />
           </Suspense>
         </div>
 
@@ -327,14 +372,16 @@ async function RatingSection({
   avgRating,
   ratingCount,
   session,
+  isUnreleased,
 }: {
   community: Promise<CommunityData>;
   gameId: string;
   avgRating: number;
   ratingCount: number;
   session: Session | null;
+  isUnreleased: boolean;
 }) {
-  const [, , , allRatings, userGame, favorite] = await community;
+  const [, , , allRatings, userGame, favorite, releaseWatch] = await community;
   const distribution = buildDistribution(allRatings);
 
   return (
@@ -348,6 +395,8 @@ async function RatingSection({
           currentRating={userGame?.rating || null}
           isFavorited={!!favorite}
           isLoggedIn={!!session?.user}
+          isUnreleased={isUnreleased}
+          isWatchingRelease={!!releaseWatch}
         />
       </div>
     </div>
@@ -368,10 +417,12 @@ async function CommunitySection({
   community,
   gameId,
   session,
+  isUnreleased,
 }: {
   community: Promise<CommunityData>;
   gameId: string;
   session: Session | null;
+  isUnreleased: boolean;
 }) {
   const [reviews, listItems, userGames] = await community;
   const currentUserId = session?.user?.id;
@@ -445,6 +496,7 @@ async function CommunitySection({
         }))}
         isLoggedIn={!!session}
         currentUserId={currentUserId || null}
+        isUnreleased={isUnreleased}
       />
     </>
   );

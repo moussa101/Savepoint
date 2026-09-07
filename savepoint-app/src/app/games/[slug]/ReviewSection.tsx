@@ -31,9 +31,16 @@ interface ReviewSectionProps {
   reviews: ReviewData[];
   isLoggedIn: boolean;
   currentUserId: string | null;
+  isUnreleased?: boolean;
 }
 
-export default function ReviewSection({ gameId, reviews: initialReviews, isLoggedIn, currentUserId }: ReviewSectionProps) {
+export default function ReviewSection({
+  gameId,
+  reviews: initialReviews,
+  isLoggedIn,
+  currentUserId,
+  isUnreleased = false,
+}: ReviewSectionProps) {
   const [reviews, setReviews] = useState(initialReviews);
   const [showForm, setShowForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
@@ -122,7 +129,7 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
         <h2 className="font-display" style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>
           Reviews ({reviews.length})
         </h2>
-        {isLoggedIn && !hasReviewed && !showForm && (
+        {isLoggedIn && !hasReviewed && !showForm && !isUnreleased && (
           <button className="btn btn-primary" onClick={() => {
             setEditingReviewId(null);
             setReviewRating(0);
@@ -135,8 +142,14 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
         )}
       </div>
 
+      {isUnreleased && (
+        <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-lg)' }}>
+          Reviews open when this game releases. You can wishlist it or turn on release notifications above.
+        </p>
+      )}
+
       {/* Review Form */}
-      {showForm && (
+      {showForm && !isUnreleased && (
         <form onSubmit={handleSubmit} className="card" style={{ background: 'var(--bg-surface-hover)', marginBottom: 'var(--space-xl)' }}>
           <div style={{ marginBottom: 'var(--space-md)' }}>
             <label className="form-label">Your Rating</label>

@@ -129,7 +129,9 @@ export default function ConnectedLibraries({
           <>
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-sm)' }}>
               Linked{steamLinkedAt ? ` · ${formatWhen(steamLinkedAt)}` : ''}
-              {steamLastSyncAt ? ` · Last sync ${formatWhen(steamLastSyncAt)}` : ''}
+              {steamLastSyncAt
+                ? ` · Last sync ${formatWhen(steamLastSyncAt)} · Auto-syncs when you open Library`
+                : ' · Library auto-syncs when you open it'}
             </p>
             <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
               <button
@@ -138,7 +140,7 @@ export default function ConnectedLibraries({
                 disabled={pending}
                 onClick={() => run(syncSteamLibrary)}
               >
-                {pending ? 'Working…' : 'Sync library'}
+                {pending ? 'Working…' : 'Refresh now'}
               </button>
               <button
                 type="button"

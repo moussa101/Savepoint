@@ -93,10 +93,12 @@ export default async function SettingsPage({
 
           <SettingsForms
             isPrivate={user.isPrivate}
+            libraryPublic={user.libraryPublic}
             notifyOnFollow={user.notifyOnFollow}
             notifyOnReviewLike={user.notifyOnReviewLike}
             notifyOnComment={user.notifyOnComment}
             notifyOnListLike={user.notifyOnListLike}
+            notifyOnGameRelease={user.notifyOnGameRelease}
           />
         </div>
       </main>

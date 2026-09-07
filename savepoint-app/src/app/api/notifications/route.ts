@@ -22,6 +22,9 @@ export async function GET(request: Request) {
           select: { 
             game: { select: { name: true, slug: true } }
           }
+        },
+        game: {
+          select: { name: true, slug: true, coverImage: true }
         }
       }
     });

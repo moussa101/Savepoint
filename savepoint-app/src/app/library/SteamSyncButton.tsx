@@ -29,7 +29,7 @@ export default function SteamSyncButton() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)', alignItems: 'flex-end' }}>
       <button type="button" className="btn btn-primary btn-sm" onClick={sync} disabled={pending} aria-busy={pending}>
-        {pending ? 'Syncing…' : 'Sync now'}
+        {pending ? 'Refreshing…' : 'Refresh'}
       </button>
       {status && (
         <span
