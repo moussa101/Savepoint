@@ -55,7 +55,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-**Production domain:** [https://savepoint.life](https://savepoint.life) — see [`savepoint-app/DEPLOY.md`](./savepoint-app/DEPLOY.md) for DNS, env, and OAuth callbacks.
+**Production domain:** [https://www.savepoint.life](https://www.savepoint.life) (apex redirects to www) — see [`savepoint-app/DEPLOY.md`](./savepoint-app/DEPLOY.md) for DNS, env, and OAuth callbacks.
 
 ## Tech stack
 

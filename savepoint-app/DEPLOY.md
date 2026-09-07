@@ -10,8 +10,9 @@ Deploy from `savepoint-app/`. Treat this as a standard Next.js Node app + Postgr
 - [ ] `./node_modules/.bin/prisma db push` (or migrate) against **production** DB
 - [ ] `./node_modules/.bin/prisma generate`
 - [ ] Generate a new strong `AUTH_SECRET` (`openssl rand -base64 32`) — do **not** reuse a local/dev secret
-- [ ] Set `NEXTAUTH_URL=https://savepoint.life` (no trailing slash) — used by email links, Steam OpenID return, Auth.js
-- [ ] Set `AUTH_URL=https://savepoint.life` to the same value
+- [ ] Set `NEXTAUTH_URL=https://www.savepoint.life` (no trailing slash) — used by email links, Steam OpenID return, Auth.js
+- [ ] Set `AUTH_URL=https://www.savepoint.life` to the same value
+- [ ] In Vercel Domains: primary = `www.savepoint.life`; redirect apex `savepoint.life` → `www.savepoint.life`
 
 ## 2. Environment variables
 
@@ -24,7 +25,7 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 | `DATABASE_URL` | Prisma | Prefer Supabase **pooler** URL |
 | `DIRECT_URL` | Prisma `directUrl` | Non-pooled URL for schema push |
 | `AUTH_SECRET` | Auth.js / `src/lib/security.ts` | Also unlocks internal `/api/track` + `/api/banned-ips` |
-| `NEXTAUTH_URL` | Auth, mail, Steam | Must be `https://savepoint.life` in production |
+| `NEXTAUTH_URL` | Auth, mail, Steam | Must be `https://www.savepoint.life` in production |
 | `AUTH_URL` | Auth.js v5 | Same as `NEXTAUTH_URL` |
 | `TWITCH_CLIENT_ID` | IGDB via Twitch | Required for Discover / game pages / recs |
 | `TWITCH_CLIENT_SECRET` | IGDB | Same Twitch app |
@@ -47,9 +48,9 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 
 | Variable | Provider | Console callback |
 |---|---|---|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google | `https://savepoint.life/api/auth/callback/google` |
-| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord | `https://savepoint.life/api/auth/callback/discord` |
-| `XBOX_CLIENT_ID` / `XBOX_CLIENT_SECRET` | Microsoft Entra (login only) | `https://savepoint.life/api/auth/callback/microsoft-entra-id` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google | `https://www.savepoint.life/api/auth/callback/google` |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord | `https://www.savepoint.life/api/auth/callback/discord` |
+| `XBOX_CLIENT_ID` / `XBOX_CLIENT_SECRET` | Microsoft Entra (login only) | `https://www.savepoint.life/api/auth/callback/microsoft-entra-id` |
 
 ### Optional / currently UI-hidden
 
@@ -61,14 +62,14 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 
 ## 3. Provider consoles (URLs & domains)
 
-- [ ] **Google Cloud OAuth**: Authorized redirect = `/api/auth/callback/google`; JS origins = production domain
-- [ ] **Discord Developer Portal**: Redirects include production callback
-- [ ] **Microsoft Entra**: Redirect URI for web = Microsoft Entra callback path above; tenant `common`
+- [ ] **Google Cloud OAuth**: origin `https://www.savepoint.life`; redirect `https://www.savepoint.life/api/auth/callback/google`
+- [ ] **Discord Developer Portal**: redirect `https://www.savepoint.life/api/auth/callback/discord`
+- [ ] **Microsoft Entra**: redirect `https://www.savepoint.life/api/auth/callback/microsoft-entra-id`; tenant `common`
 - [ ] **Twitch / IGDB**: Client credentials app active
 - [ ] **Cloudflare R2**: Bucket public URL works; CORS allows your domain if browser uploads need it
 - [ ] **Sightengine**: Account has NSFW/moderation credits
 - [ ] **Gmail**: App password for the sending account; SPF/DKIM if using custom domain later
-- [ ] **Steam**: set `STEAM_WEB_API_KEY` in Vercel; Steam API key domain = `savepoint.life`; OpenID return `https://savepoint.life/api/auth/steam/callback`; set `NEXTAUTH_URL`/`AUTH_URL` to `https://savepoint.life`
+- [ ] **Steam**: set `STEAM_WEB_API_KEY` in Vercel; Steam API key domain = `www.savepoint.life` (or `savepoint.life`); OpenID return `https://www.savepoint.life/api/auth/steam/callback`; set `NEXTAUTH_URL`/`AUTH_URL` to `https://www.savepoint.life`
 - [ ] **OpenXBL** (when re-enabling UI): Key valid; calls go to `https://api.xbl.io/v2/...` (no `/api` prefix)
 
 ## 4. Build & host config
