@@ -21,7 +21,7 @@ import UserAvatar from '@/components/ui/UserAvatar';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -58,7 +58,10 @@ export default function Navbar() {
     { href: '/messages', label: 'Messages' },
   ];
 
-  const navLinks = session && !isAdmin ? memberLinks : guestLinks;
+  // While session is resolving after a reload, keep the member link set so
+  // signed-in users don't flash the short guest nav (Discover / Lists only).
+  const navLinks =
+    status === 'loading' || (session && !isAdmin) ? memberLinks : guestLinks;
 
   function linkActive(href: string) {
     if (href === '/feed') return pathname === '/feed';
