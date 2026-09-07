@@ -16,9 +16,11 @@ export function getAppBaseUrl() {
   return (process.env.NEXTAUTH_URL || process.env.AUTH_URL || 'http://localhost:3000').replace(/\/$/, '');
 }
 
-/** Build Steam OpenID login URL for the current user session cookie flow. */
-export function buildSteamOpenIdUrl() {
-  const returnTo = `${getAppBaseUrl()}/api/auth/steam/callback`;
+export type SteamOpenIdMode = 'login' | 'link';
+
+/** Build Steam OpenID URL. `mode` is echoed back on return_to (login vs library link). */
+export function buildSteamOpenIdUrl(mode: SteamOpenIdMode = 'login') {
+  const returnTo = `${getAppBaseUrl()}/api/auth/steam/callback?mode=${mode}`;
   const realm = getAppBaseUrl();
   const params = new URLSearchParams({
     'openid.ns': 'http://specs.openid.net/auth/2.0',
@@ -29,6 +31,30 @@ export function buildSteamOpenIdUrl() {
     'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
   });
   return `https://steamcommunity.com/openid/login?${params.toString()}`;
+}
+
+export type SteamPersona = {
+  steamid: string;
+  personaname?: string;
+  avatarfull?: string;
+  avatarmedium?: string;
+  profileurl?: string;
+};
+
+/** Public profile summary for username/avatar on first Steam sign-up. */
+export async function fetchSteamPersona(steamId: string): Promise<SteamPersona | null> {
+  const key = getSteamApiKey();
+  const url = new URL('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/');
+  url.searchParams.set('key', key);
+  url.searchParams.set('steamids', steamId);
+
+  const response = await fetch(url.toString(), { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`Steam persona API error: ${response.status}`);
+  }
+  const data = await response.json();
+  const player = data?.response?.players?.[0];
+  return player ?? null;
 }
 
 export function extractSteamIdFromClaimedId(claimedId: string | null): string | null {

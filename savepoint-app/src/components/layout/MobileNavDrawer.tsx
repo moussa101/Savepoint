@@ -14,6 +14,7 @@ import {
   LogOutIcon,
   XIcon,
 } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 type Props = {
   open: boolean;
@@ -67,13 +68,12 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
       >
         <div className="mobile-nav-drawer-header">
           <Link href={`/profile/${username}`} className="mobile-nav-user" onClick={onClose}>
-            <div className="avatar avatar-md avatar-ring">
-              {session.user.image ? (
-                <img src={session.user.image} alt="" />
-              ) : (
-                (session.user.name || username || 'U').charAt(0).toUpperCase()
-              )}
-            </div>
+            <UserAvatar
+              className="avatar avatar-md avatar-ring"
+              src={session.user.image}
+              name={session.user.name}
+              username={username}
+            />
             <div>
               <div className="mobile-nav-user-name">{session.user.name || username}</div>
               <div className="mobile-nav-user-handle">@{username}</div>

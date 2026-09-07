@@ -10,6 +10,7 @@ import StarRating from '@/components/ui/StarRating';
 import GameActions from './GameActions';
 import ReviewSection from './ReviewSection';
 import StorefrontLinks from '@/components/game/StorefrontLinks';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import { cache } from 'react';
 
@@ -405,9 +406,12 @@ async function CommunitySection({
           <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
             {userGames.map((ug) => (
               <Link key={ug.id} href={`/profile/${ug.user.username}`} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', textDecoration: 'none', color: 'inherit' }}>
-                <div className="avatar avatar-sm">
-                  {ug.user.image ? <img src={ug.user.image} alt="" loading="lazy" decoding="async" /> : (ug.user.name || ug.user.username).charAt(0).toUpperCase()}
-                </div>
+                <UserAvatar
+                  className="avatar avatar-sm"
+                  src={ug.user.image}
+                  name={ug.user.name}
+                  username={ug.user.username}
+                />
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{ug.user.name || ug.user.username}</div>
                   <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{ug.status.replaceAll('_', ' ')}</div>

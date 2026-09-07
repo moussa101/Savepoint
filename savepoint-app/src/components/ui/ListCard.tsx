@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { GamepadIcon, LockIcon, HeartIcon } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface ListCardProps {
   list: {
@@ -87,15 +88,13 @@ export default function ListCard({ list, href, showAuthor = false }: ListCardPro
         <div style={{ padding: 'var(--space-lg)' }}>
           {showAuthor && list.user && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: list.description ? '12px' : 0 }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '50%', overflow: 'hidden', backgroundColor: 'var(--bg-surface-elevated)' }}>
-                {list.user.image ? (
-                  <img src={list.user.image} alt={list.user.name || list.user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: '10px', fontWeight: 'bold' }}>
-                    {(list.user.name || list.user.username).charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
+              <UserAvatar
+                className="avatar"
+                style={{ width: '24px', height: '24px', fontSize: '10px' }}
+                src={list.user.image}
+                name={list.user.name}
+                username={list.user.username}
+              />
               <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
                 By <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{list.user.name || list.user.username}</span>
               </span>

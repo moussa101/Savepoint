@@ -15,6 +15,7 @@ import {
 import NotificationsDropdown from './NotificationsDropdown';
 import MobileNavDrawer from './MobileNavDrawer';
 import MobileBottomNav from './MobileBottomNav';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -93,16 +94,17 @@ export default function Navbar() {
               <div className={`dropdown navbar-user-dropdown ${dropdownOpen ? 'dropdown-open' : ''}`} ref={dropdownRef}>
                 <button
                   type="button"
-                  className="avatar avatar-sm navbar-avatar-btn"
+                  className="navbar-avatar-btn"
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   aria-label="Account menu"
                   aria-expanded={dropdownOpen}
                 >
-                  {session.user.image ? (
-                    <img src={session.user.image} alt="" />
-                  ) : (
-                    (session.user.name || session.user.username || 'U').charAt(0).toUpperCase()
-                  )}
+                  <UserAvatar
+                    className="avatar avatar-sm"
+                    src={session.user.image}
+                    name={session.user.name}
+                    username={session.user.username}
+                  />
                 </button>
                 <div className="dropdown-menu">
                   {!isAdmin && (

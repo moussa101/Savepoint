@@ -11,6 +11,7 @@ import ReportButton from '@/components/ui/ReportButton';
 import { STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon, LockIcon, ListIcon } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { calculateLevel, getTierFromLevel, BADGE_DEFINITIONS } from '@/lib/gamification';
 import { cache } from 'react';
 
@@ -226,13 +227,13 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             flexWrap: 'wrap',
             boxShadow: '0 20px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}>
-            <div className="avatar avatar-ring" style={{ width: '120px', height: '120px', fontSize: '3rem' }}>
-              {user.image ? (
-                <img src={user.image} alt={user.name || user.username} />
-              ) : (
-                (user.name || user.username).charAt(0).toUpperCase()
-              )}
-            </div>
+            <UserAvatar
+              className="avatar avatar-ring"
+              style={{ width: '120px', height: '120px', fontSize: '3rem' }}
+              src={user.image}
+              name={user.name}
+              username={user.username}
+            />
             <div style={{ flex: 1, minWidth: '250px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
                 <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: '4px' }}>

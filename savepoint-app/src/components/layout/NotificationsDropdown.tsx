@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { BellIcon, SettingsIcon, CheckCircleIcon, UsersIcon, StarIcon, MessageIcon } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { formatRelativeTime } from '@/lib/utils';
 
 type Notification = {
@@ -183,15 +184,12 @@ export default function NotificationsDropdown() {
                       transition: 'background-color 0.2s'
                     }}
                   >
-                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0, overflow: 'hidden', backgroundColor: 'var(--bg-surface-elevated)' }}>
-                      {n.source?.image ? (
-                        <img src={n.source.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : (
-                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                          {(n.source?.name || n.source?.username || '?').charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
+                    <UserAvatar
+                      className="avatar"
+                      src={n.source?.image}
+                      name={n.source?.name}
+                      username={n.source?.username}
+                    />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 'var(--text-sm)', lineHeight: 1.4, marginBottom: '4px' }}>
                         {text}

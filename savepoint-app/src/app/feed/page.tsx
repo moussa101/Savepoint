@@ -12,6 +12,7 @@ import type { GameStatus } from '@/lib/utils';
 import { SignalIcon, HeartIcon } from '@/components/ui/Icons';
 import ActivityActionBar from '@/components/feed/ActivityActionBar';
 import { getTrendingGamesCached } from '@/lib/cached-queries';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export const metadata = { title: 'Feed — Savepoint' };
 
@@ -112,9 +113,12 @@ export default async function FeedPage() {
                     <div key={`review-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
                         <Link href={`/profile/${user.username}`}>
-                          <div className="avatar">
-                            {user.image ? <img src={user.image} alt="" /> : (user.name || user.username).charAt(0).toUpperCase()}
-                          </div>
+                          <UserAvatar
+                            className="avatar"
+                            src={user.image}
+                            name={user.name}
+                            username={user.username}
+                          />
                         </Link>
                         <div style={{ flex: 1 }}>
                           <div style={{ marginBottom: 'var(--space-sm)' }}>
@@ -155,9 +159,12 @@ export default async function FeedPage() {
                     <div key={`tracking-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
                         <Link href={`/profile/${user.username}`}>
-                          <div className="avatar">
-                            {user.image ? <img src={user.image} alt="" /> : (user.name || user.username).charAt(0).toUpperCase()}
-                          </div>
+                          <UserAvatar
+                            className="avatar"
+                            src={user.image}
+                            name={user.name}
+                            username={user.username}
+                          />
                         </Link>
                         <div style={{ flex: 1 }}>
                           <Link href={`/profile/${user.username}`} style={{ fontWeight: 700 }}>
@@ -201,9 +208,12 @@ export default async function FeedPage() {
                     <div key={`list-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
                         <Link href={`/profile/${user.username}`}>
-                          <div className="avatar">
-                            {user.image ? <img src={user.image} alt="" /> : (user.name || user.username).charAt(0).toUpperCase()}
-                          </div>
+                          <UserAvatar
+                            className="avatar"
+                            src={user.image}
+                            name={user.name}
+                            username={user.username}
+                          />
                         </Link>
                         <div style={{ flex: 1 }}>
                           <Link href={`/profile/${user.username}`} style={{ fontWeight: 700 }}>
@@ -239,9 +249,12 @@ export default async function FeedPage() {
                     <div key={`favorite-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
                         <Link href={`/profile/${user.username}`}>
-                          <div className="avatar">
-                            {user.image ? <img src={user.image} alt="" /> : (user.name || user.username).charAt(0).toUpperCase()}
-                          </div>
+                          <UserAvatar
+                            className="avatar"
+                            src={user.image}
+                            name={user.name}
+                            username={user.username}
+                          />
                         </Link>
                         <div style={{ flex: 1 }}>
                           <Link href={`/profile/${user.username}`} style={{ fontWeight: 700 }}>

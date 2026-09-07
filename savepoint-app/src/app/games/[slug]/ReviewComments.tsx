@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { formatRelativeTime } from '@/lib/utils';
 import { TrashIcon, MessageIcon, HeartIcon } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { createComment, deleteComment } from '@/app/actions/games';
 import { toggleCommentLike } from '@/app/actions/activities';
 import ReportButton from '@/components/ui/ReportButton';
@@ -94,13 +95,13 @@ export default function ReviewComments({ reviewId, comments: initialComments, is
 
                 return (
                   <div key={comment.id} style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-                    <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
-                      {comment.user.image ? (
-                        <img src={comment.user.image} alt={comment.user.username} />
-                      ) : (
-                        (comment.user.name || comment.user.username).charAt(0).toUpperCase()
-                      )}
-                    </div>
+                    <UserAvatar
+                      className="avatar avatar-sm"
+                      style={{ flexShrink: 0 }}
+                      src={comment.user.image}
+                      name={comment.user.name}
+                      username={comment.user.username}
+                    />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import Navbar from '@/components/layout/Navbar';
 import SessionProvider from '@/components/SessionProvider';
 import FollowButton from '@/components/ui/FollowButton';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 async function getProfileUser(username: string) {
   return prisma.user.findUnique({
@@ -91,9 +92,12 @@ export default async function FollowingPage({ params }: { params: Promise<{ user
               following.map(({ following: user }) => (
                 <div key={user.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
                   <Link href={`/profile/${user.username}`} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flex: 1, textDecoration: 'none', color: 'inherit' }}>
-                    <div className="avatar">
-                      {user.image ? <img src={user.image} alt="" /> : (user.name || user.username).charAt(0).toUpperCase()}
-                    </div>
+                    <UserAvatar
+                      className="avatar"
+                      src={user.image}
+                      name={user.name}
+                      username={user.username}
+                    />
                     <div>
                       <div style={{ fontWeight: 700 }}>{user.name || user.username}</div>
                       <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>@{user.username}</div>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { HomeIcon, GamepadIcon, BookOpenIcon, ListIcon, SettingsIcon, UserIcon } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { ReactNode } from 'react';
 
 const sidebarLinks: { href: string; label: string; icon: ReactNode }[] = [
@@ -23,13 +24,12 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <Link href={`/profile/${session.user.username}`} className="sidebar-profile" style={{ textDecoration: 'none', color: 'inherit' }}>
-        <div className="avatar avatar-xl avatar-ring">
-          {session.user.image ? (
-            <img src={session.user.image} alt={session.user.name || ''} />
-          ) : (
-            (session.user.name || session.user.username || 'U').charAt(0).toUpperCase()
-          )}
-        </div>
+        <UserAvatar
+          className="avatar avatar-xl avatar-ring"
+          src={session.user.image}
+          name={session.user.name}
+          username={session.user.username}
+        />
         <div className="sidebar-profile-name">{session.user.name || session.user.username}</div>
       </Link>
 

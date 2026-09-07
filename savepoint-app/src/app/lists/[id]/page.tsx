@@ -10,6 +10,7 @@ import ListGameManager from './ListGameManager';
 import ListLikeButton from './ListLikeButton';
 import ListControls from './ListControls';
 import ReportButton from '@/components/ui/ReportButton';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -54,9 +55,12 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
               {list.description && <p className="page-subtitle">{list.description}</p>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}>
                 <Link href={`/profile/${list.user.username}`} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-                  <div className="avatar avatar-sm">
-                    {list.user.image ? <img src={list.user.image} alt="" /> : (list.user.name || list.user.username).charAt(0).toUpperCase()}
-                  </div>
+                  <UserAvatar
+                    className="avatar avatar-sm"
+                    src={list.user.image}
+                    name={list.user.name}
+                    username={list.user.username}
+                  />
                   <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{list.user.name || list.user.username}</span>
                 </Link>
                 <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>• {list.items.length} games</span>

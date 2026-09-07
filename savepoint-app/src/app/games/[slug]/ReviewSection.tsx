@@ -5,6 +5,7 @@ import StarRating from '@/components/ui/StarRating';
 import { createReview, deleteReview, toggleReviewLike, updateReview } from '@/app/actions/games';
 import { formatRelativeTime } from '@/lib/utils';
 import { EditIcon, PenToolIcon, HeartIcon, AlertTriangleIcon, TrashIcon } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 import ReviewComments, { CommentData } from './ReviewComments';
 import ReportButton from '@/components/ui/ReportButton';
 
@@ -189,13 +190,12 @@ export default function ReviewSection({ gameId, reviews: initialReviews, isLogge
               <div key={review.id} className="card" style={{ background: 'var(--bg-surface-hover)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-md)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                    <div className="avatar">
-                      {review.user.image ? (
-                        <img src={review.user.image} alt={review.user.name || ''} />
-                      ) : (
-                        (review.user.name || review.user.username).charAt(0).toUpperCase()
-                      )}
-                    </div>
+                    <UserAvatar
+                      className="avatar"
+                      src={review.user.image}
+                      name={review.user.name}
+                      username={review.user.username}
+                    />
                     <div>
                       <a href={`/profile/${review.user.username}`} style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>
                         {review.user.name || review.user.username}

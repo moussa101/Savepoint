@@ -994,6 +994,14 @@ ul, ol {
   width: var(--touch-min);
   height: var(--touch-min);
   min-width: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-full);
 }
 
 .dropdown-divider {

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { HeartIcon, MessageIcon, TrashIcon } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { toggleActivityLike, createActivityComment, deleteActivityComment } from '@/app/actions/activities';
 import { formatRelativeTime } from '@/lib/utils';
 
@@ -125,9 +126,12 @@ export default function ActivityActionBar({
         <div style={{ marginTop: 'var(--space-md)', padding: 'var(--space-md)', background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)' }}>
           {comments.map((comment) => (
             <div key={comment.id} style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
-              <div className="avatar avatar-sm">
-                {comment.user.image ? <img src={comment.user.image} alt="" /> : (comment.user.name || comment.user.username).charAt(0).toUpperCase()}
-              </div>
+              <UserAvatar
+                className="avatar avatar-sm"
+                src={comment.user.image}
+                name={comment.user.name}
+                username={comment.user.username}
+              />
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
                   <div>
