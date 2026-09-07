@@ -3,6 +3,7 @@
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import { invalidateListsCache } from '@/lib/cached-queries';
 
 export async function toggleListLike(listId: string, currentLikeStatus: boolean) {
   const session = await auth();
@@ -63,6 +64,7 @@ export async function toggleListLike(listId: string, currentLikeStatus: boolean)
       }
     }
 
+    invalidateListsCache();
     revalidatePath(`/lists/${listId}`);
     return { success: true };
   } catch (error) {

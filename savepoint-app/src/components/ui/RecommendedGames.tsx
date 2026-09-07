@@ -31,7 +31,7 @@ export default async function RecommendedGames() {
           >
             <div className="game-cover">
               {game.coverUrl ? (
-                <img src={game.coverUrl} alt={game.name} />
+                <img src={game.coverUrl} alt={game.name} loading="lazy" decoding="async" />
               ) : (
                 <div style={{ width: '100%', height: '100%', background: 'var(--bg-surface-hover)' }} />
               )}

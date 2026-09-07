@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { prisma } from '@/lib/db';
+import { getSiteStatsCached } from '@/lib/cached-queries';
 import Navbar from '@/components/layout/Navbar';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
@@ -8,22 +8,21 @@ import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import { auth } from '@/lib/auth';
 
 export default async function LandingPage() {
-  const session = await auth();
-  let games: IGDBGame[] = [];
-  try {
-    games = await fetchIGDB(
+  // All four are independent — one round of latency instead of four.
+  const [session, games, { totalUsers, totalReviews }] = await Promise.all([
+    auth(),
+    fetchIGDB(
       'games',
       `fields id, name, slug, cover.image_id, genres.name, total_rating;
        where total_rating_count > 100;
        sort total_rating_count desc;
        limit 12;`
-    );
-  } catch (err) {
-    console.error(err);
-  }
-
-  const totalUsers = await prisma.user.count();
-  const totalReviews = await prisma.review.count();
+    ).catch((err): IGDBGame[] => {
+      console.error(err);
+      return [];
+    }) as Promise<IGDBGame[]>,
+    getSiteStatsCached(),
+  ]);
 
   return (
     <SessionProvider>
@@ -119,7 +118,7 @@ export default async function LandingPage() {
                   className="landing-game-card"
                 >
                   <div className="game-cover">
-                    {coverUrl && <img src={coverUrl} alt={game.name} />}
+                    {coverUrl && <img src={coverUrl} alt={game.name} loading="lazy" decoding="async" />}
                   </div>
                   <div className="landing-game-info">
                     <div className="landing-game-title">{game.name}</div>

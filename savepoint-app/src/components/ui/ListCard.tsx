@@ -49,7 +49,7 @@ export default function ListCard({ list, href, showAuthor = false }: ListCardPro
         {list.items.slice(0, 4).map((item) => (
           <div key={item.id} style={{ overflow: 'hidden', height: '100%' }}>
             {item.game.coverImage ? (
-              <img src={item.game.coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }} />
+              <img src={item.game.coverImage} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }} />
             ) : (
               <div style={{ width: '100%', height: '100%', background: 'var(--bg-surface)' }} />
             )}

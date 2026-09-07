@@ -89,7 +89,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
                 </div>
                 <Link href={`/games/${item.game.slug}`}>
                   <div className="game-cover" style={{ width: '60px', height: '80px', flexShrink: 0 }}>
-                    {item.game.coverImage && <img src={item.game.coverImage} alt={item.game.name} />}
+                    {item.game.coverImage && <img src={item.game.coverImage} alt={item.game.name} loading="lazy" decoding="async" />}
                   </div>
                 </Link>
                 <div style={{ flex: 1 }}>

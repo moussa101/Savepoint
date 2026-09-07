@@ -9,9 +9,8 @@ import LiveSearch from '@/components/ui/LiveSearch';
 import RecommendedGames from '@/components/ui/RecommendedGames';
 import GamesHeroCarousel from '@/components/ui/GamesHeroCarousel';
 import GameFilters from '@/components/ui/GameFilters';
-import { getPopularLists } from '@/app/actions/lists';
 import ListCard from '@/components/ui/ListCard';
-import { prisma } from '@/lib/db';
+import { getPopularListsCached, getRecentReviewsCached } from '@/lib/cached-queries';
 import { formatRelativeTime } from '@/lib/utils';
 
 export const metadata = {
@@ -81,14 +80,7 @@ export default async function GamesPage({
   let games: IGDBGame[] = [];
   let heroGames: IGDBGame[] = [];
   let popularLists: any[] = [];
-  let recentReviews: Array<{
-    id: string;
-    rating: number;
-    text: string;
-    createdAt: Date;
-    game: { name: string; slug: string; coverImage: string | null };
-    user: { username: string; name: string | null; image: string | null };
-  }> = [];
+  let recentReviews: Awaited<ReturnType<typeof getRecentReviewsCached>> = [];
   
   try {
     const [gamesRes, heroRes, listsRes, reviewsRes] = await Promise.all([
@@ -99,15 +91,8 @@ export default async function GamesPage({
         sort total_rating_count desc;
         limit 30;
       `),
-      getPopularLists(),
-      prisma.review.findMany({
-        include: {
-          game: { select: { name: true, slug: true, coverImage: true } },
-          user: { select: { username: true, name: true, image: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 8,
-      }),
+      getPopularListsCached(),
+      getRecentReviewsCached(),
     ]);
     games = gamesRes;
     heroGames = heroRes.sort(() => 0.5 - Math.random()).slice(0, 10);
@@ -187,7 +172,7 @@ export default async function GamesPage({
                     {recentReviews.map((review) => (
                       <Link key={review.id} href={`/games/${review.game.slug}`} className="card" style={{ display: 'flex', gap: 'var(--space-md)', textDecoration: 'none', color: 'inherit' }}>
                         <div className="game-cover" style={{ width: 48, height: 64, flexShrink: 0 }}>
-                          {review.game.coverImage && <img src={review.game.coverImage} alt="" />}
+                          {review.game.coverImage && <img src={review.game.coverImage} alt="" loading="lazy" decoding="async" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700 }}>{review.game.name}</div>
@@ -227,7 +212,7 @@ export default async function GamesPage({
                   >
                     <div className="game-cover" style={{ marginBottom: 'var(--space-sm)' }}>
                       {coverUrl ? (
-                        <img src={coverUrl} alt={game.name} />
+                        <img src={coverUrl} alt={game.name} loading="lazy" decoding="async" />
                       ) : (
                         <div style={{ width: '100%', height: '100%', background: 'var(--bg-surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
                           No Cover

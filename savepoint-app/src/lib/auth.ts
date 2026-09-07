@@ -16,6 +16,9 @@ class BannedUserError extends CredentialsSignin {
   code = 'banned';
 }
 
+/** How long JWT claims (username, avatar, onboarded, isAdmin, ban state) are trusted before re-reading the DB. */
+const SESSION_CLAIMS_TTL_MS = 2 * 60 * 1000;
+
 async function loadSessionUser(where: { id?: string; email?: string }) {
   if (!where.id && !where.email) return null;
   return prisma.user.findUnique({
@@ -33,6 +36,8 @@ async function loadSessionUser(where: { id?: string; email?: string }) {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Required on Vercel/proxies so Auth.js uses the request host when AUTH_URL is unset
+  trustHost: true,
   adapter: {
     ...PrismaAdapter(prisma),
     createUser: async (user) => {
@@ -124,7 +129,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
+      // Every `auth()` call and every `/api/auth/session` poll runs this callback.
+      // Hitting the database each time added a round-trip to every page render, so
+      // claims are re-read only on sign-in, explicit `update()`, or after the TTL.
+      const refreshedAt = (token as { refreshedAt?: number }).refreshedAt ?? 0;
+      const isFresh = Date.now() - refreshedAt < SESSION_CLAIMS_TTL_MS;
+      if (!user && trigger !== 'update' && token.id && isFresh) {
+        return token;
+      }
+
       const lookup = user?.email
         ? { email: user.email }
         : token.id
@@ -152,6 +166,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       token.image = dbUser.image;
       token.onboarded = dbUser.onboarded;
       token.isAdmin = dbUser.isAdmin;
+      (token as { refreshedAt?: number }).refreshedAt = Date.now();
       delete (token as { error?: string }).error;
 
       // Record IP on fresh sign-in only (avoid writing on every request)

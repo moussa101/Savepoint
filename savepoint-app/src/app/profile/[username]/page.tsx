@@ -15,7 +15,10 @@ import { calculateLevel, getTierFromLevel, BADGE_DEFINITIONS } from '@/lib/gamif
 import { cache } from 'react';
 
 const getUser = cache(async (username: string) => {
-  const user = await prisma.user.findUnique({
+  // Everything is keyed by username (via relation filters) so the user row and
+  // all of its library aggregates load in a single parallel round-trip.
+  const [user, libraryByStatus, genreRows, platformRows] = await Promise.all([
+    prisma.user.findUnique({
     where: { username },
     include: {
       favoriteGames: {
@@ -48,35 +51,27 @@ const getUser = cache(async (username: string) => {
         select: { badgeId: true }
       }
     },
-  });
-
-  if (!user) return null;
-
-  const [userGamesStats, libraryByStatus, currentlyPlaying, genreRows, platformRows] = await Promise.all([
-    prisma.userGame.findMany({
-      where: { userId: user.id },
-      select: { status: true, rating: true, gameId: true }
     }),
     prisma.userGame.findMany({
-      where: { userId: user.id },
+      where: { user: { username } },
       include: { game: true },
       orderBy: { updatedAt: 'desc' },
-    }),
-    prisma.userGame.findMany({
-      where: { userId: user.id, status: 'PLAYING' },
-      include: { game: true },
-      orderBy: { updatedAt: 'desc' },
-      take: 3,
     }),
     prisma.gameGenre.findMany({
-      where: { game: { userGames: { some: { userId: user.id } } } },
+      where: { game: { userGames: { some: { user: { username } } } } },
       select: { genre: true },
     }),
     prisma.gamePlatform.findMany({
-      where: { game: { userGames: { some: { userId: user.id } } } },
+      where: { game: { userGames: { some: { user: { username } } } } },
       select: { platform: true },
     }),
   ]);
+
+  if (!user) return null;
+
+  // Derived in memory from the full library instead of two extra queries.
+  const userGamesStats = libraryByStatus.map(({ status, rating, gameId }) => ({ status, rating, gameId }));
+  const currentlyPlaying = libraryByStatus.filter((ug) => ug.status === 'PLAYING').slice(0, 3);
 
   return {
     ...user,
@@ -105,24 +100,41 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
-  const session = await auth();
-  const user = await getUser(username);
+  const [session, user] = await Promise.all([auth(), getUser(username)]);
   if (!user) notFound();
 
   const isOwnProfile = session?.user?.id === user.id;
 
-  let isFollowing = false;
-  if (session?.user?.id && session.user.id !== user.id) {
-    const followRecord = await prisma.follow.findUnique({
-      where: {
-        followerId_followingId: {
-          followerId: session.user.id,
-          followingId: user.id,
-        }
-      }
-    });
-    isFollowing = !!followRecord;
-  }
+  // Viewer-specific data: follow state (other people's profiles) or the full
+  // list set including private lists (own profile). One round-trip either way.
+  const [followRecord, ownListsResult] = await Promise.all([
+    session?.user?.id && !isOwnProfile
+      ? prisma.follow.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: session.user.id,
+              followingId: user.id,
+            },
+          },
+        })
+      : Promise.resolve(null),
+    isOwnProfile
+      ? prisma.list.findMany({
+          where: { userId: user.id },
+          include: {
+            items: {
+              include: { game: { select: { coverImage: true } } },
+              orderBy: { order: 'asc' },
+              take: 4,
+            },
+            _count: { select: { items: true } },
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 6,
+        })
+      : Promise.resolve(null),
+  ]);
+  const isFollowing = !!followRecord;
 
   // Private profiles are owner-only (FR privacy: Public or Private)
   const canViewPrivate = isOwnProfile || !user.isPrivate;
@@ -150,21 +162,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     );
   }
 
-  const ownLists = isOwnProfile
-    ? await prisma.list.findMany({
-        where: { userId: user.id },
-        include: {
-          items: {
-            include: { game: { select: { coverImage: true } } },
-            orderBy: { order: 'asc' },
-            take: 4,
-          },
-          _count: { select: { items: true } },
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: 6,
-      })
-    : user.lists;
+  const ownLists = ownListsResult ?? user.lists;
 
   const gamesPlayed = user.userGamesStats.filter((g) => ['COMPLETED', 'PLAYING', 'DROPPED'].includes(g.status)).length;
   const gamesCompleted = user.userGamesStats.filter((g) => g.status === 'COMPLETED').length;
@@ -298,7 +296,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               {user.currentlyPlaying.map((ug) => (
                 <Link key={ug.id} href={`/games/${ug.game.slug}`} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', textDecoration: 'none', color: 'inherit' }}>
                   <div className="game-cover" style={{ width: '32px', height: '43px' }}>
-                    {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} />}
+                    {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} loading="lazy" decoding="async" />}
                   </div>
                   <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{ug.game.name}</span>
                 </Link>
@@ -313,7 +311,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                 {user.favoriteGames.map((fg) => (
                   <Link key={fg.id} href={`/games/${fg.game.slug}`} style={{ textDecoration: 'none' }}>
                     <div className="game-cover" style={{ width: '140px', height: '187px' }}>
-                      {fg.game.coverImage && <img src={fg.game.coverImage} alt={fg.game.name} />}
+                      {fg.game.coverImage && <img src={fg.game.coverImage} alt={fg.game.name} loading="lazy" decoding="async" />}
                     </div>
                   </Link>
                 ))}
@@ -381,7 +379,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                   {shelf.items.slice(0, 12).map((ug) => (
                     <Link key={ug.id} href={`/games/${ug.game.slug}`} style={{ textDecoration: 'none', color: 'inherit', width: 120 }}>
                       <div className="game-cover" style={{ width: '120px', height: '160px', marginBottom: 8, position: 'relative' }}>
-                        {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} />}
+                        {ug.game.coverImage && <img src={ug.game.coverImage} alt={ug.game.name} loading="lazy" decoding="async" />}
                         <span className={`badge badge-${STATUS_COLORS[ug.status as GameStatus]}`} style={{ position: 'absolute', bottom: 6, left: 6, fontSize: '0.6rem' }}>
                           {STATUS_LABELS[ug.status as GameStatus]}
                         </span>
@@ -405,7 +403,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                     <div style={{ display: 'flex', gap: 4, marginBottom: 'var(--space-md)' }}>
                       {list.items.slice(0, 4).map((item) => (
                         <div key={item.id} className="game-cover" style={{ width: 48, height: 64, flex: 1 }}>
-                          {item.game.coverImage && <img src={item.game.coverImage} alt="" />}
+                          {item.game.coverImage && <img src={item.game.coverImage} alt="" loading="lazy" decoding="async" />}
                         </div>
                       ))}
                     </div>
@@ -447,7 +445,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                     <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'flex-start' }}>
                       <Link href={`/games/${review.game.slug}`}>
                         <div className="game-cover" style={{ width: '60px', height: '80px', flexShrink: 0 }}>
-                          {review.game.coverImage && <img src={review.game.coverImage} alt={review.game.name} />}
+                          {review.game.coverImage && <img src={review.game.coverImage} alt={review.game.name} loading="lazy" decoding="async" />}
                         </div>
                       </Link>
                       <div style={{ flex: 1 }}>

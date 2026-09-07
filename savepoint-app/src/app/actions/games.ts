@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { invalidateListsCache, invalidateReviewsCache } from '@/lib/cached-queries';
 import { fetchIGDB, getIGDBImageUrl } from '@/lib/igdb';
 import { grantXP, evaluateBadges, XP_REWARDS } from '@/lib/gamification';
 
@@ -289,6 +290,7 @@ export async function createReview(gameId: string, formData: FormData) {
   // Also rate the game
   await rateGame(gameId, rating);
 
+  invalidateReviewsCache();
   revalidatePath(`/games/${gameId}`);
   return { success: true };
 }
@@ -331,6 +333,7 @@ export async function updateReview(reviewId: string, formData: FormData) {
   // Also update the game rating if changed
   await rateGame(review.gameId, rating);
 
+  invalidateReviewsCache();
   revalidatePath(`/games/${review.gameId}`);
   return { success: true };
 }
@@ -359,6 +362,7 @@ export async function deleteReview(reviewId: string) {
     data: { reviewCount },
   });
 
+  invalidateReviewsCache();
   revalidatePath(`/games/${review.gameId}`);
   return { success: true };
 }
@@ -501,6 +505,7 @@ export async function createList(formData: FormData) {
   await grantXP(session.user.id, XP_REWARDS.CREATE_LIST);
   await evaluateBadges(session.user.id);
 
+  invalidateListsCache();
   revalidatePath('/lists');
   return { success: true, listId: list.id };
 }
@@ -593,6 +598,7 @@ export async function updateList(listId: string, formData: FormData) {
     }
   }
 
+  invalidateListsCache();
   revalidatePath('/lists');
   revalidatePath(`/lists/${listId}`);
   revalidatePath(`/profile/${session.user.username}`);
@@ -612,6 +618,7 @@ export async function deleteList(listId: string) {
 
   await prisma.list.delete({ where: { id: listId } });
 
+  invalidateListsCache();
   revalidatePath('/lists');
   revalidatePath(`/profile/${session.user.username}`);
   return { success: true };

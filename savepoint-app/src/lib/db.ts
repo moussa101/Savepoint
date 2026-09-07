@@ -6,6 +6,6 @@ const globalForPrisma = globalThis as unknown as {
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient();
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+// Reuse one client per process in every environment. In dev this survives HMR;
+// on serverless it lets warm invocations skip reconnecting to the database.
+globalForPrisma.prisma = prisma;

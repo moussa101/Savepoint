@@ -11,6 +11,7 @@ import { formatRelativeTime, STATUS_LABELS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 import { SignalIcon, HeartIcon } from '@/components/ui/Icons';
 import ActivityActionBar from '@/components/feed/ActivityActionBar';
+import { getTrendingGamesCached } from '@/lib/cached-queries';
 
 export const metadata = { title: 'Feed — Savepoint' };
 
@@ -28,26 +29,18 @@ export default async function FeedPage() {
     redirect('/admin');
   }
 
-  // Get users the current user follows and trending games in parallel
-  const [following, trending] = await Promise.all([
-    prisma.follow.findMany({
-      where: { followerId: session.user.id },
-      select: { followingId: true },
-    }),
-    prisma.game.findMany({
-      orderBy: { ratingCount: 'desc' },
-      take: 5,
-      include: { genres: true },
-    })
-  ]);
+  const userId = session.user.id;
 
-  const followingIds = following.map((f) => f.followingId);
-  const feedUserIds = [...followingIds, session.user.id];
-
-  // Fetch activities in a single query (exclude private lists from other users)
-  const activities = await prisma.activity.findMany({
+  // One database round for the whole page: the "who do I follow" lookup is
+  // folded into the activity query as a relation filter, and trending games
+  // come from the shared cache.
+  const [activities, trending] = await Promise.all([
+    prisma.activity.findMany({
     where: {
-      userId: { in: feedUserIds },
+      // Own activity, or activity from anyone this user follows.
+      user: {
+        OR: [{ id: userId }, { followers: { some: { followerId: userId } } }],
+      },
       OR: [
         { type: { not: 'LIST' } },
         { list: { visibility: 'PUBLIC' } },
@@ -70,7 +63,9 @@ export default async function FeedPage() {
     },
     orderBy: { createdAt: 'desc' },
     take: 20,
-  });
+    }),
+    getTrendingGamesCached(),
+  ]);
 
   return (
     <SessionProvider>
@@ -142,7 +137,7 @@ export default async function FeedPage() {
                         {game?.coverImage && (
                           <Link href={`/games/${game.slug}`}>
                             <div className="game-cover" style={{ width: '50px', height: '67px', flexShrink: 0 }}>
-                              <img src={game.coverImage} alt="" />
+                              <img src={game.coverImage} alt="" loading="lazy" decoding="async" />
                             </div>
                           </Link>
                         )}
@@ -189,7 +184,7 @@ export default async function FeedPage() {
                         {game?.coverImage && (
                           <Link href={`/games/${game.slug}`}>
                             <div className="game-cover" style={{ width: '50px', height: '67px', flexShrink: 0 }}>
-                              <img src={game.coverImage} alt="" />
+                              <img src={game.coverImage} alt="" loading="lazy" decoding="async" />
                             </div>
                           </Link>
                         )}
@@ -222,7 +217,7 @@ export default async function FeedPage() {
                             {items.slice(0, 4).map((item, j) => (
                               <Link key={j} href={`/games/${item.game.slug}`}>
                                 <div className="game-cover" style={{ width: '60px', height: '80px' }}>
-                                  {item.game.coverImage && <img src={item.game.coverImage} alt="" />}
+                                  {item.game.coverImage && <img src={item.game.coverImage} alt="" loading="lazy" decoding="async" />}
                                 </div>
                               </Link>
                             ))}
@@ -266,7 +261,7 @@ export default async function FeedPage() {
                         {game?.coverImage && (
                           <Link href={`/games/${game.slug}`}>
                             <div className="game-cover" style={{ width: '50px', height: '67px', flexShrink: 0 }}>
-                              <img src={game.coverImage} alt="" />
+                              <img src={game.coverImage} alt="" loading="lazy" decoding="async" />
                             </div>
                           </Link>
                         )}
@@ -291,7 +286,7 @@ export default async function FeedPage() {
                 {trending.map((game) => (
                   <Link key={game.id} href={`/games/${game.slug}`} style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', textDecoration: 'none', color: 'inherit' }}>
                     <div className="game-cover" style={{ width: '40px', height: '53px', flexShrink: 0 }}>
-                      {game.coverImage && <img src={game.coverImage} alt="" />}
+                      {game.coverImage && <img src={game.coverImage} alt="" loading="lazy" decoding="async" />}
                     </div>
                     <div>
                       <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{game.name}</div>

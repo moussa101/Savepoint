@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/db';
 import { sendReviewRemovalEmail } from '@/lib/mail';
 import { revalidatePath } from 'next/cache';
+import { invalidateReviewsCache } from '@/lib/cached-queries';
 import { ensureAdmin } from '@/lib/authz';
 import { escapeHtml } from '@/lib/security';
 
@@ -33,6 +34,7 @@ export async function removeReview(reviewId: string, category: string, customRea
       fullReason
     );
 
+    invalidateReviewsCache();
     revalidatePath('/admin/reviews');
     return { success: true };
   } catch (error: unknown) {

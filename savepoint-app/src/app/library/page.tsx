@@ -115,7 +115,7 @@ export default async function LibraryPage() {
                         >
                           <div className="game-cover">
                             {ug.game.coverImage ? (
-                              <img src={ug.game.coverImage} alt={ug.game.name} />
+                              <img src={ug.game.coverImage} alt={ug.game.name} loading="lazy" decoding="async" />
                             ) : (
                               <div style={{ width: '100%', height: '100%', background: 'var(--bg-surface-hover)' }} />
                             )}
