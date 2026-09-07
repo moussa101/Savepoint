@@ -45,6 +45,8 @@ export async function updateNotificationSettings(formData: FormData) {
       notifyOnComment: formData.get('notifyOnComment') === 'on',
       notifyOnListLike: formData.get('notifyOnListLike') === 'on',
       notifyOnGameRelease: formData.get('notifyOnGameRelease') === 'on',
+      notifyOnMessage: formData.get('notifyOnMessage') === 'on',
+      emailOnMessage: formData.get('emailOnMessage') === 'on',
     },
   });
 

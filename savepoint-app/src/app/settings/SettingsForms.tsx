@@ -12,6 +12,8 @@ interface SettingsFormsProps {
   notifyOnComment: boolean;
   notifyOnListLike: boolean;
   notifyOnGameRelease: boolean;
+  notifyOnMessage: boolean;
+  emailOnMessage: boolean;
 }
 
 export default function SettingsForms({
@@ -22,6 +24,8 @@ export default function SettingsForms({
   notifyOnComment,
   notifyOnListLike,
   notifyOnGameRelease,
+  notifyOnMessage,
+  emailOnMessage,
 }: SettingsFormsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -90,6 +94,8 @@ export default function SettingsForms({
             { name: 'notifyOnComment', label: 'Comments on your reviews', checked: notifyOnComment },
             { name: 'notifyOnListLike', label: 'Likes on your lists', checked: notifyOnListLike },
             { name: 'notifyOnGameRelease', label: 'Games you asked to be notified about', checked: notifyOnGameRelease },
+            { name: 'notifyOnMessage', label: 'In-app alerts for new messages', checked: notifyOnMessage },
+            { name: 'emailOnMessage', label: 'Email me when a friend messages (Gmail)', checked: emailOnMessage },
           ].map((item) => (
             <label key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-md)', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>
               <span style={{ fontWeight: 600 }}>{item.label}</span>

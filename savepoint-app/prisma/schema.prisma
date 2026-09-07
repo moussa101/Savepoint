@@ -104,6 +104,12 @@ model User {
   notifyOnComment    Boolean @default(true)
   notifyOnListLike   Boolean @default(true)
   notifyOnGameRelease Boolean @default(true)
+  notifyOnMessage      Boolean @default(true)
+  emailOnMessage       Boolean @default(true)
+
+  // E2E messaging — public key only (private key never leaves the client)
+  e2ePublicKey       String?   @db.Text
+  e2ePublicKeyUpdatedAt DateTime?
 
   // Gamification
   xp            Int       @default(0)
@@ -133,6 +139,13 @@ model User {
   // Social
   followers Follow[] @relation("Following")
   following Follow[] @relation("Follower")
+
+  friendRequestsSent     Friendship[] @relation("FriendRequestsSent")
+  friendRequestsReceived Friendship[] @relation("FriendRequestsReceived")
+
+  conversationsAsUserOne Conversation[] @relation("ConversationUserOne")
+  conversationsAsUserTwo Conversation[] @relation("ConversationUserTwo")
+  messagesSent           DirectMessage[] @relation("MessagesSent")
 
   // Favorites
   favoriteGames FavoriteGame[]
@@ -485,6 +498,59 @@ model Follow {
   @@index([followingId])
 }
 
+/// Directed friendship request. ACCEPTED means both users are friends.
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      String   @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requester User @relation("FriendRequestsSent", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendRequestsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+}
+
+/// 1:1 DM thread. userOneId < userTwoId lexicographically for uniqueness.
+model Conversation {
+  id            String   @id @default(cuid())
+  userOneId     String
+  userTwoId     String
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  userOne  User            @relation("ConversationUserOne", fields: [userOneId], references: [id], onDelete: Cascade)
+  userTwo  User            @relation("ConversationUserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
+  messages DirectMessage[]
+
+  @@unique([userOneId, userTwoId])
+  @@index([userOneId, lastMessageAt])
+  @@index([userTwoId, lastMessageAt])
+}
+
+/// Server stores ciphertext only — plaintext never leaves the clients.
+model DirectMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  /// Base64 AES-GCM ciphertext
+  ciphertext     String   @db.Text
+  /// Base64 IV
+  iv             String
+  createdAt      DateTime @default(now())
+  readAt         DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
 // ============================================
 // Comments
 // ============================================
@@ -541,15 +607,16 @@ model Report {
 // ============================================
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String   // The user receiving the notification
-  type      String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE', 'GAME_RELEASED'
-  sourceId  String?  // ID of the user who triggered it
-  reviewId  String?  // Optional reference to a review
-  listId    String?  // Optional reference to a list
-  gameId    String?  // Optional reference to a game (e.g. release alerts)
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String   // The user receiving the notification
+  type           String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE', 'GAME_RELEASED', 'FRIEND_REQUEST', 'FRIEND_ACCEPTED', 'MESSAGE'
+  sourceId       String?  // ID of the user who triggered it
+  reviewId       String?  // Optional reference to a review
+  listId         String?  // Optional reference to a list
+  gameId         String?  // Optional reference to a game (e.g. release alerts)
+  conversationId String?  // Optional DM conversation
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
   user      User     @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
   source    User?    @relation("TriggeredNotifications", fields: [sourceId], references: [id], onDelete: Cascade)
@@ -560,6 +627,7 @@ model Notification {
   @@index([userId, isRead])
   @@index([sourceId])
   @@index([gameId])
+  @@index([conversationId])
   @@index([createdAt])
 }
 

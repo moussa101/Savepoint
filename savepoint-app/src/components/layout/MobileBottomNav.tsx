@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { HomeIcon, GamepadIcon, BookOpenIcon, ListIcon, UserIcon } from '@/components/ui/Icons';
+import { HomeIcon, GamepadIcon, BookOpenIcon, MessageIcon, UserIcon } from '@/components/ui/Icons';
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
@@ -16,7 +16,7 @@ export default function MobileBottomNav() {
     { href: '/feed', label: 'Home', icon: <HomeIcon size={22} />, match: (p: string) => p === '/feed' },
     { href: '/games', label: 'Discover', icon: <GamepadIcon size={22} />, match: (p: string) => p.startsWith('/games') },
     { href: '/library', label: 'Library', icon: <BookOpenIcon size={22} />, match: (p: string) => p.startsWith('/library') },
-    { href: '/lists', label: 'Lists', icon: <ListIcon size={22} />, match: (p: string) => p.startsWith('/lists') },
+    { href: '/messages', label: 'Chat', icon: <MessageIcon size={22} />, match: (p: string) => p.startsWith('/messages') || p.startsWith('/friends') },
     {
       href: `/profile/${username}`,
       label: 'Profile',

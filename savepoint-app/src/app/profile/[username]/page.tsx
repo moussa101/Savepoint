@@ -8,6 +8,7 @@ import StarRating from '@/components/ui/StarRating';
 import FollowButton from '@/components/ui/FollowButton';
 import EditProfileWrapper from '@/components/profile/EditProfileWrapper';
 import ReportButton from '@/components/ui/ReportButton';
+import ProfileFriendActions from '@/components/ui/ProfileFriendActions';
 import { STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon, LockIcon, ListIcon } from '@/components/ui/Icons';
@@ -108,7 +109,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   // Viewer-specific data: follow state (other people's profiles) or the full
   // list set including private lists (own profile). One round-trip either way.
-  const [followRecord, ownListsResult] = await Promise.all([
+  const [followRecord, ownListsResult, friendshipRelation] = await Promise.all([
     session?.user?.id && !isOwnProfile
       ? prisma.follow.findUnique({
           where: {
@@ -134,6 +135,22 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           take: 6,
         })
       : Promise.resolve(null),
+    session?.user?.id && !isOwnProfile
+      ? prisma.friendship.findFirst({
+          where: {
+            OR: [
+              { requesterId: session.user.id, addresseeId: user.id },
+              { requesterId: user.id, addresseeId: session.user.id },
+            ],
+          },
+        }).then(async (f) => {
+          if (!f) return 'none' as const;
+          if (f.status === 'ACCEPTED') return 'friends' as const;
+          if (f.status === 'PENDING' && f.requesterId === session.user.id) return 'outgoing' as const;
+          if (f.status === 'PENDING') return 'incoming' as const;
+          return 'none' as const;
+        })
+      : Promise.resolve('none' as const),
   ]);
   const isFollowing = !!followRecord;
 
@@ -321,6 +338,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               {!isOwnProfile && (
                 <>
                   <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn={!!session?.user} />
+                  {session?.user && (
+                    <ProfileFriendActions targetUserId={user.id} relation={friendshipRelation} />
+                  )}
                   {session?.user && <ReportButton targetType="PROFILE" targetId={user.id} reportedUserId={user.id} />}
                 </>
               )}

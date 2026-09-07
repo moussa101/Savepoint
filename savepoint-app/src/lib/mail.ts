@@ -112,3 +112,41 @@ export async function sendReviewRemovalEmail(email: string, username: string, ga
     return null;
   }
 }
+
+/** Alert that a friend sent an encrypted DM (no plaintext in the email). */
+export async function sendDirectMessageEmail(
+  email: string,
+  senderDisplayName: string,
+  senderUsername: string,
+  conversationId: string
+) {
+  const safeName = escapeHtml(senderDisplayName);
+  const safeUser = escapeHtml(senderUsername);
+  const inboxUrl = `${appUrl}/messages/${encodeURIComponent(conversationId)}`;
+
+  try {
+    return await transporter.sendMail({
+      from: `"Savepoint" <${process.env.GMAIL_USER}>`,
+      to: email,
+      subject: `New message from ${senderDisplayName.replace(/[\r\n]/g, ' ')}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0f; color: #fff; padding: 40px; border-radius: 10px;">
+          <h1 style="color: #00e5a0; text-align: center;">Savepoint</h1>
+          <h2 style="text-align: center; margin-bottom: 24px;">New encrypted message</h2>
+          <p style="font-size: 16px; line-height: 1.5; color: #ccc;">
+            <strong>${safeName}</strong> (@${safeUser}) sent you a private message.
+            Messages are end-to-end encrypted — we can’t read them, so open Savepoint to decrypt on your device.
+          </p>
+          <div style="text-align: center; margin: 36px 0;">
+            <a href="${inboxUrl}" style="background-color: #00e5a0; color: #0a0a0f; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+              Open conversation
+            </a>
+          </div>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error('Failed to send DM email with Gmail', error);
+    return null;
+  }
+}

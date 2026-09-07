@@ -11,6 +11,8 @@ import {
   SettingsIcon,
   LogOutIcon,
   MenuIcon,
+  UsersIcon,
+  MessageIcon,
 } from '@/components/ui/Icons';
 import NotificationsDropdown from './NotificationsDropdown';
 import MobileNavDrawer from './MobileNavDrawer';
@@ -121,6 +123,12 @@ export default function Navbar() {
                       </Link>
                       <Link href="/lists" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
                         <ListIcon size={16} /> My Lists
+                      </Link>
+                      <Link href="/friends" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                        <UsersIcon size={16} /> Friends
+                      </Link>
+                      <Link href="/messages" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                        <MessageIcon size={16} /> Messages
                       </Link>
                     </>
                   )}

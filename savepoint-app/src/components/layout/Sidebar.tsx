@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { HomeIcon, GamepadIcon, BookOpenIcon, ListIcon, SettingsIcon, UserIcon } from '@/components/ui/Icons';
+import { HomeIcon, GamepadIcon, BookOpenIcon, ListIcon, SettingsIcon, UserIcon, UsersIcon, MessageIcon } from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { ReactNode } from 'react';
 
@@ -12,6 +12,8 @@ const sidebarLinks: { href: string; label: string; icon: ReactNode }[] = [
   { href: '/games', label: 'Browse Games', icon: <GamepadIcon size={18} /> },
   { href: '/library', label: 'My Library', icon: <BookOpenIcon size={18} /> },
   { href: '/lists', label: 'My Lists', icon: <ListIcon size={18} /> },
+  { href: '/friends', label: 'Friends', icon: <UsersIcon size={18} /> },
+  { href: '/messages', label: 'Messages', icon: <MessageIcon size={18} /> },
   { href: '/settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
 ];
 
@@ -38,6 +40,8 @@ export default function Sidebar() {
           let isActive = pathname === link.href;
           if (link.href === '/games' && pathname.startsWith('/games')) isActive = true;
           if (link.href === '/library' && pathname.startsWith('/library')) isActive = true;
+          if (link.href === '/friends' && pathname.startsWith('/friends')) isActive = true;
+          if (link.href === '/messages' && pathname.startsWith('/messages')) isActive = true;
           if (link.href === '/feed' && pathname === '/feed') isActive = true;
 
           return (

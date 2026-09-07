@@ -8,9 +8,10 @@ import { formatRelativeTime } from '@/lib/utils';
 
 type Notification = {
   id: string;
-  type: string; // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE', 'GAME_RELEASED'
+  type: string;
   isRead: boolean;
   createdAt: string;
+  conversationId?: string | null;
   source?: {
     name: string | null;
     username: string;
@@ -170,6 +171,18 @@ export default function NotificationsDropdown() {
                   icon = <GamepadIcon size={16} color="var(--accent-primary)" />;
                   text = <><strong>{n.game?.name || 'A game'}</strong> you were watching is out now</>;
                   link = `/games/${n.game?.slug || ''}`;
+                } else if (n.type === 'FRIEND_REQUEST') {
+                  icon = <UsersIcon size={16} color="var(--accent-primary)" />;
+                  text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> sent you a friend request</>;
+                  link = `/friends`;
+                } else if (n.type === 'FRIEND_ACCEPTED') {
+                  icon = <UsersIcon size={16} color="var(--accent-primary)" />;
+                  text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> accepted your friend request</>;
+                  link = `/friends`;
+                } else if (n.type === 'MESSAGE') {
+                  icon = <MessageIcon size={16} color="var(--accent-primary)" />;
+                  text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> sent you a message</>;
+                  link = n.conversationId ? `/messages/${n.conversationId}` : '/messages';
                 } else if (n.type === 'LIST_LIKE') {
                   icon = <StarIcon size={16} color="var(--star-gold)" />;
                   text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> liked your list</>;

@@ -99,6 +99,8 @@ export default async function SettingsPage({
             notifyOnComment={user.notifyOnComment}
             notifyOnListLike={user.notifyOnListLike}
             notifyOnGameRelease={user.notifyOnGameRelease}
+            notifyOnMessage={user.notifyOnMessage}
+            emailOnMessage={user.emailOnMessage}
           />
         </div>
       </main>

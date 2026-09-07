@@ -13,6 +13,8 @@ import {
   UserIcon,
   LogOutIcon,
   XIcon,
+  UsersIcon,
+  MessageIcon,
 } from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
 
@@ -47,6 +49,8 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
     { href: '/games', label: 'Discover', icon: <GamepadIcon size={20} /> },
     { href: '/library', label: 'My Library', icon: <BookOpenIcon size={20} /> },
     { href: '/lists', label: 'My Lists', icon: <ListIcon size={20} /> },
+    { href: '/friends', label: 'Friends', icon: <UsersIcon size={20} /> },
+    { href: '/messages', label: 'Messages', icon: <MessageIcon size={20} /> },
     { href: `/profile/${username}`, label: 'My Profile', icon: <UserIcon size={20} /> },
     { href: '/settings', label: 'Settings', icon: <SettingsIcon size={20} /> },
   ];
@@ -90,6 +94,8 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
               pathname === link.href ||
               (link.href === '/games' && pathname.startsWith('/games')) ||
               (link.href === '/library' && pathname.startsWith('/library')) ||
+              (link.href === '/friends' && pathname.startsWith('/friends')) ||
+              (link.href === '/messages' && pathname.startsWith('/messages')) ||
               (link.href.startsWith('/profile') && pathname.startsWith('/profile'));
             return (
               <Link
