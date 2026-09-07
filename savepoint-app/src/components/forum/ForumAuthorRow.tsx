@@ -14,40 +14,36 @@ interface Author {
 export default function ForumAuthorRow({
   author,
   subtitle,
+  size = 40,
 }: {
   author: Author;
   subtitle?: string;
+  size?: number;
 }) {
+  const displayName = author.name?.trim() || author.username;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-      <Link href={`/profile/${author.username}`} style={{ textDecoration: 'none' }}>
+    <div className="forum-author-row">
+      <Link href={`/profile/${author.username}`} style={{ textDecoration: 'none', flexShrink: 0 }}>
         <UserAvatar
           className="avatar"
-          style={{ width: 32, height: 32, fontSize: '0.9rem' }}
+          style={{ width: size, height: size, fontSize: size > 36 ? '1rem' : '0.85rem' }}
           src={author.image}
           name={author.name}
           username={author.username}
         />
       </Link>
-      <div>
-        <Link
-          href={`/profile/${author.username}`}
-          style={{
-            color: 'inherit',
-            textDecoration: 'none',
-            fontWeight: 600,
-            fontSize: 'var(--text-sm)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-          }}
-        >
-          {author.name || author.username}
+      <div className="forum-author-meta">
+        <Link href={`/profile/${author.username}`} className="forum-author-name">
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {displayName}
+          </span>
           <VerifiedBadge isOfficial={author.isOfficial} username={author.username} size={14} />
         </Link>
-        {subtitle && (
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{subtitle}</div>
-        )}
+        <div className="forum-author-handle">
+          @{author.username}
+          {subtitle ? ` · ${subtitle}` : ''}
+        </div>
       </div>
     </div>
   );

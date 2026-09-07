@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getMyE2EPublicKey, listConversations, publishE2EPublicKey } from '@/app/actions/messages';
+import { listConversations } from '@/app/actions/messages';
 import { ensureLocalKeyPair } from '@/lib/e2e-crypto';
+import { getCachedInbox, putCachedInbox } from '@/lib/message-cache';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { MessageIcon, PlusIcon } from '@/components/ui/Icons';
 import { formatRelativeTime } from '@/lib/utils';
 
-const INBOX_POLL_MS = 1800;
+const INBOX_POLL_MS = 12000;
 
 type ConversationRow = {
   id: string;
@@ -33,21 +34,51 @@ type ConversationRow = {
   }[];
 };
 
-export default function MessagesInbox({ conversations: initial }: { conversations: ConversationRow[] }) {
+export default function MessagesInbox({
+  conversations: initial,
+  userId,
+}: {
+  conversations: ConversationRow[];
+  userId: string;
+}) {
   const [keyNote, setKeyNote] = useState('');
   const [conversations, setConversations] = useState(initial);
+  const [fromCache, setFromCache] = useState(false);
 
   useEffect(() => {
     setConversations(initial);
-  }, [initial]);
+    setFromCache(false);
+    void putCachedInbox(userId, initial);
+  }, [initial, userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (initial.length > 0) return;
+      const cached = await getCachedInbox(userId);
+      if (!cancelled && cached?.length) {
+        setConversations(cached as ConversationRow[]);
+        setFromCache(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, initial.length]);
 
   useEffect(() => {
     (async () => {
       try {
         const { publicKeyB64 } = await ensureLocalKeyPair();
-        const server = await getMyE2EPublicKey();
+        const res = await fetch('/api/messages/e2e-key', { cache: 'no-store' });
+        const data = res.ok ? ((await res.json()) as { publicKey?: string | null }) : null;
+        const server = data?.publicKey ?? null;
         if (server !== publicKeyB64) {
-          await publishE2EPublicKey(publicKeyB64);
+          await fetch('/api/messages/e2e-key', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publicKey: publicKeyB64 }),
+          });
           setKeyNote('Encryption keys ready on this device.');
         } else {
           setKeyNote('End-to-end encryption is active on this device.');
@@ -68,9 +99,13 @@ export default function MessagesInbox({ conversations: initial }: { conversation
       inFlight = true;
       try {
         const next = await listConversations();
-        if (!cancelled) setConversations(next as ConversationRow[]);
+        if (!cancelled) {
+          setConversations(next as ConversationRow[]);
+          setFromCache(false);
+          void putCachedInbox(userId, next as ConversationRow[]);
+        }
       } catch {
-        /* ignore */
+        /* keep cached list */
       } finally {
         inFlight = false;
       }
@@ -87,13 +122,14 @@ export default function MessagesInbox({ conversations: initial }: { conversation
       window.clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
+  }, [userId]);
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 'var(--space-lg)', flexWrap: 'wrap' }}>
         <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: 0, flex: 1 }}>
           {keyNote} Private keys never leave your browser.
+          {fromCache ? ' Showing cached inbox…' : ''}
         </p>
         <Link href="/messages/new-group" className="btn btn-primary btn-sm">
           <PlusIcon size={14} /> New group

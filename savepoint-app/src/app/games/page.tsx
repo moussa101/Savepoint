@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
-import SessionProvider from '@/components/SessionProvider';
 import { Suspense } from 'react';
 import StarRating from '@/components/ui/StarRating';
 import { GamepadIcon } from '@/components/ui/Icons';
@@ -21,8 +20,8 @@ export const metadata = {
   description: 'Discover and explore video games. Find popular, highly rated, and trending games.',
 };
 
-/** Page is intentionally dynamic so hero/trending shuffles feel fresh. */
-export const dynamic = 'force-dynamic';
+/** Page can be statically regenerated; hero shuffle is fine from cached pools. */
+export const revalidate = 300;
 
 function dedupeById<T extends { id: number | string }>(items: T[]): T[] {
   const seen = new Set<string>();
@@ -209,7 +208,7 @@ export default async function GamesPage({
   }
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <main className="main-content main-content-padded">
         <div className="container container-wide">
@@ -432,6 +431,6 @@ export default async function GamesPage({
           </div>
         </div>
       </main>
-    </SessionProvider>
+    </>
   );
 }

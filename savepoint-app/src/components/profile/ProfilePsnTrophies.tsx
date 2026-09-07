@@ -31,21 +31,7 @@ export default async function ProfilePsnTrophies({ userId, isOwnProfile }: Props
   });
 
   if (!user?.psnOnlineId) {
-    if (!isOwnProfile) return null;
-    return (
-      <div style={{ marginBottom: 'var(--space-2xl)' }}>
-        <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-md)' }}>
-          PlayStation trophies
-        </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
-          Connect PlayStation in{' '}
-          <Link href="/settings" style={{ color: 'var(--accent-primary)' }}>
-            Settings
-          </Link>{' '}
-          to import your trophy cabinet.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   const titles = await prisma.psnTitleProgress.findMany({

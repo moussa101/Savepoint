@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const url = new URL('https://api.giphy.com/v1/gifs/search');
     url.searchParams.set('api_key', key);
     url.searchParams.set('q', q);
-    url.searchParams.set('limit', '12');
+    url.searchParams.set('limit', '16');
     url.searchParams.set('offset', '0');
     url.searchParams.set('rating', 'pg-13');
     url.searchParams.set('lang', 'en');
@@ -50,33 +50,33 @@ export async function GET(request: Request) {
       .map((item: {
         id: string;
         images?: {
-          // Prefer small/fast renditions — never original (multi‑MB)
           fixed_height?: Img;
+          fixed_height_downsampled?: Img;
           fixed_height_small?: Img;
-          fixed_width_small?: Img;
+          fixed_width?: Img;
           downsized?: Img;
-          downsized_small?: Img;
+          downsized_medium?: Img;
           preview_gif?: Img;
           preview_webp?: { url?: string };
           original?: Img;
         };
       }) => {
         const images = item.images || {};
-        // Chat bubble URL: medium but capped
+        // Sent in chat: readable fixed_height (≈200px), not original
         const url =
           images.fixed_height?.webp ||
           images.fixed_height?.url ||
+          images.fixed_width?.url ||
+          images.downsized_medium?.url ||
           images.downsized?.url ||
-          images.fixed_height_small?.url ||
           '';
-        // Grid thumbnail: tiny
+        // Picker grid: same readable size so users can tell GIFs apart
         const previewUrl =
-          images.fixed_height_small?.webp ||
-          images.fixed_height_small?.url ||
-          images.fixed_width_small?.url ||
-          images.preview_webp?.url ||
-          images.preview_gif?.url ||
-          images.downsized_small?.url ||
+          images.fixed_height_downsampled?.webp ||
+          images.fixed_height_downsampled?.url ||
+          images.fixed_height?.webp ||
+          images.fixed_height?.url ||
+          images.fixed_width?.url ||
           url;
 
         return {

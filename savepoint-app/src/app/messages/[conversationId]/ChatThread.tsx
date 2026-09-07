@@ -2,12 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import {
-  editEncryptedMessage,
-  getMyE2EPublicKey,
-  publishE2EPublicKey,
-  sendEncryptedMessage,
-} from '@/app/actions/messages';
 import { uploadChatImage } from '@/app/actions/upload';
 import {
   decryptMessage,
@@ -17,14 +11,20 @@ import {
   ensureLocalKeyPair,
   unwrapGroupKey,
 } from '@/lib/e2e-crypto';
+import {
+  applyCachedPlaintext,
+  getCachedThread,
+  putCachedThread,
+} from '@/lib/message-cache';
 import UserAvatar from '@/components/ui/UserAvatar';
 import ReportButton from '@/components/ui/ReportButton';
 import { MessageContent } from '@/components/messages/MessageContent';
 import GifPicker from '@/components/messages/GifPicker';
 import GroupManagePanel from '@/components/messages/GroupManagePanel';
 
-/** Fast JSON poll — lighter than server actions. */
-const POLL_MS = 450;
+/** Poll when the tab is visible; backoff when idle so we don’t saturate the DB. */
+const POLL_MS_ACTIVE = 4000;
+const POLL_MS_IDLE = 12000;
 
 type Sender = {
   id: string;
@@ -154,10 +154,13 @@ export default function ChatThread({
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef(messages);
+  const plainByIdRef = useRef(plainById);
+  const cacheTimerRef = useRef<number | undefined>(undefined);
 
   peerKeyRef.current = peerPublicKey;
   groupKeyRef.current = groupKey;
   messagesRef.current = messages;
+  plainByIdRef.current = plainById;
 
   const memberById = useCallback(
     (id: string) => {
@@ -266,38 +269,108 @@ export default function ChatThread({
     [decryptIncoming, mergePlain]
   );
 
-  // Peer/group keys often arrive after the first decrypt pass — retry once ready.
+  // Re-decrypt only when the active peer/group key fingerprint changes.
+  const lastDecryptKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!ready) return;
     if (!isGroup && !peerPublicKey) return;
     if (isGroup && !groupKey) return;
+    const fingerprint = isGroup ? `g:${conversationId}:${!!groupKey}` : `d:${peerPublicKey}`;
+    if (lastDecryptKeyRef.current === fingerprint) return;
+    lastDecryptKeyRef.current = fingerprint;
     void redecryptAll(peerPublicKey, groupKey);
-  }, [ready, peerPublicKey, groupKey, isGroup, redecryptAll]);
+  }, [ready, peerPublicKey, groupKey, isGroup, conversationId, redecryptAll]);
 
   useEffect(() => {
     document.body.classList.add('chat-open');
     return () => document.body.classList.remove('chat-open');
   }, []);
 
+  // Hydrate decrypted plaintext from IndexedDB before crypto finishes.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cached = await getCachedThread(myUserId, conversationId);
+      if (cancelled || !cached) return;
+      const fromCache = applyCachedPlaintext(initialMessages, cached);
+      if (Object.keys(fromCache).length) {
+        setPlainById((prev) => ({ ...fromCache, ...prev }));
+      }
+      // Keep any cached messages the server slice missed (older than take window).
+      if (cached.messages.length) {
+        setMessages((prev) => {
+          const byId = new Map(prev.map((m) => [m.id, m]));
+          for (const m of cached.messages) {
+            if (!byId.has(m.id)) byId.set(m.id, m);
+          }
+          const merged = [...byId.values()].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt));
+          knownIdsRef.current = new Set(merged.map((m) => m.id));
+          cursorRef.current = latestSyncCursor(merged);
+          return merged;
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, myUserId]);
+
+  // Persist thread + plaintext locally (debounced).
+  useEffect(() => {
+    if (!ready) return;
+    if (cacheTimerRef.current) window.clearTimeout(cacheTimerRef.current);
+    cacheTimerRef.current = window.setTimeout(() => {
+      void putCachedThread(myUserId, conversationId, messagesRef.current, plainByIdRef.current);
+    }, 400);
+    return () => {
+      if (cacheTimerRef.current) window.clearTimeout(cacheTimerRef.current);
+    };
+  }, [ready, messages, plainById, myUserId, conversationId]);
+
+  // Flush cache on leave.
+  useEffect(() => {
+    return () => {
+      void putCachedThread(myUserId, conversationId, messagesRef.current, plainByIdRef.current);
+    };
+  }, [myUserId, conversationId]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const { publicKeyB64, pair } = await ensureLocalKeyPair();
+        if (cancelled) return;
         privateKeyRef.current = pair.privateKey;
-        const serverKey = await getMyE2EPublicKey();
-        if (!serverKey) {
-          await publishE2EPublicKey(publicKeyB64);
-        } else if (serverKey !== publicKeyB64) {
-          // Publishing a new identity orphans history encrypted to the old key.
-          // Keep local keys for this browser and sync the public key so peers can reach us again.
-          await publishE2EPublicKey(publicKeyB64);
-          if (!cancelled) {
-            setSetupError(
-              'This browser has new chat keys (storage was cleared or this is a new device). Older messages may stay encrypted.'
-            );
+
+        // Unlock UI immediately — sync public key via API (avoids Server Action RSC remount).
+        void (async () => {
+          try {
+            const res = await fetch('/api/messages/e2e-key', { cache: 'no-store' });
+            if (!res.ok || cancelled) return;
+            const data = (await res.json()) as { publicKey?: string | null };
+            const serverKey = data.publicKey ?? null;
+            if (!serverKey || serverKey !== publicKeyB64) {
+              const put = await fetch('/api/messages/e2e-key', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ publicKey: publicKeyB64 }),
+              });
+              if (
+                put.ok &&
+                serverKey &&
+                serverKey !== publicKeyB64 &&
+                !cancelled
+              ) {
+                setSetupError(
+                  'This browser has new chat keys (storage was cleared or this is a new device). Older messages may stay encrypted.'
+                );
+              }
+            }
+          } catch {
+            /* non-fatal */
           }
-        }
+        })();
 
         let gKey: CryptoKey | null = null;
         if (isGroup) {
@@ -308,14 +381,12 @@ export default function ChatThread({
           }
           gKey = await unwrapGroupKey(wrappedGroupKey, pair.privateKey);
           if (!cancelled) setGroupKey(gKey);
-        } else {
-          if (!other?.e2ePublicKey) {
-            setSetupError(
-              `@${other?.username} hasn’t opened Messages yet, so encryption keys aren’t ready.`
-            );
-            setReady(true);
-            return;
-          }
+        } else if (!other?.e2ePublicKey) {
+          setSetupError(
+            `@${other?.username || 'user'} hasn’t opened Messages yet, so encryption keys aren’t ready.`
+          );
+          setReady(true);
+          return;
         }
 
         const decrypted = await decryptIncoming(
@@ -324,7 +395,8 @@ export default function ChatThread({
           gKey
         );
         if (!cancelled) {
-          setPlainById(decrypted);
+          // Prefer freshly decrypted text; keep cached plaintext for anything still pending.
+          setPlainById((prev) => ({ ...prev, ...decrypted }));
           setReady(true);
           requestAnimationFrame(() => scrollToBottom(false));
         }
@@ -350,6 +422,7 @@ export default function ChatThread({
       if (cancelled || pollingRef.current) return;
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       pollingRef.current = true;
+      let gotActivity = false;
       try {
         const since = cursorRef.current ? `since=${encodeURIComponent(cursorRef.current)}` : '';
         const needKeys =
@@ -365,32 +438,34 @@ export default function ChatThread({
         if (!res.ok || cancelled) return;
         const result = await res.json();
         if (result.error) return;
+        gotActivity = !!(result.messages?.length || result.readReceipts?.length);
 
         if (needKeys) keysFetchedRef.current = true;
 
         let peerForDecrypt = peerKeyRef.current;
         let groupForDecrypt = groupKeyRef.current;
+        let keyChanged = false;
 
         if (result.peerPublicKey && result.peerPublicKey !== peerKeyRef.current) {
           peerForDecrypt = result.peerPublicKey;
           peerKeyRef.current = result.peerPublicKey;
           setPeerPublicKey(result.peerPublicKey);
           setSetupError('');
+          keyChanged = true;
         }
-        if (result.wrappedGroupKey && privateKeyRef.current) {
+        if (result.wrappedGroupKey && privateKeyRef.current && !groupKeyRef.current) {
           try {
             const gk = await unwrapGroupKey(result.wrappedGroupKey, privateKeyRef.current);
             groupForDecrypt = gk;
             setGroupKey(gk);
             groupKeyRef.current = gk;
+            keyChanged = true;
           } catch {
             /* keep existing */
           }
         }
 
-        const keysJustArrived =
-          (result.peerPublicKey && !isGroup) || (result.wrappedGroupKey && isGroup);
-        if (keysJustArrived && !result.messages?.length) {
+        if (keyChanged && !result.messages?.length) {
           await redecryptAll(peerForDecrypt, groupForDecrypt);
         }
 
@@ -409,13 +484,15 @@ export default function ChatThread({
 
         if (result.messages?.length) {
           await mergeMessages(result.messages, peerForDecrypt, groupForDecrypt);
-          if (keysJustArrived) await redecryptAll(peerForDecrypt, groupForDecrypt);
+          if (keyChanged) await redecryptAll(peerForDecrypt, groupForDecrypt);
         }
       } catch {
         /* retry */
       } finally {
         pollingRef.current = false;
-        if (!cancelled) timer = window.setTimeout(tick, POLL_MS);
+        if (!cancelled) {
+          timer = window.setTimeout(tick, gotActivity ? POLL_MS_ACTIVE : POLL_MS_IDLE);
+        }
       }
     }
 
@@ -493,7 +570,15 @@ export default function ChatThread({
 
     try {
       const { ciphertext, iv } = await encryptOutgoing(text);
-      const result = await sendEncryptedMessage(conversationId, ciphertext, iv, kind);
+      const res = await fetch(`/api/messages/${conversationId}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send', ciphertext, iv, kind }),
+      });
+      const result = (await res.json()) as {
+        error?: string;
+        message?: WireMessage;
+      };
       if (result.error || !result.message) {
         setSendError(result.error || 'Send failed');
         setMessages((prev) => prev.filter((m) => m.id !== localId));
@@ -528,7 +613,12 @@ export default function ChatThread({
       setSending(true);
       try {
         const { ciphertext, iv } = await encryptOutgoing(text);
-        const result = await editEncryptedMessage(editingId, ciphertext, iv);
+        const res = await fetch(`/api/messages/${conversationId}/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'edit', messageId: editingId, ciphertext, iv }),
+        });
+        const result = (await res.json()) as { error?: string };
         if (result.error) setSendError(result.error);
         else {
           setPlainById((prev) => ({ ...prev, [editingId]: text }));
@@ -581,8 +671,9 @@ export default function ChatThread({
       : '';
 
   return (
-    <div className="chat-thread" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 120px)', minHeight: 420 }}>
+    <div className="chat-thread" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
       <div
+        className="chat-thread-header"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -609,7 +700,7 @@ export default function ChatThread({
                 (groupName || 'G').charAt(0).toUpperCase()
               )}
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="chat-thread-header-title" style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700 }}>{title}</div>
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{subtitle} · tap to manage</div>
             </div>
@@ -621,7 +712,7 @@ export default function ChatThread({
                 <UserAvatar className="avatar" style={{ width: 40, height: 40 }} src={other.image} name={other.name} username={other.username} />
               </Link>
             )}
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="chat-thread-header-title" style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700 }}>{title}</div>
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{subtitle}</div>
             </div>
@@ -800,28 +891,29 @@ export default function ChatThread({
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={handleSubmit} style={{ position: 'relative', marginTop: 8 }}>
-        {showGifs && (
-          <GifPicker
-            onClose={() => setShowGifs(false)}
-            onSelect={async (gif) => {
-              setShowGifs(false);
-              await sendPlaintext(
-                JSON.stringify({
-                  type: 'GIF',
-                  url: gif.url,
-                  previewUrl: gif.previewUrl,
-                  giphyId: gif.id,
-                }),
-                'MEDIA'
-              );
-            }}
-          />
-        )}
+      {showGifs && (
+        <GifPicker
+          onClose={() => setShowGifs(false)}
+          onSelect={async (gif) => {
+            setShowGifs(false);
+            await sendPlaintext(
+              JSON.stringify({
+                type: 'GIF',
+                url: gif.url,
+                previewUrl: gif.previewUrl,
+                giphyId: gif.id,
+              }),
+              'MEDIA'
+            );
+          }}
+        />
+      )}
+
+      <form onSubmit={handleSubmit} style={{ marginTop: 8, flexShrink: 0, paddingBottom: 'max(4px, env(safe-area-inset-bottom))' }}>
         {sendError && (
           <p style={{ color: '#eb5757', fontSize: 'var(--text-xs)', marginBottom: 6 }}>{sendError}</p>
         )}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="chat-composer-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             ref={fileRef}
             type="file"
@@ -835,6 +927,7 @@ export default function ChatThread({
             disabled={!ready || sending || uploading}
             onClick={() => fileRef.current?.click()}
             title="Attach image"
+            aria-label="Attach image"
           >
             {uploading ? '…' : 'Img'}
           </button>
@@ -844,6 +937,7 @@ export default function ChatThread({
             disabled={!ready || sending}
             onClick={() => setShowGifs((v) => !v)}
             title="GIF"
+            aria-label="GIF"
           >
             GIF
           </button>
@@ -852,9 +946,9 @@ export default function ChatThread({
             className="input"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={editingId ? 'Edit message…' : 'Message… https:// links work'}
+            placeholder={editingId ? 'Edit message…' : 'Message…'}
             disabled={!ready || sending}
-            style={{ flex: 1 }}
+            style={{ flex: 1, minWidth: 0 }}
           />
           {editingId && (
             <button

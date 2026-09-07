@@ -3,7 +3,6 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import Navbar from '@/components/layout/Navbar';
-import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import { STATUS_LABELS, STATUS_COLORS, type GameStatus } from '@/lib/utils';
 import { formatPlaytimeHours } from '@/lib/playtime';
@@ -50,7 +49,7 @@ export default async function PublicLibraryPage({
 
   if (!canView) {
     return (
-      <SessionProvider>
+      <>
         <Navbar />
         <main className="main-content" style={{ paddingTop: 'calc(var(--navbar-height) + var(--space-3xl))' }}>
           <div className="container" style={{ maxWidth: 560, textAlign: 'center' }}>
@@ -66,7 +65,7 @@ export default async function PublicLibraryPage({
             </Link>
           </div>
         </main>
-      </SessionProvider>
+      </>
     );
   }
 
@@ -94,7 +93,7 @@ export default async function PublicLibraryPage({
   const totalHours = userGames.reduce((sum, ug) => sum + (ug.playtimeMinutes || 0), 0) / 60;
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <main className="main-content" style={{ paddingTop: 'calc(var(--navbar-height) + var(--space-xl))' }}>
         <div className="container">
@@ -207,6 +206,6 @@ export default async function PublicLibraryPage({
         </div>
         <div style={{ height: 'var(--space-3xl)' }} />
       </main>
-    </SessionProvider>
+    </>
   );
 }

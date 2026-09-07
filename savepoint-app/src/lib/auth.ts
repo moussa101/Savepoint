@@ -8,6 +8,7 @@ import { prisma } from '@/lib/db';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { touchLastIp } from '@/lib/user-ip';
 import { verifySteamLoginToken } from '@/lib/steam-auth';
+import { safeAutoUsername } from '@/lib/usernames';
 
 class UnverifiedEmailError extends CredentialsSignin {
   code = 'unverified_email';
@@ -18,7 +19,7 @@ class BannedUserError extends CredentialsSignin {
 }
 
 /** How long JWT claims (username, avatar, onboarded, isAdmin, ban state) are trusted before re-reading the DB. */
-const SESSION_CLAIMS_TTL_MS = 2 * 60 * 1000;
+const SESSION_CLAIMS_TTL_MS = 10 * 60 * 1000;
 
 async function loadSessionUser(where: { id?: string; email?: string }) {
   if (!where.id && !where.email) return null;
@@ -32,6 +33,7 @@ async function loadSessionUser(where: { id?: string; email?: string }) {
       isAdmin: true,
       isBanned: true,
       email: true,
+      createdAt: true,
     },
   });
 }
@@ -42,7 +44,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: {
     ...PrismaAdapter(prisma),
     createUser: async (user) => {
-      const username = user.email!.split('@')[0] + Math.floor(Math.random() * 10000);
+      const local = user.email?.split('@')[0] || 'player';
+      const username = safeAutoUsername(local);
       return prisma.user.create({
         data: {
           ...user,
@@ -163,7 +166,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // claims are re-read only on sign-in, explicit `update()`, or after the TTL.
       const refreshedAt = (token as { refreshedAt?: number }).refreshedAt ?? 0;
       const isFresh = Date.now() - refreshedAt < SESSION_CLAIMS_TTL_MS;
-      if (!user && trigger !== 'update' && token.id && isFresh) {
+      const missingCreatedAt = !(token as { createdAt?: string }).createdAt;
+      if (!user && trigger !== 'update' && token.id && isFresh && !missingCreatedAt) {
         return token;
       }
 
@@ -194,6 +198,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       token.image = dbUser.image;
       token.onboarded = dbUser.onboarded;
       token.isAdmin = dbUser.isAdmin;
+      (token as { createdAt?: string }).createdAt = dbUser.createdAt.toISOString();
       (token as { refreshedAt?: number }).refreshedAt = Date.now();
       delete (token as { error?: string }).error;
 
@@ -225,6 +230,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.image = (token.image as string | null) ?? null;
       (session.user as { onboarded?: boolean }).onboarded = token.onboarded as boolean;
       (session.user as { isAdmin?: boolean }).isAdmin = token.isAdmin as boolean;
+      (session.user as { createdAt?: string }).createdAt = (token as { createdAt?: string })
+        .createdAt;
       return session;
     },
   },

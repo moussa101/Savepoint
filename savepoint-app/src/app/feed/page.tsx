@@ -5,7 +5,6 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import { formatRelativeTime, STATUS_LABELS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
@@ -50,16 +49,23 @@ export default async function FeedPage() {
     },
     include: {
       user: { select: { username: true, name: true, image: true } },
-      review: { include: { game: true } },
-      userGame: { include: { game: true } },
-      list: { include: { items: { include: { game: true }, take: 4 } } },
-      favorite: { include: { game: true } },
+      review: { include: { game: { select: { id: true, name: true, slug: true, coverImage: true } } } },
+      userGame: { include: { game: { select: { id: true, name: true, slug: true, coverImage: true } } } },
+      list: {
+        include: {
+          items: {
+            include: { game: { select: { id: true, name: true, slug: true, coverImage: true } } },
+            take: 4,
+          },
+        },
+      },
+      favorite: { include: { game: { select: { id: true, name: true, slug: true, coverImage: true } } } },
       _count: { select: { likes: true, comments: true } },
       likes: { where: { userId: session.user.id } },
       comments: {
         include: { user: { select: { id: true, username: true, name: true, image: true } } },
         orderBy: { createdAt: 'asc' },
-        take: 20,
+        take: 3,
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -69,7 +75,7 @@ export default async function FeedPage() {
   ]);
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -312,6 +318,6 @@ export default async function FeedPage() {
           </aside>
         </div>
       </main>
-    </SessionProvider>
+    </>
   );
 }

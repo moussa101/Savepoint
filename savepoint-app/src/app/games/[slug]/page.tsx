@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import type { Session } from 'next-auth';
 import Navbar from '@/components/layout/Navbar';
-import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import GameActions from './GameActions';
 import ReviewSection from './ReviewSection';
@@ -199,7 +198,7 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
   const community = loadCommunity(game.id, session?.user?.id);
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <main className="main-content">
         {/* Banner */}
@@ -301,7 +300,7 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
         <div style={{ height: 'var(--space-3xl)' }} />
       </main>
 
-    </SessionProvider>
+    </>
   );
 }
 

@@ -77,18 +77,17 @@ function ReplyCard({
   return (
     <article
       id={`reply-${reply.id}`}
-      className="card"
+      className="card forum-post"
       style={{
-        padding: 'var(--space-lg)',
-        marginLeft: depth > 0 ? Math.min(depth * 16, 48) : 0,
+        marginLeft: depth > 0 ? Math.min(depth * 12, 28) : 0,
         borderLeft: depth > 0 ? '2px solid var(--bg-surface-border)' : undefined,
       }}
     >
-      <div style={{ display: 'flex', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 10 }}>
         <VoteButtons kind="reply" id={reply.id} score={reply.score} myVote={reply.myVote} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <ForumAuthorRow author={reply.author} subtitle={formatRelativeTime(new Date(reply.createdAt))} />
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 10 }}>
             <ForumBody text={reply.body} />
           </div>
           {reply.imageUrls.length > 0 && (

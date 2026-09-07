@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
-import SessionProvider from '@/components/SessionProvider';
 import { LogOutIcon, UsersIcon, ActivityIcon, SettingsIcon, ShieldIcon, AlertTriangleIcon, ForumIcon } from '@/components/ui/Icons';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +21,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <SessionProvider>
+    <>
       <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg-background)' }}>
         <aside style={{
           width: '260px',
@@ -81,6 +80,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {children}
         </main>
       </div>
-    </SessionProvider>
+    </>
   );
 }

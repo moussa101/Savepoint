@@ -42,20 +42,26 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  if (!session?.user) return null;
-
-  const username = session.user.username;
-  const links = [
-    { href: '/feed', label: 'Home', icon: <HomeIcon size={20} /> },
-    { href: '/games', label: 'Discover', icon: <GamepadIcon size={20} /> },
-    { href: '/library', label: 'My Library', icon: <BookOpenIcon size={20} /> },
-    { href: '/forums', label: 'Forums', icon: <ForumIcon size={20} /> },
-    { href: '/lists', label: 'My Lists', icon: <ListIcon size={20} /> },
-    { href: '/friends', label: 'Friends', icon: <UsersIcon size={20} /> },
-    { href: '/messages', label: 'Messages', icon: <MessageIcon size={20} /> },
-    { href: `/profile/${username}`, label: 'My Profile', icon: <UserIcon size={20} /> },
-    { href: '/settings', label: 'Settings', icon: <SettingsIcon size={20} /> },
-  ];
+  const username = session?.user?.username;
+  const memberLinks = username
+    ? [
+        { href: '/feed', label: 'Home', icon: <HomeIcon size={20} /> },
+        { href: '/games', label: 'Discover', icon: <GamepadIcon size={20} /> },
+        { href: '/library', label: 'My Library', icon: <BookOpenIcon size={20} /> },
+        { href: '/forums', label: 'Forums', icon: <ForumIcon size={20} /> },
+        { href: '/lists', label: 'My Lists', icon: <ListIcon size={20} /> },
+        { href: '/friends', label: 'Friends', icon: <UsersIcon size={20} /> },
+        { href: '/messages', label: 'Messages', icon: <MessageIcon size={20} /> },
+        { href: `/profile/${username}`, label: 'My Profile', icon: <UserIcon size={20} /> },
+        { href: '/settings', label: 'Settings', icon: <SettingsIcon size={20} /> },
+      ]
+    : [
+        { href: '/', label: 'Home', icon: <HomeIcon size={20} /> },
+        { href: '/games', label: 'Discover', icon: <GamepadIcon size={20} /> },
+        { href: '/forums', label: 'Forums', icon: <ForumIcon size={20} /> },
+        { href: '/login', label: 'Sign In', icon: <UserIcon size={20} /> },
+        { href: '/register', label: 'Get Started', icon: <UsersIcon size={20} /> },
+      ];
 
   return (
     <div className={`mobile-nav-root ${open ? 'is-open' : ''}`} aria-hidden={!open}>
@@ -73,31 +79,44 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
         aria-label="Navigation menu"
       >
         <div className="mobile-nav-drawer-header">
-          <Link href={`/profile/${username}`} className="mobile-nav-user" onClick={onClose}>
-            <UserAvatar
-              className="avatar avatar-md avatar-ring"
-              src={session.user.image}
-              name={session.user.name}
-              username={username}
-            />
-            <div>
-              <div className="mobile-nav-user-name">{session.user.name || username}</div>
-              <div className="mobile-nav-user-handle">@{username}</div>
+          {session?.user && username ? (
+            <Link href={`/profile/${username}`} className="mobile-nav-user" onClick={onClose}>
+              <UserAvatar
+                className="avatar avatar-md avatar-ring"
+                src={session.user.image}
+                name={session.user.name}
+                username={username}
+              />
+              <div>
+                <div className="mobile-nav-user-name">{session.user.name || username}</div>
+                <div className="mobile-nav-user-handle">@{username}</div>
+              </div>
+            </Link>
+          ) : (
+            <div className="mobile-nav-user">
+              <span className="navbar-brand-icon" style={{ fontSize: '1.4rem' }}>
+                ⟐
+              </span>
+              <div>
+                <div className="mobile-nav-user-name">Savepoint</div>
+                <div className="mobile-nav-user-handle">Browse as guest</div>
+              </div>
             </div>
-          </Link>
+          )}
           <button type="button" className="mobile-nav-close" onClick={onClose} aria-label="Close menu">
             <XIcon size={22} />
           </button>
         </div>
 
         <nav className="mobile-nav-links">
-          {links.map((link) => {
+          {memberLinks.map((link) => {
             const active =
               pathname === link.href ||
               (link.href === '/games' && pathname.startsWith('/games')) ||
               (link.href === '/library' && pathname.startsWith('/library')) ||
               (link.href === '/friends' && pathname.startsWith('/friends')) ||
               (link.href === '/messages' && pathname.startsWith('/messages')) ||
+              (link.href === '/forums' && pathname.startsWith('/forums')) ||
               (link.href.startsWith('/profile') && pathname.startsWith('/profile'));
             return (
               <Link
@@ -113,17 +132,19 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
           })}
         </nav>
 
-        <button
-          type="button"
-          className="mobile-nav-link mobile-nav-signout"
-          onClick={() => {
-            onClose();
-            signOut({ callbackUrl: '/' });
-          }}
-        >
-          <LogOutIcon size={20} />
-          Sign Out
-        </button>
+        {session?.user && (
+          <button
+            type="button"
+            className="mobile-nav-link mobile-nav-signout"
+            onClick={() => {
+              onClose();
+              signOut({ callbackUrl: '/' });
+            }}
+          >
+            <LogOutIcon size={20} />
+            Sign Out
+          </button>
+        )}
       </aside>
     </div>
   );

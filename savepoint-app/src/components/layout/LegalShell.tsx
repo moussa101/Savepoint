@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
-import SessionProvider from '@/components/SessionProvider';
 
 export default function LegalShell({
   title,
@@ -12,7 +11,7 @@ export default function LegalShell({
   children: React.ReactNode;
 }) {
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <main className="main-content main-content-padded">
         <article className="container legal-doc">
@@ -28,6 +27,6 @@ export default function LegalShell({
           <div className="legal-body">{children}</div>
         </article>
       </main>
-    </SessionProvider>
+    </>
   );
 }

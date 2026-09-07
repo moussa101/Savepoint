@@ -4,7 +4,6 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import ReportButton from '@/components/ui/ReportButton';
 import { formatRelativeTime } from '@/lib/utils';
 import { ForumOwnerControls, JoinLeaveButton } from './ForumControls';
@@ -12,6 +11,7 @@ import NewTopicForm from './NewTopicForm';
 import ForumAuthorRow from '@/components/forum/ForumAuthorRow';
 import InviteFriendsButton from '@/components/forum/InviteFriendsButton';
 import { PinIcon } from '@/components/ui/Icons';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +60,7 @@ export default async function ForumPage({ params }: { params: Promise<{ slug: st
 
   if (forum.status === 'DELETED') {
     return (
-      <SessionProvider>
+      <>
         <Navbar />
         <Sidebar />
         <main className="main-with-sidebar">
@@ -83,7 +83,7 @@ export default async function ForumPage({ params }: { params: Promise<{ slug: st
             </Link>
           </div>
         </main>
-      </SessionProvider>
+      </>
     );
   }
 
@@ -112,7 +112,7 @@ export default async function ForumPage({ params }: { params: Promise<{ slug: st
   const canPost = isMember && forum.status === 'OPEN';
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -156,25 +156,37 @@ export default async function ForumPage({ params }: { params: Promise<{ slug: st
             <div className="empty-state-text">Be the first to ask for help.</div>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {topics.map((topic) => (
               <Link
                 key={topic.id}
                 href={`/forums/${forum.slug}/${topic.id}`}
-                className="card"
-                style={{ padding: 'var(--space-md) var(--space-lg)', textDecoration: 'none', color: 'inherit' }}
+                className="card forum-topic-row"
+                style={{ textDecoration: 'none', color: 'inherit' }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                  <div>
-                    <h2 style={{ fontSize: 'var(--text-md)', fontWeight: 600, marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      {topic.isPinned && <PinIcon size={14} color="var(--accent-primary)" />}
-                      {topic.title}
-                    </h2>
-                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                      @{topic.author.username} · {topic.score} points · {topic._count.replies} replies ·{' '}
-                      {formatRelativeTime(topic.createdAt)}
-                      {topic.status === 'CLOSED' ? ' · Closed' : ''}
-                    </div>
+                <UserAvatar
+                  className="avatar"
+                  style={{ width: 40, height: 40, flexShrink: 0 }}
+                  src={topic.author.image}
+                  name={topic.author.name}
+                  username={topic.author.username}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h2 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {topic.isPinned && <PinIcon size={14} color="var(--accent-primary)" />}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{topic.title}</span>
+                  </h2>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
+                    <span>
+                      <strong style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        {topic.author.name || topic.author.username}
+                      </strong>{' '}
+                      @{topic.author.username}
+                    </span>
+                    <span>{topic.score} pts</span>
+                    <span>{topic._count.replies} replies</span>
+                    <span>{formatRelativeTime(topic.createdAt)}</span>
+                    {topic.status === 'CLOSED' ? <span>Closed</span> : null}
                   </div>
                 </div>
               </Link>
@@ -182,6 +194,6 @@ export default async function ForumPage({ params }: { params: Promise<{ slug: st
           </div>
         )}
       </main>
-    </SessionProvider>
+    </>
   );
 }

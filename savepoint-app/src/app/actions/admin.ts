@@ -70,6 +70,7 @@ export async function banUser(userId: string, reason: string, banIp: boolean = t
 
     revalidatePath('/admin/users');
     revalidatePath('/admin/reviews');
+    revalidatePath('/admin/reports');
 
     return { success: true };
   } catch (error: unknown) {

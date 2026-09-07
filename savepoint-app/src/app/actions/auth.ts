@@ -7,6 +7,7 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '@/lib/mail';
 import crypto from 'crypto';
 import { headers } from 'next/headers';
 import { getClientIpFromHeaders } from '@/lib/security';
+import { reservedUsernameMessage } from '@/lib/usernames';
 
 const resetAttempts = new Map<string, { count: number; resetAt: number }>();
 const registerAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -59,6 +60,11 @@ export async function registerUser(formData: FormData) {
 
   if (!/^[a-zA-Z0-9_]+$/.test(username)) {
     return { error: 'Username can only contain letters, numbers, and underscores' };
+  }
+
+  const reserved = reservedUsernameMessage(username);
+  if (reserved) {
+    return { error: reserved };
   }
 
   if (password.length < 8) {
@@ -126,52 +132,59 @@ export async function loginUser(formData: FormData) {
 export async function requestPasswordReset(formData: FormData) {
   const emailRaw = (formData.get('email') as string | null) || '';
   const email = emailRaw.trim().toLowerCase();
-  if (!email) return { error: 'Email is required' };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+
+  // Only format validation is returned to the client — never whether the email exists.
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { error: 'Enter a valid email address' };
   }
 
-  const rateKey = await clientKey(email);
-  if (!checkRateLimit(resetAttempts, rateKey, 3, 60 * 60 * 1000)) {
-    // Still return success to avoid enumeration / timing tells
-    return { success: true };
+  // Constant-ish minimum delay so missing vs existing accounts feel the same.
+  const started = Date.now();
+  const finish = async () => {
+    const elapsed = Date.now() - started;
+    if (elapsed < 450) {
+      await new Promise((r) => setTimeout(r, 450 - elapsed));
+    }
+    return { success: true as const };
+  };
+
+  try {
+    const rateKey = await clientKey(email);
+    const allowed = checkRateLimit(resetAttempts, rateKey, 3, 60 * 60 * 1000);
+
+    if (allowed) {
+      const user = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        select: { id: true, email: true },
+      });
+
+      if (user) {
+        await prisma.passwordResetToken.deleteMany({ where: { email: user.email } });
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const expires = new Date(Date.now() + 1000 * 60 * 60);
+
+        await prisma.passwordResetToken.create({
+          data: {
+            email: user.email,
+            token,
+            expires,
+          },
+        });
+
+        const sent = await sendPasswordResetEmail(user.email, token);
+        if (!sent) {
+          await prisma.passwordResetToken.deleteMany({ where: { token } });
+          console.error('Password reset email failed for configured account');
+        }
+      }
+    }
+  } catch (err) {
+    console.error('requestPasswordReset failed', err);
   }
 
-  // Case-insensitive match (emails are usually stored lowercase; OAuth may vary)
-  const user = await prisma.user.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-    select: { id: true, email: true, password: true },
-  });
-
-  if (!user) {
-    return { success: true };
-  }
-
-  // OAuth-only accounts can still set a password via reset
-  await prisma.passwordResetToken.deleteMany({ where: { email: user.email } });
-
-  const token = crypto.randomBytes(32).toString('hex');
-  const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
-
-  await prisma.passwordResetToken.create({
-    data: {
-      email: user.email,
-      token,
-      expires,
-    },
-  });
-
-  const sent = await sendPasswordResetEmail(user.email, token);
-  if (!sent) {
-    // Clean up unused token so the user can retry
-    await prisma.passwordResetToken.deleteMany({ where: { token } });
-    return {
-      error:
-        'We could not send the reset email right now. Check that Gmail is configured, then try again.',
-    };
-  }
-
-  return { success: true };
+  // Always the same response — no enumeration via success/error or email-send failures.
+  return finish();
 }
 
 export async function resetPassword(formData: FormData) {

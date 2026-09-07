@@ -4,7 +4,6 @@ import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import Navbar from '@/components/layout/Navbar';
 import { LockIcon } from '@/components/ui/Icons';
-import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import ListGameManager from './ListGameManager';
 import ListLikeButton from './ListLikeButton';
@@ -39,7 +38,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const isOwner = list.userId === session?.user?.id;
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <main className="main-content main-content-padded">
         <div className="container" style={{ maxWidth: '800px' }}>
@@ -129,6 +128,6 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           )}
         </div>
       </main>
-    </SessionProvider>
+    </>
   );
 }

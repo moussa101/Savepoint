@@ -3,7 +3,6 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import Navbar from '@/components/layout/Navbar';
-import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import FollowButton from '@/components/ui/FollowButton';
 import EditProfileWrapper from '@/components/profile/EditProfileWrapper';
@@ -18,7 +17,6 @@ import VerifiedBadge from '@/components/ui/VerifiedBadge';
 import { calculateLevel, getTierFromLevel, BADGE_DEFINITIONS } from '@/lib/gamification';
 import ProfilePsnTrophies from '@/components/profile/ProfilePsnTrophies';
 import ProfilePlatformTags from '@/components/profile/ProfilePlatformTags';
-import { fetchSteamPersona } from '@/lib/steam';
 import { Suspense, cache } from 'react';
 
 const getUser = cache(async (username: string) => {
@@ -61,12 +59,30 @@ const getUser = cache(async (username: string) => {
     }),
     prisma.userGame.findMany({
       where: { user: { username } },
-      include: { game: true },
+      select: {
+        id: true,
+        status: true,
+        rating: true,
+        gameId: true,
+        source: true,
+        updatedAt: true,
+        game: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            coverImage: true,
+            developer: true,
+          },
+        },
+      },
       orderBy: { updatedAt: 'desc' },
+      take: 200,
     }),
     prisma.gameGenre.findMany({
       where: { game: { userGames: { some: { user: { username } } } } },
       select: { genre: true },
+      take: 500,
     }),
   ]);
 
@@ -176,7 +192,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   if (!canViewPrivate && !canViewLibrary) {
     return (
-      <SessionProvider>
+      <>
         <Navbar />
         <main className="main-content" style={{ paddingTop: 'calc(var(--navbar-height) + var(--space-3xl))' }}>
           <div className="container" style={{ maxWidth: 560, textAlign: 'center' }}>
@@ -194,14 +210,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             )}
           </div>
         </main>
-      </SessionProvider>
+      </>
     );
   }
 
   if (!canViewPrivate) {
     // Profile private but library public — show a compact header + library CTA.
     return (
-      <SessionProvider>
+      <>
         <Navbar />
         <main className="main-content" style={{ paddingTop: 'calc(var(--navbar-height) + var(--space-3xl))' }}>
           <div className="container" style={{ maxWidth: 640, textAlign: 'center' }}>
@@ -231,21 +247,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             </div>
           </div>
         </main>
-      </SessionProvider>
+      </>
     );
   }
 
   const ownLists = ownListsResult ?? user.lists;
 
   let steamPersonaName: string | null = null;
-  if (user.steamId) {
-    try {
-      const persona = await fetchSteamPersona(user.steamId);
-      steamPersonaName = persona?.personaname || null;
-    } catch {
-      steamPersonaName = null;
-    }
-  }
+  // Don't block profile TTFB on a live Steam API call — use the stored Steam ID label.
 
   // Shared library with the signed-in viewer — only on a friend's profile (never your own).
   type SharedGameRow = {
@@ -348,7 +357,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   ];
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <main className="main-content">
         <div style={{
@@ -727,6 +736,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         </div>
         <div style={{ height: 'var(--space-3xl)' }} />
       </main>
-    </SessionProvider>
+    </>
   );
 }

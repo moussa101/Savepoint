@@ -2,7 +2,6 @@ import { auth } from '@/lib/auth';
 import { notFound, redirect } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import { getConversation } from '@/app/actions/messages';
 import ChatThread from './ChatThread';
 
@@ -23,7 +22,7 @@ export default async function ConversationPage({
   const c = result.conversation;
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -40,6 +39,6 @@ export default async function ConversationPage({
           initialMessages={c.messages}
         />
       </main>
-    </SessionProvider>
+    </>
   );
 }

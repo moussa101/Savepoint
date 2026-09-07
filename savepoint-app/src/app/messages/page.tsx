@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import { listConversations } from '@/app/actions/messages';
 import MessagesInbox from './MessagesInbox';
 
@@ -16,7 +15,7 @@ export default async function MessagesPage() {
   const conversations = await listConversations();
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -29,8 +28,8 @@ export default async function MessagesPage() {
             Friends
           </Link>
         </div>
-        <MessagesInbox conversations={conversations} />
+        <MessagesInbox conversations={conversations} userId={session.user.id} />
       </main>
-    </SessionProvider>
+    </>
   );
 }

@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import { UserIcon, ShieldIcon } from '@/components/ui/Icons';
 import SettingsForms from './SettingsForms';
 import ConnectedLibraries from './ConnectedLibraries';
@@ -29,7 +28,7 @@ export default async function SettingsPage({
   if (user.isAdmin) redirect('/admin/settings');
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -106,6 +105,6 @@ export default async function SettingsPage({
           />
         </div>
       </main>
-    </SessionProvider>
+    </>
   );
 }

@@ -57,8 +57,9 @@ async function getBannedIps(
     return bannedIpCache.ips;
   }
 
-  // Cold cache: the first request on this instance pays for one fetch.
-  return loadBannedIps(origin, secret);
+  // Cold cache: fail open immediately, refresh in the background.
+  event.waitUntil(loadBannedIps(origin, secret));
+  return new Set<string>();
 }
 
 function isPrefetch(req: NextRequest): boolean {

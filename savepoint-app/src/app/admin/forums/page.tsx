@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { formatRelativeTime } from '@/lib/utils';
 import AdminDeleteForum from './AdminDeleteForum';
+import { ensureReleaseAnnouncement } from '@/lib/ensure-release-announcement';
 
 export const metadata = { title: 'Forums — Admin' };
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,8 @@ export default async function AdminForumsPage({
 }: {
   searchParams: Promise<{ status?: string; slug?: string }>;
 }) {
+  await ensureReleaseAnnouncement().catch(() => null);
+
   const params = await searchParams;
   const statusFilter = params.status || 'ALL';
 

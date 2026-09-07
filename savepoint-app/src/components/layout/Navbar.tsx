@@ -80,7 +80,7 @@ export default function Navbar() {
     <>
       <nav className="navbar" aria-label="Main">
         <div className="navbar-leading">
-          {session && !isAdmin && (
+          {!isAdmin && (
             <button
               type="button"
               className="navbar-menu-btn"
@@ -210,10 +210,10 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {status !== 'loading' && session && !isAdmin && (
+      {status !== 'loading' && !isAdmin && (
         <>
           <MobileNavDrawer open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
-          <MobileBottomNav />
+          {session && <MobileBottomNav />}
         </>
       )}
     </>

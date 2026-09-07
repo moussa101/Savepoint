@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import Navbar from '@/components/layout/Navbar';
-import SessionProvider from '@/components/SessionProvider';
 import FollowButton from '@/components/ui/FollowButton';
 import UserAvatar from '@/components/ui/UserAvatar';
 
@@ -39,7 +38,7 @@ export default async function FollowersPage({ params }: { params: Promise<{ user
   const allowed = await canViewSocial(session?.user?.id, profile);
   if (!allowed) {
     return (
-      <SessionProvider>
+      <>
         <Navbar />
         <main className="main-content" style={{ paddingTop: 'calc(var(--navbar-height) + var(--space-2xl))' }}>
           <div className="container" style={{ maxWidth: 640 }}>
@@ -47,7 +46,7 @@ export default async function FollowersPage({ params }: { params: Promise<{ user
             <p className="page-subtitle">This profile is private.</p>
           </div>
         </main>
-      </SessionProvider>
+      </>
     );
   }
 
@@ -71,7 +70,7 @@ export default async function FollowersPage({ params }: { params: Promise<{ user
   }
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <main className="main-content" style={{ paddingTop: 'calc(var(--navbar-height) + var(--space-2xl))' }}>
         <div className="container" style={{ maxWidth: 720 }}>
@@ -117,6 +116,6 @@ export default async function FollowersPage({ params }: { params: Promise<{ user
           </div>
         </div>
       </main>
-    </SessionProvider>
+    </>
   );
 }

@@ -4,7 +4,6 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import { STATUS_LABELS, STATUS_COLORS, type GameStatus } from '@/lib/utils';
 import { GamepadIcon, SteamIcon } from '@/components/ui/Icons';
@@ -48,27 +47,12 @@ export default async function LibraryPage({
 
   let autoSyncNote: string | null = null;
   const forceSync = steamQuery === 'linked';
+  // Never block library render on Steam sync — kick it off in the background.
   if (steamLink?.steamId && shouldAutoSyncSteam(steamLink.steamLastSyncAt, forceSync)) {
-    const result = await syncSteamLibraryForUser(session.user.id);
-    if (result && 'error' in result && result.error) {
-      autoSyncNote = result.error;
-    } else if (result && 'success' in result && result.success) {
-      const parts: string[] = [];
-      if (result.imported) parts.push(`${result.imported} added`);
-      if (result.updated) parts.push(`${result.updated} updated`);
-      autoSyncNote = parts.length
-        ? `Steam library synced automatically (${parts.join(', ')}).`
-        : 'Steam library is up to date.';
-    }
-    steamLink = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        steamId: true,
-        steamLastSyncAt: true,
-        psnOnlineId: true,
-        psnLastSyncAt: true,
-      },
-    });
+    void syncSteamLibraryForUser(session.user.id).catch(() => null);
+    autoSyncNote = forceSync
+      ? 'Steam library sync started — refresh in a moment if games are missing.'
+      : 'Refreshing Steam library in the background…';
   }
 
   const userGames = await prisma.userGame.findMany({
@@ -97,7 +81,7 @@ export default async function LibraryPage({
   const totalHours = userGames.reduce((sum, ug) => sum + (ug.playtimeMinutes || 0), 0) / 60;
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -257,6 +241,6 @@ export default async function LibraryPage({
           })}
         </div>
       </main>
-    </SessionProvider>
+    </>
   );
 }

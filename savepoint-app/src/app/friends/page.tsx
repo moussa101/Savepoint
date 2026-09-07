@@ -2,7 +2,6 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import { getFriendsData } from '@/app/actions/friends';
 import FriendsClient from './FriendsClient';
 import Link from 'next/link';
@@ -16,7 +15,7 @@ export default async function FriendsPage() {
   const data = await getFriendsData();
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -31,6 +30,6 @@ export default async function FriendsPage() {
         </div>
         <FriendsClient incoming={data.incoming} outgoing={data.outgoing} friends={data.friends} />
       </main>
-    </SessionProvider>
+    </>
   );
 }

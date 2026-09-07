@@ -157,54 +157,67 @@ export async function openConversationWithFriend(friendUserId: string) {
 
 export async function getConversation(conversationId: string) {
   const userId = await requireUserId();
-  const conversation = await assertConversationAccess(conversationId, userId);
-  if (!conversation) return { error: 'Conversation not found.' };
 
-  if (conversation.type === 'DIRECT') {
-    if (!conversation.userOneId || !conversation.userTwoId) {
+  // One round-trip for thread shell + latest messages (was 4–5 sequential queries).
+  const [full, recentDesc] = await Promise.all([
+    prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        userOne: { select: userLite },
+        userTwo: { select: userLite },
+        members: {
+          include: { user: { select: { ...userLite, isOfficial: true } } },
+          orderBy: { joinedAt: 'asc' },
+        },
+        keyWraps: {
+          where: { userId },
+          select: { wrappedKey: true },
+          take: 1,
+        },
+      },
+    }),
+    prisma.directMessage.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        ...messageSelect,
+        sender: { select: userLite },
+      },
+    }),
+  ]);
+
+  if (!full) return { error: 'Conversation not found.' };
+
+  if (full.type === 'GROUP') {
+    if (!full.members.some((m) => m.userId === userId)) {
       return { error: 'Conversation not found.' };
     }
-    if (!(await areFriends(conversation.userOneId, conversation.userTwoId))) {
+  } else {
+    if (full.userOneId !== userId && full.userTwoId !== userId) {
+      return { error: 'Conversation not found.' };
+    }
+    if (!full.userOneId || !full.userTwoId) {
+      return { error: 'Conversation not found.' };
+    }
+    if (!(await areFriends(full.userOneId, full.userTwoId))) {
       return { error: 'You are no longer friends with this user.' };
     }
   }
 
-  const full = await prisma.conversation.findUnique({
-    where: { id: conversationId },
-    include: {
-      userOne: { select: userLite },
-      userTwo: { select: userLite },
-      members: {
-        include: { user: { select: { ...userLite, isOfficial: true } } },
-        orderBy: { joinedAt: 'asc' },
+  // Don't block page render on read receipts.
+  void prisma.directMessage
+    .updateMany({
+      where: {
+        conversationId,
+        senderId: { not: userId },
+        readAt: null,
       },
-      keyWraps: {
-        where: { userId },
-        select: { wrappedKey: true },
-        take: 1,
-      },
-    },
-  });
-  if (!full) return { error: 'Conversation not found.' };
+      data: { readAt: new Date() },
+    })
+    .catch(() => null);
 
-  await prisma.directMessage.updateMany({
-    where: {
-      conversationId,
-      senderId: { not: userId },
-      readAt: null,
-    },
-    data: { readAt: new Date() },
-  });
-
-  const messages = await prisma.directMessage.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'asc' },
-    take: 200,
-    select: {
-      ...messageSelect,
-      sender: { select: userLite },
-    },
-  });
+  const messages = recentDesc.slice().reverse();
 
   if (full.type === 'GROUP') {
     const myRole = full.members.find((m) => m.userId === userId)?.role || 'MEMBER';

@@ -4,7 +4,6 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import ListForm from './ListForm';
 import ListCard from '@/components/ui/ListCard';
 import { ListIcon } from '@/components/ui/Icons';
@@ -57,7 +56,7 @@ export default async function ListsPage() {
   const allLists = favoritesList ? [favoritesList, ...lists] : lists;
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -87,6 +86,6 @@ export default async function ListsPage() {
           </div>
         )}
       </main>
-    </SessionProvider>
+    </>
   );
 }

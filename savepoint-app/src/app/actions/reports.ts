@@ -147,3 +147,49 @@ export async function sendReportWarningEmail(
   revalidatePath('/admin/reports');
   return { success: true };
 }
+
+/** Ban the reported user (and optionally their IP), then mark the report resolved. */
+export async function banFromReport(
+  reportId: string,
+  reason: string,
+  banIp: boolean = true
+) {
+  try {
+    const { ensureAdmin } = await import('@/lib/authz');
+    await ensureAdmin();
+  } catch {
+    return { error: 'Not authorized' };
+  }
+
+  const trimmed = reason.trim();
+  if (!trimmed || trimmed.length > 2000) {
+    return { error: 'Ban reason is required' };
+  }
+
+  const report = await prisma.report.findUnique({
+    where: { id: reportId },
+    select: { id: true, reportedUserId: true, reason: true, chatLog: true },
+  });
+
+  if (!report) return { error: 'Report not found' };
+  if (!report.reportedUserId) {
+    return { error: 'No user linked to this report' };
+  }
+
+  const { banUser } = await import('@/app/actions/admin');
+  const banResult = await banUser(
+    report.reportedUserId,
+    trimmed.slice(0, 500),
+    banIp
+  );
+  if (banResult.error) return banResult;
+
+  await prisma.report.update({
+    where: { id: reportId },
+    data: { status: 'RESOLVED' },
+  });
+
+  revalidatePath('/admin/reports');
+  revalidatePath('/admin/users');
+  return { success: true };
+}

@@ -104,6 +104,7 @@ export default function FriendsClient({ incoming, outgoing, friends }: Props) {
             {results.map((u) => (
               <li
                 key={u.id}
+                className="friend-row"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -122,7 +123,7 @@ export default function FriendsClient({ incoming, outgoing, friends }: Props) {
                     <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>@{u.username}</div>
                   </div>
                 </Link>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <div className="friend-row-actions" style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                   {u.relation === 'none' && (
                     <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={() => run(() => sendFriendRequest(u.id))}>
                       <PlusIcon size={14} /> Add

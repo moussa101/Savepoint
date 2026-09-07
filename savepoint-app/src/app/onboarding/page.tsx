@@ -42,15 +42,14 @@ export default async function OnboardingPage() {
   }
 
   return (
-    <main className="main-content" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div className="container" style={{ paddingTop: 'var(--space-3xl)', paddingBottom: 'var(--space-2xl)', flex: 1 }}>
-        <div style={{ textAlign: 'center', marginBottom: 'var(--space-2xl)' }}>
-          <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', marginBottom: 'var(--space-sm)' }}>
-            Welcome to Savepoint, {session.user.name}!
+    <main className="main-content" style={{ minHeight: '100dvh' }}>
+      <div className="container" style={{ paddingTop: 'var(--space-lg)', paddingBottom: 'var(--space-xl)' }}>
+        <div style={{ marginBottom: 'var(--space-lg)', maxWidth: 520 }}>
+          <h1 className="font-display" style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 4 }}>
+            Welcome{session.user.name ? `, ${session.user.name}` : ''}
           </h1>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto' }}>
-            To personalize your experience and recommendations, tell us about your taste. <br/>
-            <strong>Like or Dislike at least 5 games to continue.</strong>
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: 0, lineHeight: 1.45 }}>
+            Rate at least 5 games so we can personalize your feed.
           </p>
         </div>
 

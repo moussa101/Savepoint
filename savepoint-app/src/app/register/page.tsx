@@ -55,7 +55,7 @@ export default function RegisterPage() {
           </Link>
         </div>
 
-        <div className="auth-card card-glass">
+        <div className="auth-card">
           <h1 className="auth-title font-display">Join Savepoint</h1>
           <p className="auth-subtitle">Start building your gaming profile</p>
 
@@ -199,73 +199,6 @@ export default function RegisterPage() {
           </p>
         </div>
       </div>
-
-      <style jsx>{`
-        .auth-page {
-          min-height: 100vh;
-          min-height: 100dvh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          position: relative;
-          overflow-x: hidden;
-          overflow-y: auto;
-          padding: max(var(--space-md), env(safe-area-inset-top)) var(--space-md) max(var(--space-md), env(safe-area-inset-bottom));
-        }
-        .auth-bg {
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(ellipse at 30% 20%, rgba(0, 229, 160, 0.08) 0%, transparent 60%),
-            radial-gradient(ellipse at 70% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 60%),
-            var(--bg-primary);
-        }
-        .auth-container {
-          position: relative;
-          z-index: 1;
-          width: 100%;
-          max-width: 440px;
-          padding: var(--space-lg);
-        }
-        .auth-header {
-          text-align: center;
-          margin-bottom: var(--space-xl);
-        }
-        .auth-logo {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--space-sm);
-          color: var(--text-primary);
-          text-decoration: none;
-        }
-        .auth-card {
-          padding: var(--space-2xl);
-          border-radius: var(--radius-xl);
-        }
-        .auth-title {
-          font-size: var(--text-3xl);
-          font-weight: 800;
-          margin-bottom: var(--space-xs);
-        }
-        .auth-subtitle {
-          color: var(--text-secondary);
-          margin-bottom: var(--space-xl);
-        }
-        .auth-error {
-          background: var(--danger-bg);
-          color: var(--danger);
-          padding: var(--space-md);
-          border-radius: var(--radius-md);
-          font-size: var(--text-sm);
-          margin-bottom: var(--space-lg);
-          border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-        .auth-footer {
-          text-align: center;
-          margin-top: var(--space-xl);
-          font-size: var(--text-sm);
-          color: var(--text-secondary);
-        }
-      `}</style>
     </div>
   );
 }

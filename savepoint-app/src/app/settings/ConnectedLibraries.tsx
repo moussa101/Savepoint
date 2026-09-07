@@ -380,7 +380,7 @@ export default function ConnectedLibraries({
               placeholder="Gamertag (include #suffix if any)"
               value={xboxInput}
               onChange={(e) => setXboxInput(e.target.value)}
-              style={{ flex: 1, minWidth: 200 }}
+              style={{ flex: 1, minWidth: 0 }}
               required
             />
             <button type="submit" className="btn btn-primary" disabled={anyBusy}>

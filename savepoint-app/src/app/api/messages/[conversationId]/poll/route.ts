@@ -100,7 +100,7 @@ export async function GET(
 
   // Mark inbound as read only when there may be unread (avoid write every tick)
   const hasUnreadInbound = messages.some((m) => m.senderId !== userId && !m.readAt);
-  if (hasUnreadInbound || !sinceValid) {
+  if (hasUnreadInbound) {
     void prisma.directMessage
       .updateMany({
         where: {

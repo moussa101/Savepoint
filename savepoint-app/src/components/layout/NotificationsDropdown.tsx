@@ -58,8 +58,16 @@ export default function NotificationsDropdown() {
   }, []);
 
   useEffect(() => {
-    // Fetch notifications on mount
-    fetchNotifications();
+    if (!notificationsOpen) return;
+    void fetchNotifications();
+  }, [notificationsOpen]);
+
+  // Deferred so the first paint / navigation isn’t competing with this request.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (document.visibilityState === 'visible') void fetchNotifications();
+    }, 4000);
+    return () => window.clearTimeout(t);
   }, []);
 
   const fetchNotifications = async () => {

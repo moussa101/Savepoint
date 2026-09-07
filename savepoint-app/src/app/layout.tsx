@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import './globals.css';
+import SessionProvider from '@/components/SessionProvider';
+import UpdateAnnouncement from '@/components/ui/UpdateAnnouncement';
 
 // Self-hosted via next/font: no render-blocking request to fonts.googleapis.com,
 // fonts are preloaded and served from our own origin with `font-display: swap`.
@@ -57,7 +59,12 @@ export default function RootLayout({
         <link rel="preconnect" href="https://images.igdb.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://images.igdb.com" />
       </head>
-      <body>{children}</body>
+      <body>
+        <SessionProvider>
+          {children}
+          <UpdateAnnouncement />
+        </SessionProvider>
+      </body>
     </html>
   );
 }

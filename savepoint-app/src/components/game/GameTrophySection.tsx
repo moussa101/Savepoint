@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { PlaystationIcon } from '@/components/ui/Icons';
@@ -15,73 +14,36 @@ type Props = {
   gameId: string;
   /** When set, show this user's trophies (e.g. profile). Defaults to the signed-in user. */
   userId?: string;
-  showConnectHint?: boolean;
 };
 
 export default async function GameTrophySection({
   gameId,
   userId: forcedUserId,
-  showConnectHint = true,
 }: Props) {
   const session = await auth();
   const userId = forcedUserId || session?.user?.id;
   if (!userId) {
-    if (!showConnectHint) return null;
     return null;
   }
 
-  const [progress, viewer] = await Promise.all([
-    prisma.psnTitleProgress.findFirst({
-      where: { userId, gameId },
-      select: {
-        npCommunicationId: true,
-        platform: true,
-        progress: true,
-        earnedBronze: true,
-        earnedSilver: true,
-        earnedGold: true,
-        earnedPlatinum: true,
-        definedBronze: true,
-        definedSilver: true,
-        definedGold: true,
-        definedPlatinum: true,
-      },
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { psnOnlineId: true },
-    }),
-  ]);
+  const progress = await prisma.psnTitleProgress.findFirst({
+    where: { userId, gameId },
+    select: {
+      npCommunicationId: true,
+      platform: true,
+      progress: true,
+      earnedBronze: true,
+      earnedSilver: true,
+      earnedGold: true,
+      earnedPlatinum: true,
+      definedBronze: true,
+      definedSilver: true,
+      definedGold: true,
+      definedPlatinum: true,
+    },
+  });
 
   if (!progress) {
-    if (!showConnectHint || forcedUserId) return null;
-    if (!viewer?.psnOnlineId) {
-      return (
-        <div className="card" style={{ marginTop: 'var(--space-xl)' }}>
-          <h2
-            className="font-display"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-sm)',
-              fontSize: 'var(--text-xl)',
-              fontWeight: 700,
-              marginBottom: 'var(--space-sm)',
-            }}
-          >
-            <PlaystationIcon size={22} />
-            PlayStation trophies
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
-            Connect PlayStation in{' '}
-            <Link href="/settings" style={{ color: 'var(--accent-primary)' }}>
-              Settings
-            </Link>{' '}
-            — Library auto-syncs trophies after you connect.
-          </p>
-        </div>
-      );
-    }
     return null;
   }
 

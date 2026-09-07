@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import CreateForumForm from './CreateForumForm';
 
 export const metadata = { title: 'Create Forum — Savepoint' };
@@ -14,7 +13,7 @@ export default async function NewForumPage() {
   if ((session.user as { isAdmin?: boolean }).isAdmin) redirect('/admin/forums');
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -29,6 +28,6 @@ export default async function NewForumPage() {
         </div>
         <CreateForumForm />
       </main>
-    </SessionProvider>
+    </>
   );
 }

@@ -8,6 +8,8 @@ declare module 'next-auth' {
       image: string | null;
       onboarded?: boolean;
       isAdmin?: boolean;
+      /** ISO timestamp — used to gate release announcements to existing accounts */
+      createdAt?: string;
     } & DefaultSession['user'];
   }
 }
@@ -19,6 +21,7 @@ declare module 'next-auth/jwt' {
     image?: string | null;
     onboarded?: boolean;
     isAdmin?: boolean;
+    createdAt?: string;
     error?: string;
   }
 }

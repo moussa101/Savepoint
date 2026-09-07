@@ -4,7 +4,6 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import SessionProvider from '@/components/SessionProvider';
 import ForumBody from '@/components/forum/ForumBody';
 import ForumAuthorRow from '@/components/forum/ForumAuthorRow';
 import { PostActionBar, VoteButtons } from '@/components/forum/ForumPostActions';
@@ -144,7 +143,7 @@ export default async function TopicPage({
   const sharePath = `/forums/${slug}/${topic.id}`;
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
@@ -216,6 +215,6 @@ export default async function TopicPage({
           </p>
         )}
       </main>
-    </SessionProvider>
+    </>
   );
 }

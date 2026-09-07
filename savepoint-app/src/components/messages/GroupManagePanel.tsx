@@ -182,7 +182,7 @@ export default function GroupManagePanel({
 
   return (
     <div
-      className="card"
+      className="card group-manage-panel"
       style={{
         position: 'absolute',
         top: '100%',

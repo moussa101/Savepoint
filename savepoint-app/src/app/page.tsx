@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { getSiteStatsCached } from '@/lib/cached-queries';
 import Navbar from '@/components/layout/Navbar';
-import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import { GamepadIcon, StarIcon, UsersIcon } from '@/components/ui/Icons';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
@@ -25,7 +24,7 @@ export default async function LandingPage() {
   ]);
 
   return (
-    <SessionProvider>
+    <>
       <Navbar />
       <main className="main-content">
         {/* Hero Section */}
@@ -188,6 +187,6 @@ export default async function LandingPage() {
         </footer>
       </main>
 
-    </SessionProvider>
+    </>
   );
 }

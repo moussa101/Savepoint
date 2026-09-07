@@ -9,7 +9,7 @@ export default async function AdminReportsPage() {
     where: { status: 'OPEN' },
     include: {
       reporter: { select: { username: true, name: true } },
-      reportedUser: { select: { username: true, name: true, email: true } },
+      reportedUser: { select: { id: true, username: true, name: true, email: true } },
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
@@ -19,7 +19,7 @@ export default async function AdminReportsPage() {
     <div style={{ padding: 'var(--space-2xl)' }}>
       <h1 className="page-title font-display">Reports</h1>
       <p className="page-subtitle" style={{ marginBottom: 'var(--space-xl)' }}>
-        Review user-submitted reports for spam, harassment, and other violations.
+        Review reports, read attached chat logs, warn via Gmail, or ban users.
       </p>
       <ReportsList reports={reports} />
     </div>

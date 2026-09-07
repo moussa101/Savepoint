@@ -124,7 +124,7 @@ export default function GameActions({
   const currentStatusObj = ALL_STATUSES.find((s) => s.value === status);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', alignItems: 'center', minWidth: '200px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', alignItems: 'center', width: '100%', maxWidth: '280px' }}>
       {isUnreleased ? (
         <div style={{ textAlign: 'center', maxWidth: 260 }}>
           <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--space-sm)' }}>
