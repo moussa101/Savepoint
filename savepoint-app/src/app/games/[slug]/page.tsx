@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -11,34 +11,26 @@ import GameActions from './GameActions';
 import ReviewSection from './ReviewSection';
 import StorefrontLinks from '@/components/game/StorefrontLinks';
 import UserAvatar from '@/components/ui/UserAvatar';
-import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
+import { getIGDBImageUrl } from '@/lib/igdb';
 import { formatPlaytimeHours } from '@/lib/playtime';
 import { isGameUnreleased } from '@/lib/game-release';
 import { notifyReleaseWatchersForGame } from '@/lib/release-notify';
-import { cache } from 'react';
-
-const getIGDBGame = cache(async (slug: string) => {
-  const igdbResults = await fetchIGDB(
-    'games',
-    `fields id, name, slug, summary, cover.image_id, artworks.image_id, screenshots.image_id, first_release_date, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, genres.name, platforms.name, websites.type, websites.url;
-     where slug = "${slug}"; limit 1;`
-  );
-  if (igdbResults && igdbResults.length > 0) {
-    return igdbResults[0] as IGDBGame;
-  }
-  return null;
-});
+import {
+  canonicalizeLocalGame,
+  findLocalGameForIgdb,
+  resolveIgdbGameFromSlug,
+} from '@/lib/resolve-game';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   try {
-    const game = await getIGDBGame(slug);
+    const game = await resolveIgdbGameFromSlug(slug);
     if (!game) return { title: 'Game Not Found' };
     return {
       title: `${game.name} — Savepoint`,
       description: game.summary?.slice(0, 160),
     };
-  } catch (e) {
+  } catch {
     return { title: 'Game Not Found' };
   }
 }
@@ -109,75 +101,90 @@ type CommunityData = Awaited<ReturnType<typeof loadCommunity>>;
 export default async function GamePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  // 1. Session, IGDB metadata and the local row are independent — one round-trip.
-  const [session, igdbGame, existing] = await Promise.all([
+  const [session, igdbGame] = await Promise.all([
     auth(),
-    getIGDBGame(slug).catch((e) => {
-      console.error(e);
-      return null;
-    }),
-    prisma.game.findUnique({ where: { slug } }),
+    resolveIgdbGameFromSlug(slug),
   ]);
 
   if (!igdbGame) notFound();
 
-  const developer = igdbGame.involved_companies?.find((c) => c.developer)?.company.name;
-  const publisher = igdbGame.involved_companies?.find((c) => c.publisher)?.company.name;
+  const developer = igdbGame.involved_companies?.find((c) => c.developer)?.company.name ?? null;
+  const publisher = igdbGame.involved_companies?.find((c) => c.publisher)?.company.name ?? null;
   const coverImage = getIGDBImageUrl(igdbGame.cover?.image_id, 'cover_big');
-  const bannerImage = getIGDBImageUrl(igdbGame.artworks?.[0]?.image_id || igdbGame.screenshots?.[0]?.image_id, '1080p');
-  const releaseDate = igdbGame.first_release_date ? new Date(igdbGame.first_release_date * 1000) : null;
+  const bannerImage = getIGDBImageUrl(
+    igdbGame.artworks?.[0]?.image_id || igdbGame.screenshots?.[0]?.image_id,
+    '1080p'
+  );
+  const releaseDate = igdbGame.first_release_date
+    ? new Date(igdbGame.first_release_date * 1000)
+    : null;
 
-  // 2. Most views are read-only; we only write when the game is new or its
-  //    cached IGDB metadata is older than a day.
+  const existing = await findLocalGameForIgdb(igdbGame, slug);
   const gameId = igdbGame.id.toString();
   const isStale =
     !existing ||
     existing.igdbId !== igdbGame.id ||
+    existing.slug !== igdbGame.slug ||
     Date.now() - existing.updatedAt.getTime() > LOCAL_GAME_STALE_MS;
 
   let game = existing;
 
   if (isStale) {
     try {
-      game = await prisma.game.upsert({
-        where: { slug: igdbGame.slug },
-        update: {
-          igdbId: igdbGame.id,
-          name: igdbGame.name,
-          slug: igdbGame.slug,
-          description: igdbGame.summary,
+      if (existing) {
+        game = await canonicalizeLocalGame(existing, igdbGame, {
           coverImage,
           bannerImage,
           releaseDate,
           developer,
           publisher,
-        },
-        create: {
-          id: gameId,
-          slug: igdbGame.slug,
-          igdbId: igdbGame.id,
-          name: igdbGame.name,
-          description: igdbGame.summary,
-          coverImage,
-          bannerImage,
-          releaseDate,
-          developer,
-          publisher,
-        },
-      });
+          description: igdbGame.summary ?? null,
+        });
+      } else {
+        game = await prisma.game.upsert({
+          where: { slug: igdbGame.slug },
+          update: {
+            igdbId: igdbGame.id,
+            name: igdbGame.name,
+            slug: igdbGame.slug,
+            description: igdbGame.summary,
+            coverImage,
+            bannerImage,
+            releaseDate,
+            developer,
+            publisher,
+          },
+          create: {
+            id: gameId,
+            slug: igdbGame.slug,
+            igdbId: igdbGame.id,
+            name: igdbGame.name,
+            description: igdbGame.summary,
+            coverImage,
+            bannerImage,
+            releaseDate,
+            developer,
+            publisher,
+          },
+        });
+      }
     } catch (err) {
-      // A concurrent request may have created it, or the igdbId is taken by a
-      // row with a different slug — fall back to whatever exists.
       game =
         existing ??
         (await prisma.game.findFirst({
-          where: { OR: [{ id: gameId }, { igdbId: igdbGame.id }] },
+          where: { OR: [{ id: gameId }, { igdbId: igdbGame.id }, { slug: igdbGame.slug }] },
         }));
       if (!game) throw err;
     }
   }
 
   if (!game) notFound();
+
+  // Legacy Steam sync used synthetic slugs (`fallout-new-vegas-16`). After healing
+  // the local row, send browsers to the canonical IGDB slug.
+  if (igdbGame.slug && igdbGame.slug !== slug) {
+    permanentRedirect(`/games/${igdbGame.slug}`);
+  }
 
   const unreleased = isGameUnreleased(game.releaseDate);
 
