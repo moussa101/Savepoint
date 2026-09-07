@@ -13,6 +13,7 @@ import { STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon, LockIcon, ListIcon } from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
+import VerifiedBadge from '@/components/ui/VerifiedBadge';
 import { calculateLevel, getTierFromLevel, BADGE_DEFINITIONS } from '@/lib/gamification';
 import ProfilePsnTrophies from '@/components/profile/ProfilePsnTrophies';
 import ProfilePlatformTags from '@/components/profile/ProfilePlatformTags';
@@ -351,7 +352,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       <main className="main-content">
         <div style={{
           height: '280px',
-          marginTop: 'var(--navbar-height)',
+          marginTop: 0,
           position: 'relative',
           overflow: 'hidden',
           backgroundColor: 'var(--bg-surface)'
@@ -393,8 +394,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             />
             <div style={{ flex: 1, minWidth: '250px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-                <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: '4px' }}>
+                <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, marginBottom: '4px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                   {user.name || user.username}
+                  <VerifiedBadge isOfficial={user.isOfficial} username={user.username} size={22} />
                 </h1>
                 {user.isPrivate && <span className="badge"><LockIcon size={12} /> Private</span>}
                 {user.equippedBadge && (
@@ -404,8 +406,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                <p style={{ color: 'var(--accent-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', margin: 0 }}>
+                <p style={{ color: 'var(--accent-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', margin: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                   @{user.username}
+                  <VerifiedBadge isOfficial={user.isOfficial} username={user.username} size={14} />
                 </p>
                 <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>
                   Level {calculateLevel(user.xp)} · {getTierFromLevel(calculateLevel(user.xp))} · {user.xp} XP

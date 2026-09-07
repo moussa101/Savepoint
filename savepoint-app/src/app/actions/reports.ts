@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
-const VALID_TYPES = ['REVIEW', 'COMMENT', 'PROFILE', 'LIST'] as const;
+const VALID_TYPES = ['REVIEW', 'COMMENT', 'PROFILE', 'LIST', 'FORUM', 'FORUM_TOPIC', 'FORUM_REPLY'] as const;
 const VALID_REASONS = ['SPAM', 'HARASSMENT', 'HATE_SPEECH', 'SEXUAL_CONTENT', 'COPYRIGHT', 'OTHER'] as const;
 
 export async function createReport(input: {

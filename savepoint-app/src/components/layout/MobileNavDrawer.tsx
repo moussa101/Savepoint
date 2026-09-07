@@ -15,6 +15,7 @@ import {
   XIcon,
   UsersIcon,
   MessageIcon,
+  ForumIcon,
 } from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
 
@@ -48,6 +49,7 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
     { href: '/feed', label: 'Home', icon: <HomeIcon size={20} /> },
     { href: '/games', label: 'Discover', icon: <GamepadIcon size={20} /> },
     { href: '/library', label: 'My Library', icon: <BookOpenIcon size={20} /> },
+    { href: '/forums', label: 'Forums', icon: <ForumIcon size={20} /> },
     { href: '/lists', label: 'My Lists', icon: <ListIcon size={20} /> },
     { href: '/friends', label: 'Friends', icon: <UsersIcon size={20} /> },
     { href: '/messages', label: 'Messages', icon: <MessageIcon size={20} /> },

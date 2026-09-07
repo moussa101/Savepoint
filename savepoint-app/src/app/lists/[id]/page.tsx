@@ -41,7 +41,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   return (
     <SessionProvider>
       <Navbar />
-      <main className="main-content" style={{ padding: 'var(--space-xl)', paddingTop: 'calc(var(--navbar-height) + var(--space-xl))' }}>
+      <main className="main-content main-content-padded">
         <div className="container" style={{ maxWidth: '800px' }}>
           <div style={{ marginBottom: 'var(--space-2xl)' }}>
             <Link href="/lists" style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>

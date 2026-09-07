@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
-import { formatRelativeTime } from '@/lib/utils';
 import { ShieldIcon, TrashIcon, SearchIcon } from '@/components/ui/Icons';
+import VerifiedBadge from '@/components/ui/VerifiedBadge';
+import UserVerificationToggles from './UserVerificationToggles';
 
 export const metadata = {
   title: 'User Management — Admin',
@@ -28,7 +29,6 @@ export default async function AdminUsersPage() {
           <p style={{ color: 'var(--text-muted)' }}>Manage and view all registered users</p>
         </div>
         
-        {/* Mock Search Bar for UI completeness */}
         <div className="input-group" style={{ width: '300px' }}>
           <span className="input-icon"><SearchIcon size={16} /></span>
           <input type="text" className="input input-with-icon" placeholder="Search users..." />
@@ -43,6 +43,7 @@ export default async function AdminUsersPage() {
                 <th style={{ padding: 'var(--space-md) var(--space-lg)', color: 'var(--text-muted)', fontWeight: 500 }}>User</th>
                 <th style={{ padding: 'var(--space-md) var(--space-lg)', color: 'var(--text-muted)', fontWeight: 500 }}>Email</th>
                 <th style={{ padding: 'var(--space-md) var(--space-lg)', color: 'var(--text-muted)', fontWeight: 500 }}>Role</th>
+                <th style={{ padding: 'var(--space-md) var(--space-lg)', color: 'var(--text-muted)', fontWeight: 500 }}>Badges</th>
                 <th style={{ padding: 'var(--space-md) var(--space-lg)', color: 'var(--text-muted)', fontWeight: 500 }}>Joined</th>
                 <th style={{ padding: 'var(--space-md) var(--space-lg)', color: 'var(--text-muted)', fontWeight: 500, textAlign: 'right' }}>Stats</th>
                 <th style={{ padding: 'var(--space-md) var(--space-lg)', color: 'var(--text-muted)', fontWeight: 500, textAlign: 'center' }}>Actions</th>
@@ -57,7 +58,10 @@ export default async function AdminUsersPage() {
                         {user.image ? <img src={user.image} alt={user.username} /> : (user.name || user.username).charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600 }}>{user.name || user.username}</div>
+                        <div style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          {user.name || user.username}
+                          <VerifiedBadge isOfficial={user.isOfficial} username={user.username} size={14} />
+                        </div>
                         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>@{user.username}</div>
                       </div>
                     </Link>
@@ -73,6 +77,13 @@ export default async function AdminUsersPage() {
                     ) : (
                       <span className="badge">User</span>
                     )}
+                  </td>
+                  <td style={{ padding: 'var(--space-md) var(--space-lg)' }}>
+                    <UserVerificationToggles
+                      userId={user.id}
+                      isOfficial={user.isOfficial}
+                      username={user.username}
+                    />
                   </td>
                   <td style={{ padding: 'var(--space-md) var(--space-lg)', color: 'var(--text-muted)' }}>
                     {new Date(user.createdAt).toLocaleDateString()}

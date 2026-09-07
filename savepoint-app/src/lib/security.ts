@@ -79,3 +79,10 @@ export function ownedUploadKey(userId: string, objectKey: string, isBanner: bool
   if (objectKey.includes('..') || objectKey.includes('\\')) return false;
   return /^[a-z]+\/[a-zA-Z0-9._-]+$/.test(objectKey);
 }
+
+export function ownedForumUploadKey(userId: string, objectKey: string): boolean {
+  const expectedStart = `forums/${userId}_`;
+  if (!objectKey.startsWith(expectedStart)) return false;
+  if (objectKey.includes('..') || objectKey.includes('\\')) return false;
+  return /^forums\/[a-zA-Z0-9._-]+$/.test(objectKey);
+}

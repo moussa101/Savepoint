@@ -75,7 +75,7 @@ export default async function FeedPage() {
       <main className="main-with-sidebar">
         <h1 className="page-title font-display">Your Feed</h1>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 'var(--space-xl)' }}>
+        <div className="feed-layout">
           {/* Feed */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             {activities.length === 0 ? (
@@ -290,7 +290,7 @@ export default async function FeedPage() {
           </div>
 
           {/* Right Sidebar */}
-          <div>
+          <aside className="feed-side">
             <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
               <h3 className="font-display" style={{ fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-md)' }}>
                 Trending Games
@@ -309,7 +309,7 @@ export default async function FeedPage() {
                 ))}
               </div>
             </div>
-          </div>
+          </aside>
         </div>
       </main>
     </SessionProvider>

@@ -78,3 +78,50 @@ export async function banUser(userId: string, reason: string, banIp: boolean = t
     return { error: message };
   }
 }
+
+export async function setUserOfficial(userId: string, isOfficial: boolean) {
+  try {
+    await ensureAdmin();
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { username: true },
+    });
+    if (!user) return { error: 'User not found' };
+
+    // Savepoint account always stays official.
+    if (user.username.toLowerCase() === 'savepoint') {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { isOfficial: true },
+      });
+      revalidatePath('/admin/users');
+      return { success: true };
+    }
+
+    if (isOfficial) {
+      await prisma.$transaction([
+        prisma.user.updateMany({ where: { isOfficial: true, NOT: { username: 'savepoint' } }, data: { isOfficial: false } }),
+        prisma.user.update({
+          where: { id: userId },
+          data: { isOfficial: true },
+        }),
+        // Ensure savepoint stays official if present
+        prisma.user.updateMany({
+          where: { username: { equals: 'savepoint', mode: 'insensitive' } },
+          data: { isOfficial: true },
+        }),
+      ]);
+    } else {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { isOfficial: false },
+      });
+    }
+
+    revalidatePath('/admin/users');
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return { error: message };
+  }
+}

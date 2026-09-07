@@ -13,6 +13,19 @@ function requireUserId() {
   });
 }
 
+const messageSelect = {
+  id: true,
+  senderId: true,
+  kind: true,
+  ciphertext: true,
+  iv: true,
+  systemPayload: true,
+  createdAt: true,
+  updatedAt: true,
+  editedAt: true,
+  readAt: true,
+} as const;
+
 export async function publishE2EPublicKey(publicKeyB64: string) {
   const userId = await requireUserId();
   if (!publicKeyB64 || publicKeyB64.length < 80 || publicKeyB64.length > 2000) {
@@ -104,21 +117,8 @@ export async function getConversation(conversationId: string) {
   }
 
   const other = conversation.userOneId === userId ? conversation.userTwo : conversation.userOne;
-  const messages = await prisma.directMessage.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'asc' },
-    take: 200,
-    select: {
-      id: true,
-      senderId: true,
-      ciphertext: true,
-      iv: true,
-      createdAt: true,
-      readAt: true,
-    },
-  });
 
-  // Mark inbound as read
+  // Mark inbound as read first so sender polls pick up read receipts via updatedAt.
   await prisma.directMessage.updateMany({
     where: {
       conversationId,
@@ -126,6 +126,13 @@ export async function getConversation(conversationId: string) {
       readAt: null,
     },
     data: { readAt: new Date() },
+  });
+
+  const messages = await prisma.directMessage.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'asc' },
+    take: 200,
+    select: messageSelect,
   });
 
   return {
@@ -138,10 +145,13 @@ export async function getConversation(conversationId: string) {
   };
 }
 
-/** Lightweight poll for new ciphertext after a cursor (ISO createdAt). Marks inbound as read. */
+/**
+ * Sync new messages + edits + read receipts since `sinceIso`
+ * (max createdAt/updatedAt the client has seen).
+ */
 export async function pollConversationMessages(
   conversationId: string,
-  afterCreatedAt?: string | null
+  sinceIso?: string | null
 ) {
   const userId = await requireUserId();
   const conversation = await prisma.conversation.findUnique({
@@ -159,43 +169,57 @@ export async function pollConversationMessages(
   }
 
   const other = conversation.userOneId === userId ? conversation.userTwo : conversation.userOne;
-  const after = afterCreatedAt ? new Date(afterCreatedAt) : null;
-  const afterValid = after && !Number.isNaN(after.getTime()) ? after : null;
+  const since = sinceIso ? new Date(sinceIso) : null;
+  const sinceValid = since && !Number.isNaN(since.getTime()) ? since : null;
 
-  // gte + client-side id dedupe so same-millisecond messages are never skipped
   const messages = await prisma.directMessage.findMany({
     where: {
       conversationId,
-      ...(afterValid ? { createdAt: { gt: afterValid } } : {}),
+      ...(sinceValid
+        ? {
+            OR: [{ createdAt: { gt: sinceValid } }, { updatedAt: { gt: sinceValid } }],
+          }
+        : {}),
     },
     orderBy: { createdAt: 'asc' },
-    take: 50,
-    select: {
-      id: true,
-      senderId: true,
-      ciphertext: true,
-      iv: true,
-      createdAt: true,
-      readAt: true,
-    },
+    take: 80,
+    select: messageSelect,
   });
 
   const unreadInbound = messages.filter((m) => m.senderId !== userId && !m.readAt);
-  if (unreadInbound.length > 0) {
-    void prisma.directMessage
-      .updateMany({
-        where: {
-          id: { in: unreadInbound.map((m) => m.id) },
-          readAt: null,
-        },
-        data: { readAt: new Date() },
-      })
-      .catch(() => null);
+  // Also mark any older unread inbound (opened chat but cursor already past them).
+  await prisma.directMessage
+    .updateMany({
+      where: {
+        conversationId,
+        senderId: { not: userId },
+        readAt: null,
+      },
+      data: { readAt: new Date() },
+    })
+    .catch(() => null);
+
+  // Re-fetch receipts for outbound messages that were just read by peer in this window.
+  let readReceipts: { id: string; readAt: Date }[] = [];
+  if (sinceValid) {
+    readReceipts = await prisma.directMessage.findMany({
+      where: {
+        conversationId,
+        senderId: userId,
+        readAt: { gt: sinceValid },
+      },
+      select: { id: true, readAt: true },
+      take: 80,
+    });
   }
 
   return {
     success: true as const,
     messages,
+    readReceipts: readReceipts.map((r) => ({
+      id: r.id,
+      readAt: r.readAt!,
+    })),
     peerPublicKey: other.e2ePublicKey,
   };
 }
@@ -222,7 +246,6 @@ export async function sendEncryptedMessage(
   const recipientId =
     conversation.userOneId === userId ? conversation.userTwoId : conversation.userOneId;
 
-  // Membership in the conversation is enough — friends check on open already gated this.
   const message = await prisma.directMessage.create({
     data: {
       conversationId,
@@ -230,9 +253,9 @@ export async function sendEncryptedMessage(
       ciphertext,
       iv,
     },
+    select: messageSelect,
   });
 
-  // Side effects in parallel; never block the client on email / revalidation.
   const sideEffects = Promise.all([
     prisma.conversation.update({
       where: { id: conversationId },
@@ -279,13 +302,61 @@ export async function sendEncryptedMessage(
 
   return {
     success: true,
-    message: {
-      id: message.id,
-      senderId: message.senderId,
-      ciphertext: message.ciphertext,
-      iv: message.iv,
-      createdAt: message.createdAt,
-      readAt: message.readAt,
-    },
+    message,
   };
+}
+
+/** Replace ciphertext for a message you sent (WhatsApp-style edit). */
+export async function editEncryptedMessage(
+  messageId: string,
+  ciphertext: string,
+  iv: string
+) {
+  const userId = await requireUserId();
+
+  if (!ciphertext || !iv || ciphertext.length > 20000 || iv.length > 200) {
+    return { error: 'Invalid message payload.' };
+  }
+
+  const existing = await prisma.directMessage.findUnique({
+    where: { id: messageId },
+    select: {
+      id: true,
+      senderId: true,
+      conversationId: true,
+      createdAt: true,
+    },
+  });
+
+  if (!existing) return { error: 'Message not found.' };
+  if (existing.senderId !== userId) return { error: 'You can only edit your own messages.' };
+
+  // Optional soft limit: edits within 24h (WhatsApp-like window).
+  const ageMs = Date.now() - new Date(existing.createdAt).getTime();
+  if (ageMs > 24 * 60 * 60 * 1000) {
+    return { error: 'Messages can only be edited within 24 hours.' };
+  }
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: existing.conversationId },
+    select: { userOneId: true, userTwoId: true },
+  });
+  if (
+    !conversation ||
+    (conversation.userOneId !== userId && conversation.userTwoId !== userId)
+  ) {
+    return { error: 'Conversation not found.' };
+  }
+
+  const message = await prisma.directMessage.update({
+    where: { id: messageId },
+    data: {
+      ciphertext,
+      iv,
+      editedAt: new Date(),
+    },
+    select: messageSelect,
+  });
+
+  return { success: true, message };
 }

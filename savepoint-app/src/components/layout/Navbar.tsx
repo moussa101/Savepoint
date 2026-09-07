@@ -13,6 +13,7 @@ import {
   MenuIcon,
   UsersIcon,
   MessageIcon,
+  ForumIcon,
 } from '@/components/ui/Icons';
 import NotificationsDropdown from './NotificationsDropdown';
 import MobileNavDrawer from './MobileNavDrawer';
@@ -46,13 +47,14 @@ export default function Navbar() {
 
   const guestLinks = [
     { href: '/games', label: 'Discover' },
-    { href: '/lists', label: 'Lists' },
+    { href: '/forums', label: 'Forums' },
   ];
 
   const memberLinks = [
     { href: '/feed', label: 'Feed' },
     { href: '/games', label: 'Discover' },
     { href: '/library', label: 'Library' },
+    { href: '/forums', label: 'Forums' },
     { href: '/lists', label: 'Lists' },
     { href: '/friends', label: 'Friends' },
     { href: '/messages', label: 'Messages' },
@@ -68,6 +70,7 @@ export default function Navbar() {
     if (href === '/games') return pathname === '/games' || pathname.startsWith('/games/');
     if (href === '/library') return pathname === '/library' || pathname.startsWith('/library/');
     if (href === '/lists') return pathname === '/lists' || pathname.startsWith('/lists/');
+    if (href === '/forums') return pathname === '/forums' || pathname.startsWith('/forums/');
     if (href === '/friends') return pathname.startsWith('/friends');
     if (href === '/messages') return pathname.startsWith('/messages');
     return pathname === href || pathname.startsWith(href);
@@ -113,7 +116,11 @@ export default function Navbar() {
         )}
 
         <div className="navbar-actions">
-          {session ? (
+          {status === 'loading' ? (
+            <div className="navbar-session-skeleton" aria-hidden="true">
+              <span className="skeleton" style={{ width: 36, height: 36, borderRadius: '50%' }} />
+            </div>
+          ) : session ? (
             <>
               <NotificationsDropdown />
 
@@ -147,6 +154,9 @@ export default function Navbar() {
                       </Link>
                       <Link href="/lists" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
                         <ListIcon size={16} /> My Lists
+                      </Link>
+                      <Link href="/forums" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                        <ForumIcon size={16} /> Forums
                       </Link>
                       <Link href="/friends" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
                         <UsersIcon size={16} /> Friends
@@ -200,7 +210,7 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {session && !isAdmin && (
+      {status !== 'loading' && session && !isAdmin && (
         <>
           <MobileNavDrawer open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
           <MobileBottomNav />

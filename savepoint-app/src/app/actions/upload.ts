@@ -153,3 +153,89 @@ export async function updateProfileBio(bio: string, name: string) {
     revalidatePath(`/profile/${user.username}`);
   }
 }
+
+/** Upload an image for forum topics/replies (prefix forums/). Optional Sightengine scan. */
+export async function uploadForumImage(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) return { error: 'Unauthorized' };
+
+  const file = formData.get('file') as File | null;
+  if (!file) return { error: 'No file provided' };
+
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const uploadCount = await prisma.imageUploadLog.count({
+    where: {
+      userId: session.user.id,
+      createdAt: { gte: oneHourAgo },
+    },
+  });
+
+  if (uploadCount >= 10) {
+    return { error: 'Rate limit exceeded. Maximum 10 uploads per hour.' };
+  }
+
+  if (file.size > 5 * 1024 * 1024) return { error: 'File exceeds 5MB limit' };
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const sniffed = sniffImageMime(buffer);
+  if (!sniffed) {
+    return { error: 'Invalid image. Only JPEG, PNG, and WebP are allowed.' };
+  }
+
+  const key = `forums/${session.user.id}_${Date.now()}.${sniffed.ext}`;
+  const imageUrl = `${PUBLIC_URL}/${key}`;
+
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+      ContentType: sniffed.mime,
+      ContentDisposition: 'inline',
+    })
+  );
+
+  const sightEngineUser = process.env.SIGHTENGINE_API_USER;
+  const sightEngineSecret = process.env.SIGHTENGINE_API_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (!sightEngineUser || !sightEngineSecret) {
+    if (isProduction) {
+      await r2.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+      return { error: 'Image moderation is unavailable. Upload rejected.' };
+    }
+  } else {
+    try {
+      const scanRes = await fetch(
+        `https://api.sightengine.com/1.0/check.json?models=nudity-2.0,wad,gore&api_user=${sightEngineUser}&api_secret=${sightEngineSecret}&url=${encodeURIComponent(imageUrl)}`
+      );
+      const scanResult = await scanRes.json();
+
+      if (scanResult.status !== 'success') {
+        await r2.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+        return { error: 'Image moderation failed. Upload rejected.' };
+      }
+
+      const isNSFW =
+        scanResult.nudity?.none < 0.5 ||
+        scanResult.weapon > 0.5 ||
+        scanResult.alcohol > 0.5 ||
+        scanResult.drugs > 0.5 ||
+        scanResult.gore?.prob > 0.5;
+
+      if (isNSFW) {
+        await r2.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+        return { error: 'Image flagged for inappropriate content and has been deleted.' };
+      }
+    } catch {
+      await r2.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+      return { error: 'Image moderation failed. Upload rejected.' };
+    }
+  }
+
+  await prisma.imageUploadLog.create({
+    data: { userId: session.user.id },
+  });
+
+  return { imageUrl, key };
+}

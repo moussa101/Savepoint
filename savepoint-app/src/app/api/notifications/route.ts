@@ -25,6 +25,9 @@ export async function GET(request: Request) {
         },
         game: {
           select: { name: true, slug: true, coverImage: true }
+        },
+        forum: {
+          select: { name: true, slug: true }
         }
       }
     });

@@ -15,7 +15,7 @@ const REASONS = [
 ];
 
 interface ReportButtonProps {
-  targetType: 'REVIEW' | 'COMMENT' | 'PROFILE' | 'LIST';
+  targetType: 'REVIEW' | 'COMMENT' | 'PROFILE' | 'LIST' | 'FORUM' | 'FORUM_TOPIC' | 'FORUM_REPLY';
   targetId: string;
   reportedUserId?: string;
   label?: string;

@@ -91,6 +91,10 @@ model User {
   isAdmin       Boolean   @default(false)
   isBanned      Boolean   @default(false)
   bannedReason  String?
+  /// Blue verified badge (Instagram-style)
+  isVerified    Boolean   @default(false)
+  /// Green official badge (Savepoint account); wins over isVerified in UI
+  isOfficial    Boolean   @default(false)
   lastIp        String?
   isPrivate     Boolean   @default(false)
   /// When true, other users can view this user's full library (even if profile is private).
@@ -189,6 +193,15 @@ model User {
   // Moderation
   reportsFiled    Report[] @relation("Reporter")
   reportsReceived Report[] @relation("ReportedUser")
+
+  // Forums
+  forumsOwned       Forum[]       @relation("ForumOwner")
+  forumsDeleted     Forum[]       @relation("ForumDeletedBy")
+  forumMemberships  ForumMember[]
+  forumTopics       ForumTopic[]
+  forumReplies      ForumReply[]
+  forumTopicVotes   ForumTopicVote[]
+  forumReplyVotes   ForumReplyVote[]
 }
 
 model ImageUploadLog {
@@ -606,22 +619,31 @@ model Conversation {
   @@index([userTwoId, lastMessageAt])
 }
 
-/// Server stores ciphertext only — plaintext never leaves the clients.
+/// CHAT messages store E2E ciphertext; SYSTEM messages use systemPayload (e.g. forum invites).
 model DirectMessage {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   conversationId String
   senderId       String
-  /// Base64 AES-GCM ciphertext
-  ciphertext     String   @db.Text
-  /// Base64 IV
-  iv             String
-  createdAt      DateTime @default(now())
+  /// CHAT | SYSTEM
+  kind           String    @default("CHAT")
+  /// Base64 AES-GCM ciphertext (empty for SYSTEM)
+  ciphertext     String    @db.Text @default("")
+  /// Base64 IV (empty for SYSTEM)
+  iv             String    @default("")
+  /// JSON for SYSTEM messages
+  systemPayload  String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  /// Set when the sender replaces ciphertext (client re-encrypts).
+  editedAt       DateTime?
+  /// When the recipient opened the chat and marked this inbound message read.
   readAt         DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation("MessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, updatedAt])
   @@index([senderId])
 }
 
@@ -683,12 +705,13 @@ model Report {
 model Notification {
   id             String   @id @default(cuid())
   userId         String   // The user receiving the notification
-  type           String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE', 'GAME_RELEASED', 'FRIEND_REQUEST', 'FRIEND_ACCEPTED', 'MESSAGE'
+  type           String   // 'FOLLOW', 'REVIEW_LIKE', 'COMMENT', 'LIST_LIKE', 'GAME_RELEASED', 'FRIEND_REQUEST', 'FRIEND_ACCEPTED', 'MESSAGE', 'FORUM_INVITE'
   sourceId       String?  // ID of the user who triggered it
   reviewId       String?  // Optional reference to a review
   listId         String?  // Optional reference to a list
   gameId         String?  // Optional reference to a game (e.g. release alerts)
   conversationId String?  // Optional DM conversation
+  forumId        String?  // Optional forum (e.g. invites)
   isRead         Boolean  @default(false)
   createdAt      DateTime @default(now())
 
@@ -697,11 +720,139 @@ model Notification {
   review    Review?  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   list      List?    @relation(fields: [listId], references: [id], onDelete: Cascade)
   game      Game?    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  forum     Forum?   @relation(fields: [forumId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([sourceId])
   @@index([gameId])
   @@index([conversationId])
+  @@index([forumId])
   @@index([createdAt])
+}
+
+// ============================================
+// Forums
+// ============================================
+
+model Forum {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  name          String
+  description   String?   @db.Text
+  coverImage    String?
+  ownerId       String
+  /// OPEN | CLOSED | ARCHIVED | DELETED
+  status        String    @default("OPEN")
+  deletedAt     DateTime?
+  deletedReason String?   @db.Text
+  deletedById   String?
+  memberCount   Int       @default(1)
+  topicCount    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  owner     User          @relation("ForumOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  deletedBy User?         @relation("ForumDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  members   ForumMember[]
+  topics    ForumTopic[]
+  notifications Notification[]
+
+  @@index([status, createdAt])
+  @@index([ownerId])
+}
+
+model ForumMember {
+  id       String   @id @default(cuid())
+  forumId  String
+  userId   String
+  /// OWNER | MEMBER
+  role     String   @default("MEMBER")
+  joinedAt DateTime @default(now())
+
+  forum Forum @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([forumId, userId])
+  @@index([userId])
+}
+
+model ForumTopic {
+  id        String   @id @default(cuid())
+  forumId   String
+  authorId  String
+  title     String
+  body      String   @db.Text
+  imageUrls String[] @default([])
+  /// OPEN | CLOSED
+  status    String   @default("OPEN")
+  score     Int      @default(0)
+  isPinned  Boolean  @default(false)
+  pinnedAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  forum   Forum            @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  author  User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replies ForumReply[]
+  votes   ForumTopicVote[]
+
+  @@index([forumId, isPinned, createdAt])
+  @@index([forumId, score])
+  @@index([authorId])
+}
+
+model ForumReply {
+  id        String   @id @default(cuid())
+  topicId   String
+  authorId  String
+  /// Nested reply parent (null = top-level answer)
+  parentId  String?
+  body      String   @db.Text
+  imageUrls String[] @default([])
+  score     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  topic    ForumTopic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  author   User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent   ForumReply?     @relation("ReplyThread", fields: [parentId], references: [id], onDelete: Cascade)
+  children ForumReply[]    @relation("ReplyThread")
+  votes    ForumReplyVote[]
+
+  @@index([topicId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
+}
+
+model ForumTopicVote {
+  id        String   @id @default(cuid())
+  topicId   String
+  userId    String
+  /// 1 = upvote, -1 = downvote
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  topic ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, userId])
+  @@index([userId])
+}
+
+model ForumReplyVote {
+  id        String   @id @default(cuid())
+  replyId   String
+  userId    String
+  /// 1 = upvote, -1 = downvote
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reply ForumReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([replyId, userId])
+  @@index([userId])
 }
 

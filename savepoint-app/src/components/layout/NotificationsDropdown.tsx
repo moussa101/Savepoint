@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { BellIcon, SettingsIcon, CheckCircleIcon, UsersIcon, StarIcon, MessageIcon, GamepadIcon } from '@/components/ui/Icons';
+import { BellIcon, SettingsIcon, CheckCircleIcon, UsersIcon, StarIcon, MessageIcon, GamepadIcon, ForumIcon } from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { formatRelativeTime } from '@/lib/utils';
 
@@ -12,6 +12,7 @@ type Notification = {
   isRead: boolean;
   createdAt: string;
   conversationId?: string | null;
+  forumId?: string | null;
   source?: {
     name: string | null;
     username: string;
@@ -27,6 +28,10 @@ type Notification = {
     name: string;
     slug: string;
     coverImage: string | null;
+  } | null;
+  forum?: {
+    name: string;
+    slug: string;
   } | null;
 };
 
@@ -187,6 +192,10 @@ export default function NotificationsDropdown() {
                   icon = <StarIcon size={16} color="var(--star-gold)" />;
                   text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> liked your list</>;
                   link = `/profile/${n.source?.username}`;
+                } else if (n.type === 'FORUM_INVITE') {
+                  icon = <ForumIcon size={16} color="var(--accent-primary)" />;
+                  text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> invited you to <strong>{n.forum?.name || 'a forum'}</strong></>;
+                  link = n.forum?.slug ? `/forums/${n.forum.slug}` : (n.conversationId ? `/messages/${n.conversationId}` : '/forums');
                 } else {
                   return null;
                 }

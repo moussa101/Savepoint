@@ -14,7 +14,7 @@ export default function LegalShell({
   return (
     <SessionProvider>
       <Navbar />
-      <main className="main-content" style={{ padding: 'var(--space-xl)' }}>
+      <main className="main-content main-content-padded">
         <article className="container legal-doc">
           <p className="legal-kicker">
             <Link href="/">Savepoint</Link>

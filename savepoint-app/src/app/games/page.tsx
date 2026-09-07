@@ -211,7 +211,7 @@ export default async function GamesPage({
   return (
     <SessionProvider>
       <Navbar />
-      <main className="main-content" style={{ padding: 'var(--space-xl)' }}>
+      <main className="main-content main-content-padded">
         <div className="container container-wide">
           {!q && heroGames.length > 0 && <GamesHeroCarousel games={heroGames} />}
 
