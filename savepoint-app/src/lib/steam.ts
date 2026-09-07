@@ -17,10 +17,17 @@ export function getAppBaseUrl() {
 }
 
 export type SteamOpenIdMode = 'login' | 'link';
+export type SteamLinkReturn = 'library' | 'settings';
 
-/** Build Steam OpenID URL. `mode` is echoed back on return_to (login vs library link). */
-export function buildSteamOpenIdUrl(mode: SteamOpenIdMode = 'login') {
-  const returnTo = `${getAppBaseUrl()}/api/auth/steam/callback?mode=${mode}`;
+/** Build Steam OpenID URL. Query params are echoed on return_to. */
+export function buildSteamOpenIdUrl(opts: {
+  mode?: SteamOpenIdMode;
+  returnTo?: SteamLinkReturn;
+} = {}) {
+  const mode = opts.mode ?? 'login';
+  const q = new URLSearchParams({ mode });
+  if (opts.returnTo) q.set('return', opts.returnTo);
+  const returnTo = `${getAppBaseUrl()}/api/auth/steam/callback?${q.toString()}`;
   const realm = getAppBaseUrl();
   const params = new URLSearchParams({
     'openid.ns': 'http://specs.openid.net/auth/2.0',

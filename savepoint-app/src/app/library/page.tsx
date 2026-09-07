@@ -24,8 +24,12 @@ function formatHours(minutes: number | null | undefined) {
   return `${hours % 1 === 0 ? hours.toFixed(0) : hours.toFixed(1)}h`;
 }
 
-export default async function LibraryPage() {
-  const session = await auth();
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ steam?: string }>;
+}) {
+  const [{ steam: steamQuery }, session] = await Promise.all([searchParams, auth()]);
   if (!session) redirect('/login');
   if ((session.user as { onboarded?: boolean }).onboarded === false) {
     const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } });
@@ -89,21 +93,27 @@ export default async function LibraryPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', minWidth: 0 }}>
             <SteamIcon size={28} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700 }}>Steam</div>
+              <div style={{ fontWeight: 700 }}>Steam library</div>
               <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                {steamLinked
-                  ? steamLink?.steamLastSyncAt
-                    ? `Last synced ${new Date(steamLink.steamLastSyncAt).toLocaleString()}`
-                    : 'Connected — run your first sync to import your games and playtime.'
-                  : 'Import your Steam games and hours played automatically.'}
+                {steamQuery === 'linked'
+                  ? 'Steam connected. Sync to import games and playtime.'
+                  : steamQuery === 'taken'
+                    ? 'That Steam account is already linked to another Savepoint user.'
+                    : steamQuery === 'invalid' || steamQuery === 'error'
+                      ? 'Steam connection failed. Try again.'
+                      : steamLinked
+                        ? steamLink?.steamLastSyncAt
+                          ? `Last synced ${new Date(steamLink.steamLastSyncAt).toLocaleString()}`
+                          : 'Connected — run your first sync to import your games and playtime.'
+                        : 'Link Steam to this Savepoint account (works alongside Google, Discord, or Xbox).'}
               </div>
             </div>
           </div>
           {steamLinked ? (
             <SteamSyncButton />
           ) : (
-            <a href="/api/auth/steam" className="btn btn-primary btn-sm">
-              Sign in through Steam
+            <a href="/api/auth/steam?mode=link&return=library" className="btn btn-primary btn-sm">
+              Connect Steam
             </a>
           )}
         </div>

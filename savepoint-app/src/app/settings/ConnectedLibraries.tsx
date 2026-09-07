@@ -97,7 +97,8 @@ export default function ConnectedLibraries({
         Connected libraries
       </h2>
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-lg)' }}>
-        Import your owned games and playtime. Imported titles are tagged with their source; your manual ratings and statuses are never overwritten.
+        Link Steam to the same Savepoint account you already use (Google, Discord, email, etc.).
+        Connecting a library never creates a new Savepoint account. Manual ratings and statuses are never overwritten.
       </p>
 
       {(steamBanner || message) && (
@@ -151,12 +152,13 @@ export default function ConnectedLibraries({
           </>
         ) : (
           <>
-            <a href="/api/auth/steam" className="btn btn-primary">
-              Sign in through Steam
+            <a href="/api/auth/steam?mode=link&return=settings" className="btn btn-primary">
+              Connect Steam
             </a>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>
-              You&apos;ll be sent to Steam to approve the link — we never see your Steam password. Your Steam profile
-              and “Game details” must be set to Public for the import to work.
+              Approves the link on Steam — we never see your Steam password. Your Steam profile
+              and “Game details” must be Public for library import. After linking you can also use
+              “Continue with Steam” on the login page.
             </p>
           </>
         )}

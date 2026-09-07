@@ -7,6 +7,7 @@ import { signIn, getSession } from 'next-auth/react';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 import DiscordSignInButton from '@/components/ui/DiscordSignInButton';
 import XboxSignInButton from '@/components/ui/XboxSignInButton';
+import SteamSignInButton from '@/components/ui/SteamSignInButton';
 import { MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
 
 function LoginForm() {
@@ -23,9 +24,15 @@ function LoginForm() {
       ? 'That Google account is linked to a different Savepoint user. Sign out completely (clear site cookies if needed), then try Google again.'
       : oauthError === 'AccessDenied'
         ? 'Sign-in was denied. If your account is banned, contact support.'
-        : oauthError
-          ? 'Sign-in failed. Please try again.'
-          : '';
+        : oauthError === 'steam_not_linked'
+          ? 'This Steam account isn’t linked yet. Sign in with Google, Discord, Xbox, or email first, then connect Steam from Settings or Library.'
+          : oauthError === 'steam_cancelled'
+            ? 'Steam sign-in was cancelled.'
+            : oauthError === 'steam'
+              ? 'Steam sign-in failed. Please try again.'
+              : oauthError
+                ? 'Sign-in failed. Please try again.'
+                : '';
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -161,7 +168,11 @@ function LoginForm() {
             <GoogleSignInButton />
             <DiscordSignInButton />
             <XboxSignInButton />
+            <SteamSignInButton />
           </div>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textAlign: 'center', marginTop: 'var(--space-sm)' }}>
+            Steam sign-in works after you connect Steam from Settings or Library — it doesn&apos;t create a new Savepoint account.
+          </p>
 
           <p className="auth-footer">
             Don&apos;t have an account? <Link href="/register">Sign Up</Link>

@@ -7,6 +7,7 @@ import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { touchLastIp } from '@/lib/user-ip';
+import { verifySteamLoginToken } from '@/lib/steam-auth';
 
 class UnverifiedEmailError extends CredentialsSignin {
   code = 'unverified_email';
@@ -68,6 +69,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // @ts-expect-error tenantId is supported by the provider at runtime
       tenantId: 'common',
       allowDangerousEmailAccountLinking: true,
+    }),
+    // Steam OpenID → short-lived token → credentials. Only works for users who
+    // already linked Steam to an existing Savepoint account (never creates users).
+    Credentials({
+      id: 'steam',
+      name: 'Steam',
+      credentials: {
+        token: { label: 'Token', type: 'text' },
+      },
+      async authorize(credentials) {
+        const steamId = verifySteamLoginToken(
+          typeof credentials?.token === 'string' ? credentials.token : null
+        );
+        if (!steamId) return null;
+
+        const user = await prisma.user.findUnique({ where: { steamId } });
+        if (!user || user.isBanned) return null;
+
+        await touchLastIp(user.id);
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name || user.username,
+          image: user.image,
+        };
+      },
     }),
     Credentials({
       name: 'credentials',
