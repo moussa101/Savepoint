@@ -124,41 +124,58 @@ export async function loginUser(formData: FormData) {
 }
 
 export async function requestPasswordReset(formData: FormData) {
-  const email = formData.get('email') as string;
+  const emailRaw = (formData.get('email') as string | null) || '';
+  const email = emailRaw.trim().toLowerCase();
   if (!email) return { error: 'Email is required' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: 'Enter a valid email address' };
+  }
 
-  const rateKey = await clientKey(email.toLowerCase());
+  const rateKey = await clientKey(email);
   if (!checkRateLimit(resetAttempts, rateKey, 3, 60 * 60 * 1000)) {
     // Still return success to avoid enumeration / timing tells
     return { success: true };
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  // Case-insensitive match (emails are usually stored lowercase; OAuth may vary)
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+    select: { id: true, email: true, password: true },
+  });
+
   if (!user) {
     return { success: true };
   }
 
-  // Invalidate previous unused tokens for this email
-  await prisma.passwordResetToken.deleteMany({ where: { email } });
+  // OAuth-only accounts can still set a password via reset
+  await prisma.passwordResetToken.deleteMany({ where: { email: user.email } });
 
   const token = crypto.randomBytes(32).toString('hex');
-  const expires = new Date(Date.now() + 1000 * 60 * 60);
+  const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
 
   await prisma.passwordResetToken.create({
     data: {
-      email,
+      email: user.email,
       token,
       expires,
     },
   });
 
-  await sendPasswordResetEmail(email, token);
+  const sent = await sendPasswordResetEmail(user.email, token);
+  if (!sent) {
+    // Clean up unused token so the user can retry
+    await prisma.passwordResetToken.deleteMany({ where: { token } });
+    return {
+      error:
+        'We could not send the reset email right now. Check that Gmail is configured, then try again.',
+    };
+  }
 
   return { success: true };
 }
 
 export async function resetPassword(formData: FormData) {
-  const token = formData.get('token') as string;
+  const token = ((formData.get('token') as string | null) || '').trim();
   const password = formData.get('password') as string;
   const confirmPassword = formData.get('confirmPassword') as string;
 
@@ -170,19 +187,36 @@ export async function resetPassword(formData: FormData) {
     where: { token },
   });
 
-  if (!resetToken) return { error: 'Invalid token' };
-  if (new Date() > resetToken.expires) return { error: 'Token has expired' };
+  if (!resetToken) return { error: 'Invalid or expired reset link. Request a new one.' };
+  if (new Date() > resetToken.expires) {
+    await prisma.passwordResetToken.deleteMany({ where: { token } });
+    return { error: 'This reset link has expired. Request a new one.' };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: resetToken.email },
+    select: { id: true },
+  });
+  if (!user) {
+    await prisma.passwordResetToken.deleteMany({ where: { token } });
+    return { error: 'Account not found for this reset link.' };
+  }
 
   const hashedPassword = await hash(password, 12);
 
-  await prisma.user.update({
-    where: { email: resetToken.email },
-    data: { password: hashedPassword },
-  });
-
-  await prisma.passwordResetToken.deleteMany({
-    where: { email: resetToken.email },
-  });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    }),
+    prisma.passwordResetToken.deleteMany({
+      where: { email: resetToken.email },
+    }),
+    // Force re-login on other devices after a password change
+    prisma.session.deleteMany({
+      where: { userId: user.id },
+    }),
+  ]);
 
   return { success: true };
 }

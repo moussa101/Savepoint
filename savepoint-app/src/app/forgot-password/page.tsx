@@ -40,17 +40,19 @@ export default function ForgotPasswordPage() {
 
       <div className="auth-card card-glass">
         <h1 className="auth-title font-display">Reset Password</h1>
-        <p className="auth-subtitle">Enter your email to receive a reset link</p>
+        <p className="auth-subtitle">We will email you a link to choose a new password</p>
 
         {error && <div className="auth-error">{error}</div>}
 
         {success ? (
           <div className="auth-success" style={{ textAlign: 'center', padding: 'var(--space-xl) var(--space-lg)' }}>
-            <h3 style={{ marginBottom: 'var(--space-md)' }}>Check your inbox!</h3>
-            <p style={{ color: 'var(--text-secondary)' }}>
-              If an account exists with that email, we've sent a password reset link.
-              <br /><br />
-              <small>(For development, check the terminal console logs to get the link)</small>
+            <h3 style={{ marginBottom: 'var(--space-md)' }}>Check your inbox</h3>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              If an account exists for that email, we sent a password reset link from{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>Savepoint</strong>. The link expires in 1 hour.
+              <br />
+              <br />
+              Check spam or promotions if you do not see it within a few minutes.
             </p>
             <div style={{ marginTop: 'var(--space-xl)' }}>
               <Link href="/login" className="btn btn-primary" style={{ width: '100%' }}>
@@ -62,19 +64,28 @@ export default function ForgotPasswordPage() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <div className="input-group">
-                <span className="input-icon"><MailIcon size={16} /></span>
+                <span className="input-icon">
+                  <MailIcon size={16} />
+                </span>
                 <input
                   type="email"
                   name="email"
                   placeholder="Email"
                   className="input input-with-icon"
                   required
+                  autoComplete="email"
+                  autoFocus
                 />
               </div>
             </div>
 
-            <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 'var(--space-md)' }} disabled={loading}>
-              {loading ? 'Sending Link...' : 'Send Reset Link'}
+            <button
+              type="submit"
+              className="btn btn-primary btn-lg"
+              style={{ width: '100%', marginTop: 'var(--space-md)' }}
+              disabled={loading}
+            >
+              {loading ? 'Sending Link…' : 'Send Reset Link'}
             </button>
           </form>
         )}

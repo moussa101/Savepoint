@@ -1,24 +1,37 @@
 import nodemailer from 'nodemailer';
 import { escapeHtml } from '@/lib/security';
+import { getAppBaseUrl } from '@/lib/app-url';
 
-const appUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+function createTransporter() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return null;
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass },
+  });
+}
+
+function fromAddress() {
+  return `"Savepoint" <${process.env.GMAIL_USER}>`;
+}
 
 export async function sendVerificationEmail(email: string, token: string) {
-  const verifyUrl = `${appUrl}/verify?token=${encodeURIComponent(token)}`;
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.error('Gmail is not configured (GMAIL_USER / GMAIL_APP_PASSWORD)');
+    return null;
+  }
+
+  const verifyUrl = `${getAppBaseUrl()}/verify?token=${encodeURIComponent(token)}`;
 
   try {
-    const info = await transporter.sendMail({
-      from: `"Savepoint" <${process.env.GMAIL_USER}>`,
+    return await transporter.sendMail({
+      from: fromAddress(),
       to: email,
       subject: 'Verify your email for Savepoint',
+      text: `Verify your Savepoint email:\n\n${verifyUrl}\n\nIf you didn't create an account, ignore this email.`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0f; color: #fff; padding: 40px; border-radius: 10px;">
           <h1 style="color: #00e5a0; text-align: center;">Savepoint</h1>
@@ -31,13 +44,15 @@ export async function sendVerificationEmail(email: string, token: string) {
               Verify Email Address
             </a>
           </div>
+          <p style="font-size: 13px; color: #666; text-align: center; word-break: break-all;">
+            Or paste this link into your browser:<br />${escapeHtml(verifyUrl)}
+          </p>
           <p style="font-size: 14px; color: #888; text-align: center;">
             If you didn't create an account, you can safely ignore this email.
           </p>
         </div>
       `,
     });
-    return info;
   } catch (error) {
     console.error('Failed to send verification email with Gmail', error);
     return null;
@@ -45,13 +60,20 @@ export async function sendVerificationEmail(email: string, token: string) {
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.error('Gmail is not configured (GMAIL_USER / GMAIL_APP_PASSWORD)');
+    return null;
+  }
+
+  const resetUrl = `${getAppBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`;
 
   try {
-    const info = await transporter.sendMail({
-      from: `"Savepoint" <${process.env.GMAIL_USER}>`,
+    return await transporter.sendMail({
+      from: fromAddress(),
       to: email,
       subject: 'Reset your Savepoint password',
+      text: `Reset your Savepoint password (link expires in 1 hour):\n\n${resetUrl}\n\nIf you didn't request this, ignore this email.`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0f; color: #fff; padding: 40px; border-radius: 10px;">
           <h1 style="color: #00e5a0; text-align: center;">Savepoint</h1>
@@ -64,13 +86,15 @@ export async function sendPasswordResetEmail(email: string, token: string) {
               Reset Password
             </a>
           </div>
+          <p style="font-size: 13px; color: #666; text-align: center; word-break: break-all;">
+            Or paste this link into your browser:<br />${escapeHtml(resetUrl)}
+          </p>
           <p style="font-size: 14px; color: #888; text-align: center;">
             If you didn't request a password reset, you can safely ignore this email.
           </p>
         </div>
       `,
     });
-    return info;
   } catch (error) {
     console.error('Failed to send reset email with Gmail', error);
     return null;
@@ -78,11 +102,17 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 }
 
 export async function sendReviewRemovalEmail(email: string, username: string, gameName: string, reason: string) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.error('Gmail is not configured (GMAIL_USER / GMAIL_APP_PASSWORD)');
+    return null;
+  }
+
   const safeUsername = escapeHtml(username);
   const safeGame = escapeHtml(gameName);
 
   try {
-    const info = await transporter.sendMail({
+    return await transporter.sendMail({
       from: `"Savepoint Moderation" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: `Your review for ${gameName.replace(/[\r\n]/g, ' ')} has been removed`,
@@ -106,7 +136,6 @@ export async function sendReviewRemovalEmail(email: string, username: string, ga
         </div>
       `,
     });
-    return info;
   } catch (error) {
     console.error('Failed to send moderation email with Gmail', error);
     return null;
@@ -120,13 +149,19 @@ export async function sendDirectMessageEmail(
   senderUsername: string,
   conversationId: string
 ) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.error('Gmail is not configured (GMAIL_USER / GMAIL_APP_PASSWORD)');
+    return null;
+  }
+
   const safeName = escapeHtml(senderDisplayName);
   const safeUser = escapeHtml(senderUsername);
-  const inboxUrl = `${appUrl}/messages/${encodeURIComponent(conversationId)}`;
+  const inboxUrl = `${getAppBaseUrl()}/messages/${encodeURIComponent(conversationId)}`;
 
   try {
     return await transporter.sendMail({
-      from: `"Savepoint" <${process.env.GMAIL_USER}>`,
+      from: fromAddress(),
       to: email,
       subject: `New message from ${senderDisplayName.replace(/[\r\n]/g, ' ')}`,
       html: `

@@ -1,3 +1,5 @@
+import { getAppBaseUrl } from '@/lib/app-url';
+
 export type SteamOwnedGame = {
   appid: number;
   name: string;
@@ -12,9 +14,7 @@ function getSteamApiKey() {
   return key;
 }
 
-export function getAppBaseUrl() {
-  return (process.env.NEXTAUTH_URL || process.env.AUTH_URL || 'http://localhost:3000').replace(/\/$/, '');
-}
+export { getAppBaseUrl };
 
 export type SteamOpenIdMode = 'login' | 'link';
 export type SteamLinkReturn = 'library' | 'settings';
