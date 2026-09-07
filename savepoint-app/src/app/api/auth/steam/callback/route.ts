@@ -51,10 +51,20 @@ export async function GET(request: NextRequest) {
 
       const taken = await prisma.user.findFirst({
         where: { steamId, NOT: { id: session.user.id } },
-        select: { id: true },
+        select: { id: true, email: true },
       });
+
       if (taken) {
-        return NextResponse.redirect(new URL(linkDest(returnTo, 'taken'), base));
+        // Orphan accounts from the old "Steam creates a Savepoint user" flow
+        // (synthetic @steam.local emails) should not block linking forever.
+        if (taken.email.endsWith('@steam.local')) {
+          await prisma.user.update({
+            where: { id: taken.id },
+            data: { steamId: null, steamLinkedAt: null, steamLastSyncAt: null },
+          });
+        } else {
+          return NextResponse.redirect(new URL(linkDest(returnTo, 'taken'), base));
+        }
       }
 
       await prisma.user.update({
