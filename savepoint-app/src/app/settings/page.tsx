@@ -10,9 +10,8 @@ import SettingsForms from './SettingsForms';
 import ConnectedLibraries from './ConnectedLibraries';
 
 export const metadata = { title: 'Settings — Savepoint' };
-// Library syncs (server actions invoked from this route) can take longer than
-// the default serverless limit for very large Steam libraries.
-export const maxDuration = 60;
+// Library syncs (Steam / PSN trophies) can take longer than the default serverless limit.
+export const maxDuration = 180;
 
 export default async function SettingsPage({
   searchParams,
@@ -88,6 +87,9 @@ export default async function SettingsPage({
             xboxGamertag={user.xboxGamertag}
             xboxLinkedAt={user.xboxLinkedAt}
             xboxLastSyncAt={user.xboxLastSyncAt}
+            psnOnlineId={user.psnOnlineId}
+            psnLinkedAt={user.psnLinkedAt}
+            psnLastSyncAt={user.psnLastSyncAt}
             steamQuery={steamQuery ?? null}
           />
 

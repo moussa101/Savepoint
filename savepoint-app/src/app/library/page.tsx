@@ -9,13 +9,14 @@ import StarRating from '@/components/ui/StarRating';
 import { STATUS_LABELS, STATUS_COLORS, type GameStatus } from '@/lib/utils';
 import { GamepadIcon, SteamIcon } from '@/components/ui/Icons';
 import SteamSyncButton from './SteamSyncButton';
+import PsnLibraryCard from './PsnLibraryCard';
 import { syncSteamLibraryForUser } from '@/app/actions/library-sync';
 import { shouldAutoSyncSteam } from '@/lib/steam-sync';
 import { formatPlaytimeHours } from '@/lib/playtime';
 
 export const metadata = { title: 'My Library — Savepoint' };
-// Steam sync (auto or manual) can take a while for large libraries.
-export const maxDuration = 60;
+// Steam / PSN sync can take a while for large libraries.
+export const maxDuration = 120;
 
 const SHELVES: GameStatus[] = ['PLAYING', 'WANT_TO_PLAY', 'COMPLETED', 'DROPPED'];
 
@@ -36,7 +37,12 @@ export default async function LibraryPage({
 
   let steamLink = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { steamId: true, steamLastSyncAt: true },
+    select: {
+      steamId: true,
+      steamLastSyncAt: true,
+      psnOnlineId: true,
+      psnLastSyncAt: true,
+    },
   });
 
   let autoSyncNote: string | null = null;
@@ -55,7 +61,12 @@ export default async function LibraryPage({
     }
     steamLink = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { steamId: true, steamLastSyncAt: true },
+      select: {
+        steamId: true,
+        steamLastSyncAt: true,
+        psnOnlineId: true,
+        psnLastSyncAt: true,
+      },
     });
   }
 
@@ -76,6 +87,7 @@ export default async function LibraryPage({
     orderBy: [{ updatedAt: 'desc' }],
   });
   const steamLinked = !!steamLink?.steamId;
+  const psnLinked = !!steamLink?.psnOnlineId;
 
   const byStatus = Object.fromEntries(
     SHELVES.map((status) => [status, userGames.filter((ug) => ug.status === status)])
@@ -105,7 +117,7 @@ export default async function LibraryPage({
         <div
           className="card"
           style={{
-            marginBottom: 'var(--space-xl)',
+            marginBottom: 'var(--space-md)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -141,6 +153,12 @@ export default async function LibraryPage({
           )}
         </div>
 
+        {/* PlayStation */}
+        <PsnLibraryCard
+          psnOnlineId={steamLink?.psnOnlineId ?? null}
+          psnLastSyncAt={steamLink?.psnLastSyncAt ?? null}
+        />
+
         {userGames.length === 0 && (
           <div className="empty-state card" style={{ marginBottom: 'var(--space-xl)' }}>
             <div className="empty-state-icon">
@@ -148,9 +166,9 @@ export default async function LibraryPage({
             </div>
             <div className="empty-state-title">Your library is empty</div>
             <div className="empty-state-text">
-              {steamLinked
+              {steamLinked || psnLinked
                 ? 'Syncing usually fills this automatically. You can also add games from Discover.'
-                : 'Connect Steam above to import your games, or add them from Discover.'}
+                : 'Connect Steam or PlayStation above to import your games, or add them from Discover.'}
             </div>
             <Link href="/games" className="btn btn-primary" style={{ marginTop: 'var(--space-md)' }}>
               Discover games
@@ -221,6 +239,7 @@ export default async function LibraryPage({
                               )}
                               {ug.source === 'STEAM' && <span className="pill">Steam</span>}
                               {ug.source === 'XBOX' && <span className="pill">Xbox</span>}
+                              {ug.source === 'PSN' && <span className="pill">PSN</span>}
                             </div>
                           </div>
                         </Link>

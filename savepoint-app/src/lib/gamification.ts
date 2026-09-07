@@ -104,6 +104,35 @@ export async function grantXP(userId: string, amount: number) {
   });
 }
 
+/**
+ * Raise XP to match library / reviews / lists (never lowers).
+ * Used after Steam / PSN / Xbox sync so imported games count toward level.
+ */
+export async function reconcileUserXp(userId: string): Promise<{ xp: number; gained: number }> {
+  const [statuses, reviewCount, listCount, user] = await Promise.all([
+    prisma.userGame.findMany({ where: { userId }, select: { status: true } }),
+    prisma.review.count({ where: { userId } }),
+    prisma.list.count({ where: { userId } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { xp: true } }),
+  ]);
+
+  let expected = 0;
+  for (const { status } of statuses) {
+    expected += status === 'COMPLETED' ? XP_REWARDS.COMPLETE_GAME : XP_REWARDS.TRACK_GAME;
+  }
+  expected += reviewCount * XP_REWARDS.WRITE_REVIEW;
+  expected += listCount * XP_REWARDS.CREATE_LIST;
+
+  const current = user?.xp ?? 0;
+  const next = Math.max(current, expected);
+  if (next > current) {
+    await prisma.user.update({ where: { id: userId }, data: { xp: next } });
+  }
+
+  await evaluateBadges(userId);
+  return { xp: next, gained: next - current };
+}
+
 export async function evaluateBadges(userId: string) {
   // Get all currently earned badges
   const earnedBadges = await prisma.userBadge.findMany({

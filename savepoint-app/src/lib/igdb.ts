@@ -114,18 +114,50 @@ export type IGDBTimeToBeat = {
 
 export async function fetchIGDBTimeToBeat(igdbGameId: number): Promise<IGDBTimeToBeat | null> {
   if (!igdbGameId || igdbGameId <= 0) return null;
-  try {
-    const rows = (await fetchIGDB(
-      'game_time_to_beats',
-      `fields game_id,hastily,normally,completely,count;
-       where game_id = ${igdbGameId};
-       limit 1;`,
-      { revalidate: 60 * 60 * 24 }
-    )) as IGDBTimeToBeat[];
-    return rows?.[0] ?? null;
-  } catch (err) {
-    console.error('IGDB time_to_beat failed:', err);
-    return null;
-  }
+  const map = await fetchIGDBTimeToBeats([igdbGameId]);
+  return map.get(igdbGameId) ?? null;
 }
+
+/** Batch-fetch IGDB time-to-beat rows (seconds) keyed by IGDB game id. */
+export async function fetchIGDBTimeToBeats(
+  igdbGameIds: number[]
+): Promise<Map<number, IGDBTimeToBeat>> {
+  const ids = [...new Set(igdbGameIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const out = new Map<number, IGDBTimeToBeat>();
+  if (ids.length === 0) return out;
+
+  const CHUNK = 50;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    try {
+      const rows = (await fetchIGDB(
+        'game_time_to_beats',
+        `fields game_id,hastily,normally,completely,count;
+         where game_id = (${chunk.join(',')});
+         limit ${chunk.length};`,
+        { revalidate: 60 * 60 * 24 }
+      )) as IGDBTimeToBeat[];
+      for (const row of rows || []) {
+        if (row?.game_id) out.set(row.game_id, row);
+      }
+    } catch (err) {
+      console.error('IGDB time_to_beat batch failed:', err);
+    }
+  }
+  return out;
+}
+
+/**
+ * Main-story finish estimate in minutes (IGDB hastily → normally).
+ * Returns null when IGDB has no story-length data (common for multiplayer).
+ */
+export function finishMinutesFromTimeToBeat(
+  ttb: Pick<IGDBTimeToBeat, 'hastily' | 'normally'> | null | undefined
+): number | null {
+  if (!ttb) return null;
+  const seconds = ttb.hastily || ttb.normally;
+  if (!seconds || seconds <= 0) return null;
+  return Math.round(seconds / 60);
+}
+
 

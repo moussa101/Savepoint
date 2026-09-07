@@ -10,7 +10,7 @@ export async function recomputePlaytimeAverages(gameIds: string[]) {
     where: {
       gameId: { in: unique },
       playtimeMinutes: { gt: 0 },
-      source: { in: ['STEAM', 'XBOX'] },
+      source: { in: ['STEAM', 'XBOX', 'PSN'] },
     },
     _avg: { playtimeMinutes: true },
     _count: { _all: true },

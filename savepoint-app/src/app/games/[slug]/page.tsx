@@ -11,6 +11,7 @@ import GameActions from './GameActions';
 import ReviewSection from './ReviewSection';
 import StorefrontLinks from '@/components/game/StorefrontLinks';
 import GameStatsBar, { GameStatsBarSkeleton } from '@/components/game/GameStatsBar';
+import GameTrophySection, { GameTrophySectionSkeleton } from '@/components/game/GameTrophySection';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { getIGDBImageUrl } from '@/lib/igdb';
 import { getGameCommunityStats } from '@/lib/game-stats';
@@ -269,6 +270,10 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
 
           {/* Storefronts */}
           <StorefrontLinks websites={igdbGame.websites || []} />
+
+          <Suspense fallback={<GameTrophySectionSkeleton />}>
+            <GameTrophySection gameId={game.id} />
+          </Suspense>
 
           {/* Description */}
           {game.description && (

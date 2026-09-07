@@ -123,6 +123,22 @@ model User {
   xboxXuid         String?
   xboxLinkedAt     DateTime?
   xboxLastSyncAt   DateTime?
+  psnAccountId     String?   @unique
+  psnOnlineId      String?
+  /// AES-GCM sealed refresh token (never store raw NPSSO)
+  psnRefreshToken  String?   @db.Text
+  psnAccessToken   String?   @db.Text
+  psnTokenExpiresAt DateTime?
+  psnLinkedAt      DateTime?
+  psnLastSyncAt    DateTime?
+  // Cached PSN trophy profile summary
+  psnTrophyLevel   Int?
+  psnTrophyTier    Int?
+  psnTrophyProgress Int?
+  psnEarnedBronze  Int       @default(0)
+  psnEarnedSilver  Int       @default(0)
+  psnEarnedGold    Int       @default(0)
+  psnEarnedPlatinum Int      @default(0)
 
   // Relations
   accounts     Account[]
@@ -135,6 +151,8 @@ model User {
   comments     Comment[]
   commentLikes CommentLike[]
   listLikes    ListLike[]
+  psnTitles    PsnTitleProgress[]
+  psnTrophies  PsnTrophy[]
 
   // Social
   followers Follow[] @relation("Following")
@@ -217,7 +235,7 @@ model Game {
   avgRating    Float  @default(0)
   ratingCount  Int    @default(0)
   reviewCount  Int    @default(0)
-  /// Mean playtime across users who imported hours (Steam/Xbox), in minutes
+  /// Mean playtime across users who imported hours (Steam/Xbox/PSN), in minutes
   avgPlaytimeMinutes  Float @default(0)
   /// How many user libraries contributed to avgPlaytimeMinutes
   playtimeSampleCount Int   @default(0)
@@ -232,6 +250,7 @@ model Game {
   favoriteOf   FavoriteGame[]
   releaseWatches GameReleaseWatch[]
   notifications  Notification[]
+  psnTitles    PsnTitleProgress[]
 }
 
 /// Users waiting for an unreleased title; notified once after releaseDate passes.
@@ -283,7 +302,7 @@ model UserGame {
   status          String    // WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED
   rating          Float?    // 0.5 to 5.0, half-star increments
   playtimeMinutes Int       @default(0)
-  source          String?   // MANUAL, STEAM, XBOX
+  source          String?   // MANUAL, STEAM, XBOX, PSN
   lastSyncedAt    DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -295,6 +314,61 @@ model UserGame {
   @@unique([userId, gameId])
   @@index([userId, status])
   @@index([gameId])
+}
+
+/// Per-user PSN trophy title progress (matched to a Savepoint game when possible).
+model PsnTitleProgress {
+  id                String   @id @default(cuid())
+  userId            String
+  gameId            String?
+  npCommunicationId String
+  npServiceName     String   @default("trophy")
+  titleName         String
+  platform          String?
+  progress          Int      @default(0)
+  earnedBronze      Int      @default(0)
+  earnedSilver      Int      @default(0)
+  earnedGold        Int      @default(0)
+  earnedPlatinum    Int      @default(0)
+  definedBronze     Int      @default(0)
+  definedSilver     Int      @default(0)
+  definedGold       Int      @default(0)
+  definedPlatinum   Int      @default(0)
+  iconUrl           String?
+  lastUpdatedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game? @relation(fields: [gameId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, npCommunicationId])
+  @@index([userId, gameId])
+  @@index([gameId])
+}
+
+/// Individual PSN trophies for a title (synced for matched / recently played titles).
+model PsnTrophy {
+  id                String    @id @default(cuid())
+  userId            String
+  npCommunicationId String
+  trophyId          Int
+  trophyName        String
+  trophyDetail      String?   @db.Text
+  trophyType        String
+  trophyIconUrl     String?
+  trophyGroupId     String?
+  earned            Boolean   @default(false)
+  earnedDateTime    DateTime?
+  rarity            Int?
+  earnedRate        Float?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, npCommunicationId, trophyId])
+  @@index([userId, npCommunicationId])
 }
 
 model FavoriteGame {

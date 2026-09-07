@@ -14,12 +14,15 @@ import type { GameStatus } from '@/lib/utils';
 import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon, LockIcon, ListIcon } from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { calculateLevel, getTierFromLevel, BADGE_DEFINITIONS } from '@/lib/gamification';
-import { cache } from 'react';
+import ProfilePsnTrophies from '@/components/profile/ProfilePsnTrophies';
+import ProfilePlatformTags from '@/components/profile/ProfilePlatformTags';
+import { fetchSteamPersona } from '@/lib/steam';
+import { Suspense, cache } from 'react';
 
 const getUser = cache(async (username: string) => {
   // Everything is keyed by username (via relation filters) so the user row and
   // all of its library aggregates load in a single parallel round-trip.
-  const [user, libraryByStatus, genreRows, platformRows] = await Promise.all([
+  const [user, libraryByStatus, genreRows] = await Promise.all([
     prisma.user.findUnique({
     where: { username },
     include: {
@@ -63,10 +66,6 @@ const getUser = cache(async (username: string) => {
       where: { game: { userGames: { some: { user: { username } } } } },
       select: { genre: true },
     }),
-    prisma.gamePlatform.findMany({
-      where: { game: { userGames: { some: { user: { username } } } } },
-      select: { platform: true },
-    }),
   ]);
 
   if (!user) return null;
@@ -81,7 +80,6 @@ const getUser = cache(async (username: string) => {
     libraryByStatus,
     currentlyPlaying,
     genreRows,
-    platformRows,
   };
 });
 
@@ -91,6 +89,22 @@ function topCounts(items: string[], limit = 5) {
     map.set(item, (map.get(item) || 0) + 1);
   }
   return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+/** Platforms the user actually imported from — not every storefront IGDB lists for a game. */
+function platformLabelFromSource(source: string | null | undefined): string | null {
+  switch ((source || '').toUpperCase()) {
+    case 'STEAM':
+      return 'Steam';
+    case 'PSN':
+      return 'PlayStation';
+    case 'XBOX':
+      return 'Xbox';
+    case 'MANUAL':
+      return 'Manual';
+    default:
+      return null;
+  }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }) {
@@ -221,6 +235,89 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   const ownLists = ownListsResult ?? user.lists;
 
+  let steamPersonaName: string | null = null;
+  if (user.steamId) {
+    try {
+      const persona = await fetchSteamPersona(user.steamId);
+      steamPersonaName = persona?.personaname || null;
+    } catch {
+      steamPersonaName = null;
+    }
+  }
+
+  // Shared library with the signed-in viewer — only on a friend's profile (never your own).
+  type SharedGameRow = {
+    id: string;
+    name: string;
+    slug: string;
+    coverImage: string | null;
+    theirStatus: GameStatus;
+    yourStatus: GameStatus;
+  };
+  let sharedGames: SharedGameRow[] = [];
+  let sharedGamesTotal = 0;
+  if (
+    !isOwnProfile &&
+    friendshipRelation === 'friends' &&
+    canViewLibrary &&
+    session?.user?.id
+  ) {
+    const viewerId = session.user.id;
+    const [total, games] = await Promise.all([
+      prisma.game.count({
+        where: {
+          AND: [
+            { userGames: { some: { userId: viewerId } } },
+            { userGames: { some: { userId: user.id } } },
+          ],
+        },
+      }),
+      prisma.game.findMany({
+        where: {
+          AND: [
+            { userGames: { some: { userId: viewerId } } },
+            { userGames: { some: { userId: user.id } } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          coverImage: true,
+          userGames: {
+            where: { userId: { in: [viewerId, user.id] } },
+            select: { userId: true, status: true, updatedAt: true },
+          },
+        },
+        orderBy: { name: 'asc' },
+        take: 24,
+      }),
+    ]);
+    sharedGamesTotal = total;
+    sharedGames = games
+      .map((g) => {
+        const theirs = g.userGames.find((ug) => ug.userId === user.id);
+        const yours = g.userGames.find((ug) => ug.userId === viewerId);
+        if (!theirs || !yours) return null;
+        return {
+          id: g.id,
+          name: g.name,
+          slug: g.slug,
+          coverImage: g.coverImage,
+          theirStatus: theirs.status as GameStatus,
+          yourStatus: yours.status as GameStatus,
+        };
+      })
+      .filter((g): g is SharedGameRow => !!g)
+      .sort((a, b) => {
+        // Prefer games either of you is actively playing.
+        const score = (s: GameStatus) =>
+          s === 'PLAYING' ? 0 : s === 'COMPLETED' ? 1 : s === 'WANT_TO_PLAY' ? 2 : 3;
+        return Math.min(score(a.theirStatus), score(a.yourStatus)) -
+          Math.min(score(b.theirStatus), score(b.yourStatus));
+      });
+  }
+
   const gamesPlayed = user.userGamesStats.filter((g) => ['COMPLETED', 'PLAYING', 'DROPPED'].includes(g.status)).length;
   const gamesCompleted = user.userGamesStats.filter((g) => g.status === 'COMPLETED').length;
   const wantToPlay = user.libraryByStatus.filter((g) => g.status === 'WANT_TO_PLAY');
@@ -232,7 +329,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     ? ratingsGiven.reduce((sum, g) => sum + (g.rating || 0), 0) / ratingsGiven.length
     : 0;
   const topGenres = topCounts(user.genreRows.map((g) => g.genre));
-  const topPlatforms = topCounts(user.platformRows.map((p) => p.platform));
+  const topPlatforms = topCounts(
+    user.libraryByStatus
+      .map((ug) => platformLabelFromSource(ug.source))
+      .filter((p): p is string => !!p)
+  );
   const favoriteDevelopers = topCounts(
     user.libraryByStatus.map((ug) => ug.game.developer).filter((d): d is string => !!d)
   );
@@ -311,6 +412,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                 </span>
               </div>
               {user.bio && <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)', maxWidth: '600px' }}>{user.bio}</p>}
+              <ProfilePlatformTags
+                steamId={user.steamId}
+                steamPersonaName={steamPersonaName}
+                xboxGamertag={user.xboxGamertag}
+                psnOnlineId={user.psnOnlineId}
+              />
               <div style={{ display: 'flex', gap: 'var(--space-xl)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', flexDirection: 'column' }}>
                   <strong style={{ fontSize: 'var(--text-lg)' }}>{gamesPlayed}</strong>
@@ -429,6 +536,74 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             </div>
           )}
 
+          {sharedGames.length > 0 && (
+            <div style={{ marginBottom: 'var(--space-2xl)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  gap: 'var(--space-sm)',
+                  flexWrap: 'wrap',
+                  marginBottom: 'var(--space-md)',
+                }}
+              >
+                <h2 className="section-title font-display" style={{ margin: 0 }}>
+                  Games in common{' '}
+                  <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-base)' }}>
+                    ({sharedGamesTotal})
+                  </span>
+                </h2>
+                <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                  In both your libraries
+                </p>
+              </div>
+              <div className="scroll-row">
+                {sharedGames.map((g) => (
+                  <Link
+                    key={g.id}
+                    href={`/games/${g.slug}`}
+                    style={{ textDecoration: 'none', color: 'inherit', width: 120 }}
+                  >
+                    <div
+                      className="game-cover"
+                      style={{ width: '120px', height: '160px', marginBottom: 8, position: 'relative' }}
+                    >
+                      {g.coverImage && (
+                        <img
+                          src={g.coverImage}
+                          alt={g.name}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      )}
+                      <span
+                        className={`badge badge-${STATUS_COLORS[g.theirStatus]}`}
+                        style={{ position: 'absolute', bottom: 6, left: 6, fontSize: '0.6rem' }}
+                      >
+                        {STATUS_LABELS[g.theirStatus]}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 600,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {g.name}
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      You: {STATUS_LABELS[g.yourStatus]}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {canViewLibrary ? (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)', flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
@@ -510,6 +685,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               </div>
             </div>
           )}
+
+          <Suspense fallback={null}>
+            <ProfilePsnTrophies userId={user.id} isOwnProfile={isOwnProfile} />
+          </Suspense>
 
           {user.reviews.length > 0 && (
             <div style={{ marginBottom: 'var(--space-2xl)' }}>

@@ -108,26 +108,98 @@ export function toLocalGameRow(game: IGDBGameDetails) {
 }
 
 /**
- * Best-effort name search against IGDB for Xbox titles.
+ * Best-effort name search against IGDB for Xbox / PSN titles.
+ * Tries a few name variants (editions stripped, Arabic↔Roman numerals).
  */
 export async function resolveIgdbIdFromName(name: string): Promise<number | null> {
-  const cleaned = name.replace(/"/g, '').trim();
-  if (cleaned.length < 2) return null;
+  for (const candidate of igdbNameSearchVariants(name)) {
+    const id = await searchIgdbGameId(candidate);
+    if (id) return id;
+  }
+  return null;
+}
 
+function igdbNameSearchVariants(name: string): string[] {
+  const base = name
+    .replace(/"/g, '')
+    .replace(/[®™©]/g, '')
+    .replace(/\s*[\[(][^)\]]*[)\]]\s*/g, ' ')
+    .replace(
+      /\b(digital|standard|deluxe|ultimate|complete|goty|game of the year|remastered|remake|edition|ps4|ps5|playstation|xbox|pc|&)\b/gi,
+      ' '
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (base.length < 2) return [];
+
+  const variants = [base];
+  const arabicToRoman: Record<string, string> = {
+    '2': 'II',
+    '3': 'III',
+    '4': 'IV',
+    '5': 'V',
+    '6': 'VI',
+    '7': 'VII',
+  };
+  const romanToArabic: Record<string, string> = {
+    ii: '2',
+    iii: '3',
+    iv: '4',
+    v: '5',
+    vi: '6',
+    vii: '7',
+  };
+
+  const arabic = base.match(/^(.*\D)(\d)$/);
+  if (arabic && arabicToRoman[arabic[2]!]) {
+    variants.push(`${arabic[1]!.trimEnd()} ${arabicToRoman[arabic[2]!]}`);
+  }
+  const roman = base.match(/^(.*\s)(II|III|IV|V|VI|VII)$/i);
+  if (roman && romanToArabic[roman[2]!.toLowerCase()]) {
+    variants.push(`${roman[1]!.trimEnd()} ${romanToArabic[roman[2]!.toLowerCase()]}`);
+  }
+
+  return [...new Set(variants.map((v) => v.replace(/\s+/g, ' ').trim()).filter((v) => v.length >= 2))];
+}
+
+async function searchIgdbGameId(cleaned: string): Promise<number | null> {
   const results = await fetchIGDB(
     'games',
     `
     search "${cleaned}";
     fields name, slug;
     where category = 0;
-    limit 5;
+    limit 8;
     `
   );
 
-  if (!Array.isArray(results) || results.length === 0) return null;
+  if (!Array.isArray(results) || results.length === 0) {
+    // Fallback without category filter (some titles are miscategorized).
+    const loose = await fetchIGDB(
+      'games',
+      `
+      search "${cleaned}";
+      fields name, slug, category;
+      limit 8;
+      `
+    );
+    if (!Array.isArray(loose) || loose.length === 0) return null;
+    return pickBestIgdbMatch(cleaned, loose);
+  }
 
+  return pickBestIgdbMatch(cleaned, results);
+}
+
+function pickBestIgdbMatch(
+  cleaned: string,
+  results: { id?: number; name?: string }[]
+): number | null {
   const lower = cleaned.toLowerCase();
-  const exact = results.find((g: { name?: string }) => g.name?.toLowerCase() === lower) || results[0];
+  const exact =
+    results.find((g) => g.name?.toLowerCase() === lower) ||
+    results.find((g) => g.name?.toLowerCase().replace(/:/g, '') === lower.replace(/:/g, '')) ||
+    results[0];
   if (!exact?.id) return null;
   return exact.id as number;
 }

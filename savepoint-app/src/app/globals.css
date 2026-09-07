@@ -2649,92 +2649,88 @@ img.cover,
   color: var(--accent-primary);
 }
 
-/* Game page community stats */
+/* Game page community stats — compact tile grid */
 .game-stats {
   margin-top: var(--space-xl);
-  padding: var(--space-lg) var(--space-md);
-  border-radius: var(--radius-xl);
-  background: rgba(20, 20, 31, 0.65);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: rgba(20, 20, 31, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-sm);
 }
 
-.game-stats-row {
+.game-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+}
+
+.game-stat-tile {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: var(--space-md) var(--space-xl);
-}
-
-.game-stats-row-compact {
-  gap: var(--space-md) calc(var(--space-xl) + 8px);
-  padding-top: var(--space-sm);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.game-stats-time {
-  gap: var(--space-lg) var(--space-2xl);
-  padding-top: var(--space-sm);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.game-stat {
   text-align: center;
-  min-width: 72px;
+  min-height: 64px;
+  padding: 10px 6px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-hover);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.game-stat-sm {
-  min-width: 64px;
-}
-
-.game-stat-time {
-  min-width: 88px;
+.game-stat-tile-accent {
+  border-color: rgba(0, 229, 160, 0.22);
+  background: rgba(0, 229, 160, 0.06);
 }
 
 .game-stat-value {
-  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
-  font-weight: 800;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.1;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
-.game-stat-time .game-stat-value {
+.game-stat-tile-accent .game-stat-value {
   color: var(--accent-primary);
 }
 
 .game-stat-label {
   margin-top: 4px;
-  font-size: var(--text-xs);
+  font-size: 0.65rem;
   color: var(--text-muted);
-  text-transform: lowercase;
-  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 
 .game-stats-source {
   margin: 0;
   text-align: center;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 @media (max-width: 560px) {
   .game-stats {
-    padding: var(--space-md);
+    padding: var(--space-sm);
   }
 
-  .game-stats-row {
-    gap: var(--space-sm) var(--space-md);
+  .game-stats-grid {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 6px;
   }
 
-  .game-stat {
-    min-width: 56px;
+  .game-stat-tile {
+    min-height: 56px;
+    padding: 8px 4px;
   }
 
   .game-stat-value {
-    font-size: 1.15rem;
+    font-size: 0.85rem;
   }
 }

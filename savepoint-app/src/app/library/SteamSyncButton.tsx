@@ -21,6 +21,7 @@ export default function SteamSyncButton() {
       if (result.imported) parts.push(`${result.imported} added`);
       if (result.updated) parts.push(`${result.updated} updated`);
       if (result.skipped) parts.push(`${result.skipped} not matched`);
+      if ('xpGained' in result && result.xpGained) parts.push(`+${result.xpGained} XP`);
       setStatus({ kind: 'ok', text: parts.length ? `Synced: ${parts.join(', ')}.` : 'Already up to date.' });
       router.refresh();
     });

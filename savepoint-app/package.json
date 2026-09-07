@@ -20,6 +20,7 @@
     "next-auth": "^5.0.0-beta.32",
     "nodemailer": "^8.0.11",
     "prisma": "^6.19.3",
+    "psn-api": "^2.18.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "recharts": "^3.10.1",

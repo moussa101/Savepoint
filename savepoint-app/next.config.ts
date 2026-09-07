@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
-              "img-src 'self' data: blob: https://images.igdb.com https://*.r2.dev https://*.cloudflarestorage.com https://authjs.dev https://*.googleusercontent.com https://lh3.googleusercontent.com https://cdn.discordapp.com https://media.discordapp.net https://avatars.steamstatic.com https://*.steamstatic.com https://steamcdn-a.akamaihd.net https://*.akamaihd.net https://graph.microsoft.com https://*.xboxlive.com https://*.live.net",
+              "img-src 'self' data: blob: https://images.igdb.com https://*.r2.dev https://*.cloudflarestorage.com https://authjs.dev https://*.googleusercontent.com https://lh3.googleusercontent.com https://cdn.discordapp.com https://media.discordapp.net https://avatars.steamstatic.com https://*.steamstatic.com https://steamcdn-a.akamaihd.net https://*.akamaihd.net https://graph.microsoft.com https://*.xboxlive.com https://*.live.net https://image.api.playstation.com https://*.playstation.com https://*.playstation.net",
               "connect-src 'self' https://api.igdb.com https://id.twitch.tv https://api.sightengine.com https://api.steampowered.com https://steamcommunity.com https://api.xbl.io",
               "frame-ancestors 'none'",
               "base-uri 'self'",

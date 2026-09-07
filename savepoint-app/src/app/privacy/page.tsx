@@ -49,9 +49,12 @@ export default function PrivacyPage() {
 
       <h3>Library sync</h3>
       <p>
-        If you link Steam or another supported library source, we may collect game
-        ownership and playtime data needed to sync your library and compute
-        community features (such as average playtime).
+        If you link Steam, PlayStation (PSN), Xbox, or another supported library
+        source, we may collect game ownership, playtime, and (for PlayStation)
+        trophy progress needed to sync your library and compute community features
+        (such as average playtime). PlayStation linking uses an unofficial API and
+        a short-lived NPSSO you paste once; we store an encrypted refresh token and
+        do not keep the NPSSO.
       </p>
 
       <h3>Technical &amp; security data</h3>
