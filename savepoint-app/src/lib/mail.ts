@@ -185,3 +185,81 @@ export async function sendDirectMessageEmail(
     return null;
   }
 }
+
+/** Moderation warning for chat reports — includes optional client-attached transcript. */
+export async function sendChatWarningEmail(opts: {
+  email: string;
+  username: string;
+  displayName: string;
+  warningMessage: string;
+  reason: string;
+  chatLog: string | null;
+  reporterUsername: string;
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.error('Gmail is not configured (GMAIL_USER / GMAIL_APP_PASSWORD)');
+    return null;
+  }
+
+  const safeName = escapeHtml(opts.displayName);
+  const safeUser = escapeHtml(opts.username);
+  const safeReason = escapeHtml(opts.reason.replaceAll('_', ' '));
+  const safeWarning = escapeHtml(opts.warningMessage).replace(/\n/g, '<br>');
+  const safeLog = opts.chatLog
+    ? escapeHtml(opts.chatLog).replace(/\n/g, '<br>')
+    : null;
+  const guidelinesUrl = `${getAppBaseUrl()}/terms`;
+
+  try {
+    return await transporter.sendMail({
+      from: `"Savepoint Moderation" <${process.env.GMAIL_USER}>`,
+      to: opts.email,
+      subject: 'Warning from Savepoint Moderation',
+      text: [
+        `Hello ${opts.displayName} (@${opts.username}),`,
+        '',
+        'Our moderation team reviewed a report about your messages on Savepoint.',
+        `Report reason: ${opts.reason.replaceAll('_', ' ')}`,
+        '',
+        opts.warningMessage,
+        '',
+        opts.chatLog ? `--- Chat log ---\n${opts.chatLog}` : '',
+        '',
+        'Repeated violations may result in a ban. Review our terms:',
+        guidelinesUrl,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      html: `
+        <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; background-color: #0a0a0f; color: #fff; padding: 40px; border-radius: 10px;">
+          <h1 style="color: #eb5757; text-align: center;">Savepoint Moderation</h1>
+          <h2 style="text-align: center; margin-bottom: 24px;">Community warning</h2>
+          <p style="font-size: 16px; line-height: 1.5; color: #ccc;">
+            Hello ${safeName} (@${safeUser}),<br><br>
+            Our team reviewed a report about your messages. Report reason: <strong>${safeReason}</strong>.
+          </p>
+          <div style="background-color: rgba(255,255,255,0.05); border-left: 4px solid #eb5757; padding: 16px; margin: 24px 0;">
+            <p style="margin: 0; font-size: 15px; color: #ddd;">${safeWarning}</p>
+          </div>
+          ${
+            safeLog
+              ? `<div style="background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 16px; margin: 24px 0; border-radius: 8px;">
+            <p style="margin: 0 0 12px; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.04em;">Chat log (from reporter)</p>
+            <pre style="margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.45; color: #bbb; font-family: ui-monospace, monospace;">${safeLog}</pre>
+          </div>`
+              : ''
+          }
+          <p style="font-size: 14px; color: #888;">
+            Repeated violations may result in a permanent ban.
+            <a href="${guidelinesUrl}" style="color: #00e5a0;">Review community guidelines</a>
+          </p>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error('Failed to send chat warning email with Gmail', error);
+    return null;
+  }
+}
+

@@ -5,15 +5,33 @@ import Link from 'next/link';
 import {
   editEncryptedMessage,
   getMyE2EPublicKey,
-  pollConversationMessages,
   publishE2EPublicKey,
   sendEncryptedMessage,
 } from '@/app/actions/messages';
-import { decryptMessage, encryptMessage, ensureLocalKeyPair } from '@/lib/e2e-crypto';
+import { uploadChatImage } from '@/app/actions/upload';
+import {
+  decryptMessage,
+  decryptWithGroupKey,
+  encryptMessage,
+  encryptWithGroupKey,
+  ensureLocalKeyPair,
+  unwrapGroupKey,
+} from '@/lib/e2e-crypto';
 import UserAvatar from '@/components/ui/UserAvatar';
+import ReportButton from '@/components/ui/ReportButton';
+import { MessageContent } from '@/components/messages/MessageContent';
+import GifPicker from '@/components/messages/GifPicker';
+import GroupManagePanel from '@/components/messages/GroupManagePanel';
 
-/** Poll cadence while chat is open (ms). */
-const POLL_MS = 900;
+/** Fast JSON poll — lighter than server actions. */
+const POLL_MS = 450;
+
+type Sender = {
+  id: string;
+  username: string;
+  name: string | null;
+  image: string | null;
+};
 
 type WireMessage = {
   id: string;
@@ -26,6 +44,7 @@ type WireMessage = {
   updatedAt?: Date | string | null;
   editedAt?: Date | string | null;
   readAt: Date | string | null;
+  sender?: Sender | null;
 };
 
 type Other = {
@@ -36,13 +55,14 @@ type Other = {
   e2ePublicKey: string | null;
 };
 
+type Member = Sender & { role?: string; e2ePublicKey?: string | null };
+
 function toMs(value: Date | string | null | undefined) {
   if (!value) return 0;
   const t = new Date(value).getTime();
   return Number.isNaN(t) ? 0 : t;
 }
 
-/** Sync cursor = newest createdAt / updatedAt / editedAt / readAt we've seen. */
 function latestSyncCursor(msgs: WireMessage[]): string | null {
   let max = 0;
   let iso: string | null = null;
@@ -65,13 +85,7 @@ function advanceCursor(current: string | null, msgs: WireMessage[]) {
   return current;
 }
 
-function MessageTicks({
-  pending,
-  read,
-}: {
-  pending?: boolean;
-  read?: boolean;
-}) {
+function MessageTicks({ pending, read }: { pending?: boolean; read?: boolean }) {
   if (pending) {
     return (
       <span className="msg-ticks msg-ticks-pending" aria-label="Sending" title="Sending">
@@ -93,73 +107,137 @@ function MessageTicks({
 export default function ChatThread({
   conversationId,
   myUserId,
+  type,
   other,
+  groupName,
+  groupImageUrl,
+  members,
+  wrappedGroupKey,
+  myRole,
   initialMessages,
 }: {
   conversationId: string;
   myUserId: string;
-  other: Other;
+  type: 'DIRECT' | 'GROUP';
+  other: Other | null;
+  groupName?: string | null;
+  groupImageUrl?: string | null;
+  members?: Member[];
+  wrappedGroupKey?: string | null;
+  myRole?: string | null;
   initialMessages: WireMessage[];
 }) {
+  const isGroup = type === 'GROUP';
   const [ready, setReady] = useState(false);
   const [setupError, setSetupError] = useState('');
-  const [peerPublicKey, setPeerPublicKey] = useState(other.e2ePublicKey);
+  const [peerPublicKey, setPeerPublicKey] = useState(other?.e2ePublicKey ?? null);
+  const [groupKey, setGroupKey] = useState<CryptoKey | null>(null);
   const [plainById, setPlainById] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState(initialMessages);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
-  const [live, setLive] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showGifs, setShowGifs] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [showGroupPanel, setShowGroupPanel] = useState(false);
+  const keysFetchedRef = useRef(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const privateKeyRef = useRef<CryptoKey | null>(null);
-  const peerKeyRef = useRef(other.e2ePublicKey);
+  const peerKeyRef = useRef(other?.e2ePublicKey ?? null);
+  const groupKeyRef = useRef<CryptoKey | null>(null);
   const knownIdsRef = useRef(new Set(initialMessages.map((m) => m.id)));
   const cursorRef = useRef<string | null>(latestSyncCursor(initialMessages));
   const pollingRef = useRef(false);
   const stickToBottomRef = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const messagesRef = useRef(messages);
 
   peerKeyRef.current = peerPublicKey;
+  groupKeyRef.current = groupKey;
+  messagesRef.current = messages;
+
+  const memberById = useCallback(
+    (id: string) => {
+      if (!isGroup) return other && other.id === id ? other : null;
+      return (members || []).find((m) => m.id === id) || null;
+    },
+    [isGroup, members, other]
+  );
 
   const scrollToBottom = useCallback((smooth = false) => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
-    if (smooth) {
-      scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
-    } else {
-      scroller.scrollTop = scroller.scrollHeight;
-    }
+    if (smooth) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+    else scroller.scrollTop = scroller.scrollHeight;
   }, []);
 
-  const decryptIncoming = useCallback(async (batch: WireMessage[], peerKey: string | null) => {
-    if (!privateKeyRef.current || !peerKey || !batch.length) return {};
-    const withCipher = batch.filter(
-      (m) => m.kind !== 'SYSTEM' && m.ciphertext && m.iv
-    );
-    const entries = await Promise.all(
-      withCipher.map(async (m) => {
-        try {
-          const text = await decryptMessage(
-            m.ciphertext,
-            m.iv,
-            privateKeyRef.current!,
-            peerKey
-          );
-          return [m.id, text] as const;
-        } catch {
-          return [m.id, '[Unable to decrypt on this device]'] as const;
-        }
-      })
-    );
-    return Object.fromEntries(entries);
+  const decryptIncoming = useCallback(
+    async (batch: WireMessage[], peerKey: string | null, gKey: CryptoKey | null) => {
+      if (!privateKeyRef.current || !batch.length) return {};
+      const entries = await Promise.all(
+        batch
+          .filter((m) => m.kind !== 'SYSTEM' && m.ciphertext && m.iv)
+          .map(async (m) => {
+            try {
+              let text: string;
+              if (isGroup) {
+                if (!gKey) return [m.id, '[Waiting for group key]'] as const;
+                text = await decryptWithGroupKey(m.ciphertext, m.iv, gKey);
+              } else {
+                if (!peerKey) return [m.id, '[Waiting for peer key]'] as const;
+                text = await decryptMessage(
+                  m.ciphertext,
+                  m.iv,
+                  privateKeyRef.current!,
+                  peerKey
+                );
+              }
+              return [m.id, text] as const;
+            } catch {
+              return [
+                m.id,
+                '[Encrypted — may need the original device/browser keys]',
+              ] as const;
+            }
+          })
+      );
+      return Object.fromEntries(entries);
+    },
+    [isGroup]
+  );
+
+  /** Never replace good plaintext with a failure placeholder. */
+  const mergePlain = useCallback((incoming: Record<string, string>) => {
+    const isPlaceholder = (t: string) =>
+      t.startsWith('[Unable') ||
+      t.startsWith('[Encrypted') ||
+      t.startsWith('[Waiting');
+    setPlainById((prev) => {
+      const next = { ...prev };
+      for (const [id, text] of Object.entries(incoming)) {
+        const existing = prev[id];
+        if (existing && !isPlaceholder(existing) && isPlaceholder(text)) continue;
+        next[id] = text;
+      }
+      return next;
+    });
   }, []);
+
+  const redecryptAll = useCallback(
+    async (peerKey: string | null, gKey: CryptoKey | null) => {
+      if (!privateKeyRef.current) return;
+      const decrypted = await decryptIncoming(messagesRef.current, peerKey, gKey);
+      mergePlain(decrypted);
+    },
+    [decryptIncoming, mergePlain]
+  );
 
   const mergeMessages = useCallback(
-    async (incoming: WireMessage[], peerKey: string | null) => {
+    async (incoming: WireMessage[], peerKey: string | null, gKey: CryptoKey | null) => {
       if (!incoming.length) return;
-
       const fresh: WireMessage[] = [];
       const updated: WireMessage[] = [];
       for (const m of incoming) {
@@ -169,15 +247,9 @@ export default function ChatThread({
           fresh.push(m);
         }
       }
-
       cursorRef.current = advanceCursor(cursorRef.current, incoming);
-
-      const toDecrypt = [
-        ...fresh,
-        ...updated.filter((m) => m.editedAt && m.ciphertext),
-      ];
-      const decrypted = await decryptIncoming(toDecrypt, peerKey);
-
+      const toDecrypt = [...fresh, ...updated.filter((m) => m.editedAt && m.ciphertext)];
+      const decrypted = await decryptIncoming(toDecrypt, peerKey, gKey);
       if (fresh.length || updated.length) {
         setMessages((prev) => {
           const byId = new Map(prev.map((m) => [m.id, m]));
@@ -186,23 +258,25 @@ export default function ChatThread({
             byId.set(m.id, existing ? { ...existing, ...m } : m);
           }
           for (const m of fresh) byId.set(m.id, m);
-          return [...byId.values()].sort(
-            (a, b) => toMs(a.createdAt) - toMs(b.createdAt)
-          );
+          return [...byId.values()].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt));
         });
       }
-      if (Object.keys(decrypted).length) {
-        setPlainById((prev) => ({ ...prev, ...decrypted }));
-      }
+      if (Object.keys(decrypted).length) mergePlain(decrypted);
     },
-    [decryptIncoming]
+    [decryptIncoming, mergePlain]
   );
+
+  // Peer/group keys often arrive after the first decrypt pass — retry once ready.
+  useEffect(() => {
+    if (!ready) return;
+    if (!isGroup && !peerPublicKey) return;
+    if (isGroup && !groupKey) return;
+    void redecryptAll(peerPublicKey, groupKey);
+  }, [ready, peerPublicKey, groupKey, isGroup, redecryptAll]);
 
   useEffect(() => {
     document.body.classList.add('chat-open');
-    return () => {
-      document.body.classList.remove('chat-open');
-    };
+    return () => document.body.classList.remove('chat-open');
   }, []);
 
   useEffect(() => {
@@ -212,18 +286,43 @@ export default function ChatThread({
         const { publicKeyB64, pair } = await ensureLocalKeyPair();
         privateKeyRef.current = pair.privateKey;
         const serverKey = await getMyE2EPublicKey();
-        if (serverKey !== publicKeyB64) {
+        if (!serverKey) {
           await publishE2EPublicKey(publicKeyB64);
-        }
-        if (!other.e2ePublicKey) {
-          setSetupError(
-            `@${other.username} hasn’t opened Messages yet, so encryption keys aren’t ready. Ask them to visit Messages once.`
-          );
-          setReady(true);
-          return;
+        } else if (serverKey !== publicKeyB64) {
+          // Publishing a new identity orphans history encrypted to the old key.
+          // Keep local keys for this browser and sync the public key so peers can reach us again.
+          await publishE2EPublicKey(publicKeyB64);
+          if (!cancelled) {
+            setSetupError(
+              'This browser has new chat keys (storage was cleared or this is a new device). Older messages may stay encrypted.'
+            );
+          }
         }
 
-        const decrypted = await decryptIncoming(initialMessages, other.e2ePublicKey);
+        let gKey: CryptoKey | null = null;
+        if (isGroup) {
+          if (!wrappedGroupKey) {
+            setSetupError('Missing group encryption key. Ask an admin to re-add you.');
+            setReady(true);
+            return;
+          }
+          gKey = await unwrapGroupKey(wrappedGroupKey, pair.privateKey);
+          if (!cancelled) setGroupKey(gKey);
+        } else {
+          if (!other?.e2ePublicKey) {
+            setSetupError(
+              `@${other?.username} hasn’t opened Messages yet, so encryption keys aren’t ready.`
+            );
+            setReady(true);
+            return;
+          }
+        }
+
+        const decrypted = await decryptIncoming(
+          initialMessages,
+          other?.e2ePublicKey ?? null,
+          gKey
+        );
         if (!cancelled) {
           setPlainById(decrypted);
           setReady(true);
@@ -240,11 +339,10 @@ export default function ChatThread({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, other.e2ePublicKey, other.username]);
+  }, [conversationId]);
 
   useEffect(() => {
     if (!ready) return;
-
     let cancelled = false;
     let timer: number | undefined;
 
@@ -253,18 +351,53 @@ export default function ChatThread({
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       pollingRef.current = true;
       try {
-        const result = await pollConversationMessages(conversationId, cursorRef.current);
-        if (cancelled || result.error) return;
+        const since = cursorRef.current ? `since=${encodeURIComponent(cursorRef.current)}` : '';
+        const needKeys =
+          !keysFetchedRef.current ||
+          (!isGroup && !peerKeyRef.current) ||
+          (isGroup && !groupKeyRef.current);
+        const keys = needKeys ? 'keys=1' : '';
+        const qs = [since, keys].filter(Boolean).join('&');
+        const res = await fetch(
+          `/api/messages/${conversationId}/poll${qs ? `?${qs}` : ''}`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok || cancelled) return;
+        const result = await res.json();
+        if (result.error) return;
+
+        if (needKeys) keysFetchedRef.current = true;
+
+        let peerForDecrypt = peerKeyRef.current;
+        let groupForDecrypt = groupKeyRef.current;
 
         if (result.peerPublicKey && result.peerPublicKey !== peerKeyRef.current) {
+          peerForDecrypt = result.peerPublicKey;
+          peerKeyRef.current = result.peerPublicKey;
           setPeerPublicKey(result.peerPublicKey);
           setSetupError('');
+        }
+        if (result.wrappedGroupKey && privateKeyRef.current) {
+          try {
+            const gk = await unwrapGroupKey(result.wrappedGroupKey, privateKeyRef.current);
+            groupForDecrypt = gk;
+            setGroupKey(gk);
+            groupKeyRef.current = gk;
+          } catch {
+            /* keep existing */
+          }
+        }
+
+        const keysJustArrived =
+          (result.peerPublicKey && !isGroup) || (result.wrappedGroupKey && isGroup);
+        if (keysJustArrived && !result.messages?.length) {
+          await redecryptAll(peerForDecrypt, groupForDecrypt);
         }
 
         if (result.readReceipts?.length) {
           setMessages((prev) =>
             prev.map((m) => {
-              const hit = result.readReceipts!.find((r) => r.id === m.id);
+              const hit = result.readReceipts!.find((r: { id: string; readAt: string }) => r.id === m.id);
               return hit ? { ...m, readAt: hit.readAt } : m;
             })
           );
@@ -275,16 +408,14 @@ export default function ChatThread({
         }
 
         if (result.messages?.length) {
-          await mergeMessages(result.messages, result.peerPublicKey ?? peerKeyRef.current);
+          await mergeMessages(result.messages, peerForDecrypt, groupForDecrypt);
+          if (keysJustArrived) await redecryptAll(peerForDecrypt, groupForDecrypt);
         }
-        setLive(true);
       } catch {
-        // Keep the last known state; next tick retries.
+        /* retry */
       } finally {
         pollingRef.current = false;
-        if (!cancelled) {
-          timer = window.setTimeout(tick, POLL_MS);
-        }
+        if (!cancelled) timer = window.setTimeout(tick, POLL_MS);
       }
     }
 
@@ -293,61 +424,119 @@ export default function ChatThread({
       if (document.visibilityState === 'visible') void tick();
     };
     document.addEventListener('visibilitychange', onVisible);
-
     return () => {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [ready, conversationId, mergeMessages]);
+  }, [ready, conversationId, mergeMessages, redecryptAll, isGroup]);
 
   useEffect(() => {
     if (stickToBottomRef.current) scrollToBottom(true);
   }, [messages, plainById, scrollToBottom]);
 
-  function startEdit(m: WireMessage) {
-    if (m.senderId !== myUserId || m.id.startsWith('local-')) return;
-    const age = Date.now() - toMs(m.createdAt);
-    if (age > 24 * 60 * 60 * 1000) {
-      setSendError('Messages can only be edited within 24 hours.');
-      return;
+  const buildChatLog = useCallback(() => {
+    const lines: string[] = [
+      `Conversation: ${conversationId}`,
+      `Type: ${type}`,
+      isGroup ? `Group: ${groupName || 'Unnamed'}` : `Peer: @${other?.username || 'unknown'}`,
+      `Exported: ${new Date().toISOString()}`,
+      '---',
+    ];
+    for (const m of messages) {
+      const when = new Date(m.createdAt).toISOString();
+      if (m.kind === 'SYSTEM') {
+        lines.push(`[${when}] SYSTEM ${m.systemPayload || ''}`.slice(0, 2000));
+        continue;
+      }
+      const sender = m.sender || memberById(m.senderId);
+      const who = sender?.username || m.senderId;
+      const body = plainById[m.id] || '[undecrypted]';
+      lines.push(`[${when}] @${who}: ${body}`);
     }
-    setEditingId(m.id);
-    setDraft(plainById[m.id] || '');
-    setSendError('');
-    requestAnimationFrame(() => inputRef.current?.focus());
+    return lines.join('\n').slice(0, 100_000);
+  }, [conversationId, type, isGroup, groupName, other?.username, messages, plainById, memberById]);
+
+  async function encryptOutgoing(text: string) {
+    if (!privateKeyRef.current) throw new Error('Keys not ready');
+    if (isGroup) {
+      if (!groupKeyRef.current) throw new Error('Group key not ready');
+      return encryptWithGroupKey(text, groupKeyRef.current);
+    }
+    if (!peerPublicKey) throw new Error('Peer key not ready');
+    return encryptMessage(text, privateKeyRef.current, peerPublicKey);
   }
 
-  function cancelEdit() {
-    setEditingId(null);
-    setDraft('');
+  function startEdit(m: WireMessage) {
+    setEditingId(m.id);
+    setDraft(plainById[m.id] || '');
+    inputRef.current?.focus();
+  }
+
+  async function sendPlaintext(text: string, kind: 'CHAT' | 'MEDIA' = 'CHAT') {
+    setSending(true);
+    setSendError('');
+    const localId = `local-${Date.now()}`;
+    const optimistic: WireMessage = {
+      id: localId,
+      senderId: myUserId,
+      kind,
+      ciphertext: '',
+      iv: '',
+      createdAt: new Date().toISOString(),
+      readAt: null,
+      sender: memberById(myUserId) as Sender | undefined,
+    };
+    knownIdsRef.current.add(localId);
+    setMessages((prev) => [...prev, optimistic]);
+    setPlainById((prev) => ({ ...prev, [localId]: text }));
+
+    try {
+      const { ciphertext, iv } = await encryptOutgoing(text);
+      const result = await sendEncryptedMessage(conversationId, ciphertext, iv, kind);
+      if (result.error || !result.message) {
+        setSendError(result.error || 'Send failed');
+        setMessages((prev) => prev.filter((m) => m.id !== localId));
+        return;
+      }
+      knownIdsRef.current.delete(localId);
+      knownIdsRef.current.add(result.message.id);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === localId ? { ...result.message!, sender: m.sender } : m))
+      );
+      setPlainById((prev) => {
+        const next = { ...prev };
+        delete next[localId];
+        next[result.message!.id] = text;
+        return next;
+      });
+      cursorRef.current = advanceCursor(cursorRef.current, [result.message]);
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : 'Send failed');
+      setMessages((prev) => prev.filter((m) => m.id !== localId));
+    } finally {
+      setSending(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || !privateKeyRef.current || !peerPublicKey || sending) return;
-    setSendError('');
-    setSending(true);
+    if (!text || sending) return;
 
     if (editingId) {
-      const id = editingId;
+      setSending(true);
       try {
-        const { ciphertext, iv } = await encryptMessage(text, privateKeyRef.current, peerPublicKey);
-        const result = await editEncryptedMessage(id, ciphertext, iv);
-        if (result.error || !result.message) {
-          setSendError(result.error || 'Edit failed');
-          return;
+        const { ciphertext, iv } = await encryptOutgoing(text);
+        const result = await editEncryptedMessage(editingId, ciphertext, iv);
+        if (result.error) setSendError(result.error);
+        else {
+          setPlainById((prev) => ({ ...prev, [editingId]: text }));
+          setEditingId(null);
+          setDraft('');
         }
-        setMessages((prev) =>
-          prev.map((m) => (m.id === id ? { ...m, ...result.message! } : m))
-        );
-        setPlainById((prev) => ({ ...prev, [id]: text }));
-        cursorRef.current = advanceCursor(cursorRef.current, [result.message]);
-        setEditingId(null);
-        setDraft('');
       } catch (err) {
-        setSendError(err instanceof Error ? err.message : 'Encryption failed');
+        setSendError(err instanceof Error ? err.message : 'Edit failed');
       } finally {
         setSending(false);
       }
@@ -355,96 +544,108 @@ export default function ChatThread({
     }
 
     setDraft('');
-    const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const optimistic: WireMessage = {
-      id: tempId,
-      senderId: myUserId,
-      ciphertext: '',
-      iv: '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      editedAt: null,
-      readAt: null,
-    };
-    knownIdsRef.current.add(tempId);
-    stickToBottomRef.current = true;
-    setMessages((prev) => [...prev, optimistic]);
-    setPlainById((prev) => ({ ...prev, [tempId]: text }));
+    await sendPlaintext(text, 'CHAT');
+  }
 
+  async function onPickImage(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    setSendError('');
     try {
-      const { ciphertext, iv } = await encryptMessage(text, privateKeyRef.current, peerPublicKey);
-      const result = await sendEncryptedMessage(conversationId, ciphertext, iv);
-      if (result.error || !result.message) {
-        setSendError(result.error || 'Send failed');
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
-        setPlainById((prev) => {
-          const next = { ...prev };
-          delete next[tempId];
-          return next;
-        });
-        knownIdsRef.current.delete(tempId);
-        setDraft(text);
+      const fd = new FormData();
+      fd.set('file', file);
+      const uploaded = await uploadChatImage(fd);
+      if ('error' in uploaded && uploaded.error) {
+        setSendError(uploaded.error);
         return;
       }
-
-      knownIdsRef.current.delete(tempId);
-      knownIdsRef.current.add(result.message.id);
-      cursorRef.current = advanceCursor(cursorRef.current, [result.message]);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? result.message! : m)));
-      setPlainById((prev) => {
-        const next = { ...prev };
-        delete next[tempId];
-        next[result.message!.id] = text;
-        return next;
-      });
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Encryption failed');
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      setPlainById((prev) => {
-        const next = { ...prev };
-        delete next[tempId];
-        return next;
-      });
-      knownIdsRef.current.delete(tempId);
-      setDraft(text);
+      if (!uploaded.imageUrl) return;
+      const isGif = file.type === 'image/gif' || uploaded.imageUrl.endsWith('.gif');
+      const payload = JSON.stringify(
+        isGif
+          ? { type: 'GIF', url: uploaded.imageUrl }
+          : { type: 'IMAGE', url: uploaded.imageUrl }
+      );
+      await sendPlaintext(payload, 'MEDIA');
     } finally {
-      setSending(false);
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
+  const title = isGroup ? groupName || 'Group' : other?.name || other?.username || 'Chat';
+  const subtitle = isGroup
+    ? `${(members || []).length} members`
+    : other
+      ? `@${other.username}`
+      : '';
+
   return (
-    <div
-      className="chat-thread card"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '70vh',
-        height: '100%',
-        padding: 0,
-        overflow: 'hidden',
-      }}
-    >
+    <div className="chat-thread" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 120px)', minHeight: 420 }}>
       <div
         style={{
-          padding: 'var(--space-md) var(--space-lg)',
-          borderBottom: '1px solid var(--bg-surface-border)',
           display: 'flex',
           alignItems: 'center',
-          gap: 'var(--space-md)',
+          gap: 12,
+          padding: '0 0 var(--space-md)',
+          borderBottom: '1px solid var(--bg-surface-border)',
+          marginBottom: 'var(--space-md)',
+          position: 'relative',
         }}
       >
-        <UserAvatar className="avatar" src={other.image} name={other.name} username={other.username} />
-        <div style={{ flex: 1 }}>
-          <Link href={`/profile/${other.username}`} style={{ fontWeight: 700 }}>
-            {other.name || other.username}
-          </Link>
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-primary)' }}>
-            End-to-end encrypted{live ? ' · Live' : ''}
-          </div>
-        </div>
         <Link href="/messages" className="btn btn-ghost btn-sm">
-          Back
+          ←
         </Link>
+        {isGroup ? (
+          <button
+            type="button"
+            onClick={() => setShowGroupPanel((v) => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, flex: 1, minWidth: 0, textAlign: 'left' }}
+          >
+            <div className="avatar" style={{ width: 40, height: 40, overflow: 'hidden', borderRadius: '50%', flexShrink: 0 }}>
+              {groupImageUrl ? (
+                <img src={groupImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                (groupName || 'G').charAt(0).toUpperCase()
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700 }}>{title}</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{subtitle} · tap to manage</div>
+            </div>
+          </button>
+        ) : (
+          <>
+            {other && (
+              <Link href={`/profile/${other.username}`}>
+                <UserAvatar className="avatar" style={{ width: 40, height: 40 }} src={other.image} name={other.name} username={other.username} />
+              </Link>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700 }}>{title}</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{subtitle}</div>
+            </div>
+          </>
+        )}
+        <ReportButton
+          targetType="CONVERSATION"
+          targetId={conversationId}
+          reportedUserId={isGroup ? undefined : other?.id}
+          chatLog={buildChatLog}
+          label="Report"
+        />
+        {isGroup && showGroupPanel && (
+          <GroupManagePanel
+            conversationId={conversationId}
+            groupName={groupName || 'Group'}
+            groupImageUrl={groupImageUrl || null}
+            members={members || []}
+            myUserId={myUserId}
+            myRole={myRole || null}
+            groupKey={groupKey}
+            onClose={() => setShowGroupPanel(false)}
+          />
+        )}
       </div>
 
       <div
@@ -454,127 +655,144 @@ export default function ChatThread({
           if (!el) return;
           stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: 'var(--space-lg)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-        }}
+        style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 8 }}
       >
         {!ready && (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Unlocking secure keys…</p>
         )}
         {setupError && (
-          <p
-            role="status"
-            style={{ color: 'var(--text-muted)', textAlign: 'center', fontSize: 'var(--text-sm)' }}
-          >
+          <p role="status" style={{ color: 'var(--text-muted)', textAlign: 'center', fontSize: 'var(--text-sm)' }}>
             {setupError}
           </p>
         )}
+
         {messages.map((m) => {
           if (m.kind === 'SYSTEM') {
-            let invite: { forumName?: string; forumSlug?: string } | null = null;
+            let payload: Record<string, unknown> | null = null;
             try {
-              invite = m.systemPayload ? JSON.parse(m.systemPayload) : null;
+              payload = m.systemPayload ? JSON.parse(m.systemPayload) : null;
             } catch {
-              invite = null;
+              payload = null;
             }
-            const mine = m.senderId === myUserId;
+            if (payload?.type === 'PROFILE_SHARE' && typeof payload.username === 'string') {
+              return (
+                <div key={m.id} style={{ alignSelf: 'center', maxWidth: 'min(420px, 92%)', width: '100%' }}>
+                  <MessageContent plain={JSON.stringify(payload)} />
+                </div>
+              );
+            }
+            if (payload?.type === 'FORUM_INVITE') {
+              return (
+                <div
+                  key={m.id}
+                  style={{
+                    alignSelf: 'center',
+                    maxWidth: 'min(480px, 92%)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 12,
+                    background: 'rgba(34, 197, 94, 0.08)',
+                    border: '1px solid rgba(34, 197, 94, 0.25)',
+                    textAlign: 'center',
+                  }}
+                >
+                  <p style={{ margin: 0, fontSize: 'var(--text-sm)' }}>
+                    Forum invite: <strong>{String(payload.forumName || 'Forum')}</strong>
+                  </p>
+                  {typeof payload.forumSlug === 'string' && (
+                    <Link href={`/forums/${payload.forumSlug}`} className="btn btn-primary btn-sm" style={{ marginTop: 10 }}>
+                      Open forum
+                    </Link>
+                  )}
+                </div>
+              );
+            }
             return (
-              <div
-                key={m.id}
-                style={{
-                  alignSelf: 'center',
-                  maxWidth: 'min(480px, 92%)',
-                  width: '100%',
-                  padding: '0.75rem 1rem',
-                  borderRadius: 12,
-                  background: 'rgba(34, 197, 94, 0.08)',
-                  border: '1px solid rgba(34, 197, 94, 0.25)',
-                  textAlign: 'center',
-                }}
-              >
-                <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                  {mine ? 'You invited them to' : `${other.name || other.username} invited you to`}{' '}
-                  <strong>{invite?.forumName || 'a forum'}</strong>
-                </p>
-                {invite?.forumSlug && (
-                  <Link
-                    href={`/forums/${invite.forumSlug}`}
-                    className="btn btn-primary btn-sm"
-                    style={{ marginTop: 10 }}
-                  >
-                    Open forum
-                  </Link>
-                )}
-              </div>
+              <p key={m.id} style={{ alignSelf: 'center', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                {payload?.type === 'GROUP_CREATED' ? `Group “${String(payload.name || '')}” created` : 'System message'}
+              </p>
             );
           }
 
           const mine = m.senderId === myUserId;
           const pending = m.id.startsWith('local-');
-          const edited = !!m.editedAt;
+          const sender = m.sender || memberById(m.senderId);
           const canEdit =
-            mine &&
-            !pending &&
-            Date.now() - toMs(m.createdAt) <= 24 * 60 * 60 * 1000;
+            mine && !pending && Date.now() - toMs(m.createdAt) <= 24 * 60 * 60 * 1000;
+
           return (
             <div
               key={m.id}
-              className={`chat-bubble${mine ? ' is-mine' : ''}${editingId === m.id ? ' is-editing' : ''}`}
               style={{
+                display: 'flex',
+                flexDirection: mine ? 'row-reverse' : 'row',
+                gap: 8,
+                alignItems: 'flex-end',
                 alignSelf: mine ? 'flex-end' : 'flex-start',
-                maxWidth: 'min(520px, 85%)',
-                padding: '0.65rem 0.9rem',
-                borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                background: mine ? 'rgba(0, 229, 160, 0.18)' : 'var(--bg-surface-hover)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                opacity: pending ? 0.75 : 1,
+                maxWidth: 'min(560px, 92%)',
               }}
             >
+              {!mine && (
+                <Link href={sender ? `/profile/${sender.username}` : '#'} style={{ flexShrink: 0 }}>
+                  <UserAvatar
+                    className="avatar"
+                    style={{ width: 28, height: 28, fontSize: '0.7rem' }}
+                    src={sender?.image}
+                    name={sender?.name}
+                    username={sender?.username || '?'}
+                  />
+                </Link>
+              )}
               <div
+                className={`chat-bubble${mine ? ' is-mine' : ''}`}
                 style={{
-                  fontSize: 'var(--text-sm)',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
+                  padding: '0.65rem 0.9rem',
+                  borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                  background: mine ? 'rgba(0, 229, 160, 0.18)' : 'var(--bg-surface-hover)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  opacity: pending ? 0.75 : 1,
+                  minWidth: 0,
                 }}
               >
-                {plainById[m.id] ?? '…'}
-              </div>
-              <div
-                className="chat-bubble-meta"
-                style={{
-                  fontSize: '0.65rem',
-                  color: 'var(--text-muted)',
-                  marginTop: 4,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: mine ? 'flex-end' : 'flex-start',
-                  gap: 6,
-                  flexWrap: 'wrap',
-                }}
-              >
-                {edited && <span>Edited</span>}
-                <span>
-                  {new Date(m.createdAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-                {mine && <MessageTicks pending={pending} read={!!m.readAt} />}
-                {canEdit && (
-                  <button
-                    type="button"
-                    className="chat-edit-btn"
-                    onClick={() => startEdit(m)}
-                    disabled={sending}
-                  >
-                    Edit
-                  </button>
+                {isGroup && !mine && sender && (
+                  <div style={{ fontSize: '0.7rem', color: 'var(--accent-primary)', marginBottom: 4, fontWeight: 600 }}>
+                    {sender.name || sender.username}
+                  </div>
                 )}
+                <div style={{ fontSize: 'var(--text-sm)' }}>
+                  {plainById[m.id] ? <MessageContent plain={plainById[m.id]} /> : '…'}
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.65rem',
+                    color: 'var(--text-muted)',
+                    marginTop: 4,
+                    display: 'flex',
+                    gap: 6,
+                    justifyContent: mine ? 'flex-end' : 'flex-start',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                  }}
+                >
+                  {!!m.editedAt && <span>Edited</span>}
+                  <span>
+                    {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  {mine && <MessageTicks pending={pending} read={!!m.readAt} />}
+                  {canEdit && (
+                    <button type="button" className="chat-edit-btn" onClick={() => startEdit(m)} disabled={sending}>
+                      Edit
+                    </button>
+                  )}
+                  {!mine && (
+                    <ReportButton
+                      targetType="MESSAGE"
+                      targetId={m.id}
+                      reportedUserId={m.senderId}
+                      chatLog={buildChatLog}
+                      label="Report"
+                    />
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -582,69 +800,84 @@ export default function ChatThread({
         <div ref={bottomRef} />
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: 'flex',
-          gap: 8,
-          padding: 'var(--space-md)',
-          borderTop: '1px solid var(--bg-surface-border)',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-        }}
-      >
-        {editingId && (
-          <div
-            style={{
-              width: '100%',
-              fontSize: 'var(--text-xs)',
-              color: 'var(--accent-primary)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+      <form onSubmit={handleSubmit} style={{ position: 'relative', marginTop: 8 }}>
+        {showGifs && (
+          <GifPicker
+            onClose={() => setShowGifs(false)}
+            onSelect={async (gif) => {
+              setShowGifs(false);
+              await sendPlaintext(
+                JSON.stringify({
+                  type: 'GIF',
+                  url: gif.url,
+                  previewUrl: gif.previewUrl,
+                  giphyId: gif.id,
+                }),
+                'MEDIA'
+              );
             }}
+          />
+        )}
+        {sendError && (
+          <p style={{ color: '#eb5757', fontSize: 'var(--text-xs)', marginBottom: 6 }}>{sendError}</p>
+        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            hidden
+            onChange={(e) => onPickImage(e.target.files?.[0] || null)}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={!ready || sending || uploading}
+            onClick={() => fileRef.current?.click()}
+            title="Attach image"
           >
-            <span>Editing message</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={cancelEdit}>
+            {uploading ? '…' : 'Img'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={!ready || sending}
+            onClick={() => setShowGifs((v) => !v)}
+            title="GIF"
+          >
+            GIF
+          </button>
+          <input
+            ref={inputRef}
+            className="input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={editingId ? 'Edit message…' : 'Message… https:// links work'}
+            disabled={!ready || sending}
+            style={{ flex: 1 }}
+          />
+          {editingId && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setEditingId(null);
+                setDraft('');
+              }}
+            >
               Cancel
             </button>
-          </div>
+          )}
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!ready || sending || !draft.trim()}>
+            {editingId ? 'Save' : 'Send'}
+          </button>
+        </div>
+        {isGroup && myRole && (
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 6 }}>
+            You are {myRole.toLowerCase()} of this group
+          </p>
         )}
-        <input
-          ref={inputRef}
-          className="input"
-          style={{ flex: 1, minWidth: 0 }}
-          placeholder={
-            peerPublicKey
-              ? editingId
-                ? 'Edit your message…'
-                : 'Write a message…'
-              : 'Waiting for their encryption key…'
-          }
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          disabled={!peerPublicKey || !ready}
-          maxLength={4000}
-        />
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={sending || !draft.trim() || !peerPublicKey || !ready}
-        >
-          {editingId ? 'Save' : 'Send'}
-        </button>
       </form>
-      {sendError && (
-        <p
-          style={{
-            color: 'var(--danger)',
-            fontSize: 'var(--text-xs)',
-            padding: '0 var(--space-md) var(--space-md)',
-          }}
-        >
-          {sendError}
-        </p>
-      )}
     </div>
   );
 }

@@ -68,6 +68,9 @@ export function sniffImageMime(buffer: Buffer): { mime: string; ext: string } | 
   ) {
     return { mime: 'image/webp', ext: 'webp' };
   }
+  if (buffer.toString('ascii', 0, 3) === 'GIF' && buffer[3] === 0x38) {
+    return { mime: 'image/gif', ext: 'gif' };
+  }
 
   return null;
 }

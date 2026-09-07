@@ -20,16 +20,24 @@ export default async function ConversationPage({
   const result = await getConversation(conversationId);
   if (!result.success || !result.conversation) notFound();
 
+  const c = result.conversation;
+
   return (
     <SessionProvider>
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
         <ChatThread
-          conversationId={result.conversation.id}
+          conversationId={c.id}
           myUserId={session.user.id}
-          other={result.conversation.other}
-          initialMessages={result.conversation.messages}
+          type={c.type}
+          other={c.other}
+          groupName={c.name}
+          groupImageUrl={c.imageUrl}
+          members={c.members}
+          wrappedGroupKey={c.wrappedGroupKey}
+          myRole={c.myRole}
+          initialMessages={c.messages}
         />
       </main>
     </SessionProvider>

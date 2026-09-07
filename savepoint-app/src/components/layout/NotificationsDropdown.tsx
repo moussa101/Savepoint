@@ -188,6 +188,10 @@ export default function NotificationsDropdown() {
                   icon = <MessageIcon size={16} color="var(--accent-primary)" />;
                   text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> sent you a message</>;
                   link = n.conversationId ? `/messages/${n.conversationId}` : '/messages';
+                } else if (n.type === 'GROUP_MESSAGE') {
+                  icon = <ForumIcon size={16} color="var(--accent-primary)" />;
+                  text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> messaged a group you’re in</>;
+                  link = n.conversationId ? `/messages/${n.conversationId}` : '/messages';
                 } else if (n.type === 'LIST_LIKE') {
                   icon = <StarIcon size={16} color="var(--star-gold)" />;
                   text = <><span style={{ fontWeight: 600 }}>{n.source?.name || n.source?.username}</span> liked your list</>;

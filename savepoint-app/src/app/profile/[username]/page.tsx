@@ -9,6 +9,7 @@ import FollowButton from '@/components/ui/FollowButton';
 import EditProfileWrapper from '@/components/profile/EditProfileWrapper';
 import ReportButton from '@/components/ui/ReportButton';
 import ProfileFriendActions from '@/components/ui/ProfileFriendActions';
+import ShareProfileButton from '@/components/profile/ShareProfileButton';
 import { STATUS_LABELS, STATUS_COLORS } from '@/lib/utils';
 import type { GameStatus } from '@/lib/utils';
 import { GamepadIcon, CheckCircleIcon, StarIcon, EditIcon, LockIcon, ListIcon } from '@/components/ui/Icons';
@@ -450,6 +451,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                   <FollowButton targetUserId={user.id} isFollowing={isFollowing} isLoggedIn={!!session?.user} />
                   {session?.user && (
                     <ProfileFriendActions targetUserId={user.id} relation={friendshipRelation} />
+                  )}
+                  {session?.user && (
+                    <ShareProfileButton profileUserId={user.id} profileUsername={user.username} />
                   )}
                   {session?.user && <ReportButton targetType="PROFILE" targetId={user.id} reportedUserId={user.id} />}
                 </>

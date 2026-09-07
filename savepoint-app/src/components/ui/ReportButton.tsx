@@ -15,13 +15,21 @@ const REASONS = [
 ];
 
 interface ReportButtonProps {
-  targetType: 'REVIEW' | 'COMMENT' | 'PROFILE' | 'LIST' | 'FORUM' | 'FORUM_TOPIC' | 'FORUM_REPLY';
+  targetType: 'REVIEW' | 'COMMENT' | 'PROFILE' | 'LIST' | 'FORUM' | 'FORUM_TOPIC' | 'FORUM_REPLY' | 'CONVERSATION' | 'MESSAGE';
   targetId: string;
   reportedUserId?: string;
+  /** Decrypted transcript (string or lazy builder) for MESSAGE/CONVERSATION reports. */
+  chatLog?: string | (() => string);
   label?: string;
 }
 
-export default function ReportButton({ targetType, targetId, reportedUserId, label = 'Report' }: ReportButtonProps) {
+export default function ReportButton({
+  targetType,
+  targetId,
+  reportedUserId,
+  chatLog,
+  label = 'Report',
+}: ReportButtonProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [reason, setReason] = useState('SPAM');
@@ -31,7 +39,6 @@ export default function ReportButton({ targetType, targetId, reportedUserId, lab
 
   useEffect(() => setMounted(true), []);
 
-  // Lock body scroll and support Escape-to-close while the modal is open.
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -49,12 +56,15 @@ export default function ReportButton({ targetType, targetId, reportedUserId, lab
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
+      const log =
+        typeof chatLog === 'function' ? chatLog() : typeof chatLog === 'string' ? chatLog : undefined;
       const result = await createReport({
         targetType,
         targetId,
         reason,
         details,
         reportedUserId,
+        chatLog: log,
       });
       if (result.success) {
         setMessage('Report submitted. Thanks for helping keep Savepoint safe.');
@@ -68,6 +78,9 @@ export default function ReportButton({ targetType, targetId, reportedUserId, lab
       }
     });
   }
+
+  const attachesChat =
+    (targetType === 'CONVERSATION' || targetType === 'MESSAGE') && !!chatLog;
 
   return (
     <>
@@ -102,6 +115,11 @@ export default function ReportButton({ targetType, targetId, reportedUserId, lab
                     style={{ minHeight: '90px' }}
                   />
                 </div>
+                {attachesChat && (
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>
+                    A decrypted copy of this chat (visible on your device) will be sent to moderators for review.
+                  </p>
+                )}
                 {message && (
                   <p style={{ fontSize: 'var(--text-sm)', color: message.includes('Thanks') ? 'var(--status-completed)' : 'var(--danger)' }}>
                     {message}

@@ -9,7 +9,7 @@ export default async function AdminReportsPage() {
     where: { status: 'OPEN' },
     include: {
       reporter: { select: { username: true, name: true } },
-      reportedUser: { select: { username: true, name: true } },
+      reportedUser: { select: { username: true, name: true, email: true } },
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
