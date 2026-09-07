@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import Link from 'next/link';
 import { StarIcon } from '@/components/ui/Icons';
+
+function Chevron({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {dir === 'left' ? <polyline points="15 18 9 12 15 6" /> : <polyline points="9 18 15 12 9 6" />}
+    </svg>
+  );
+}
 
 export type HeroGame = {
   id: number | string;
@@ -23,82 +31,117 @@ function artUrl(game: HeroGame, size: '1080p' | 'screenshot_med' | 'cover_big' =
 export default function GamesHeroCarousel({ games }: { games: HeroGame[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Per-game fit: landscape banners fill the box (cover), portrait/square stay uncropped (contain).
+  const [fits, setFits] = useState<Record<string, 'cover' | 'contain'>>({});
   const stripRef = useRef<HTMLDivElement>(null);
 
+  const total = games.length;
+
+  const applyFit = (id: string | number, img: HTMLImageElement | null) => {
+    if (!img || !img.naturalWidth || !img.naturalHeight) return;
+    const fit: 'cover' | 'contain' = img.naturalWidth >= img.naturalHeight * 1.2 ? 'cover' : 'contain';
+    setFits((prev) => (prev[id] === fit ? prev : { ...prev, [id]: fit }));
+  };
+
+  const handleArtLoad = (id: string | number) => (e: SyntheticEvent<HTMLImageElement>) => {
+    applyFit(id, e.currentTarget);
+  };
+
   useEffect(() => {
-    if (!games.length || paused) return;
+    if (total < 2 || paused) return;
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % games.length);
+      setCurrentIndex((prev) => (prev + 1) % total);
     }, 6500);
     return () => clearInterval(interval);
-  }, [games, paused]);
+  }, [total, paused]);
 
   useEffect(() => {
     const el = stripRef.current?.querySelector<HTMLElement>(`[data-hero-thumb="${currentIndex}"]`);
     el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [currentIndex]);
 
-  if (!games.length) return null;
+  if (!total) return null;
 
   const active = games[currentIndex];
-  const bg = artUrl(active, '1080p');
+  const go = (dir: number) => setCurrentIndex((prev) => (prev + dir + total) % total);
 
   return (
     <section
-      className="discover-hero"
+      className="hero-spot"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       aria-roledescription="carousel"
       aria-label="Featured games"
     >
-      <div className="discover-hero-stage">
+      <div className="hero-spot-stage">
         {games.map((game, index) => {
           const imageUrl = artUrl(game, '1080p');
           const isActive = index === currentIndex;
+          const bg = imageUrl ? `url('${imageUrl}')` : undefined;
+          const fit = fits[game.id] || 'contain';
           return (
             <div
               key={game.id}
-              className={`discover-hero-slide${isActive ? ' is-active' : ''}`}
+              className={`hero-spot-slide${isActive ? ' is-active' : ''}`}
               aria-hidden={!isActive}
             >
-              <div
-                className="discover-hero-bg"
-                style={{ backgroundImage: imageUrl ? `url('${imageUrl}')` : undefined }}
-              />
+              <div className="hero-spot-fill" style={{ backgroundImage: bg }} />
+              {imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  className="hero-spot-art"
+                  data-fit={fit}
+                  src={imageUrl}
+                  alt=""
+                  decoding="async"
+                  loading={index < 3 ? 'eager' : 'lazy'}
+                  ref={(el) => {
+                    if (el && el.complete) applyFit(game.id, el);
+                  }}
+                  onLoad={handleArtLoad(game.id)}
+                />
+              )}
             </div>
           );
         })}
 
-        <div className="discover-hero-veil discover-hero-veil-x" />
-        <div className="discover-hero-veil discover-hero-veil-y" />
+        <div className="hero-spot-scrim" />
 
-        <div className="discover-hero-copy container">
-          <p className="discover-hero-kicker">Spotlight</p>
-          <h2 className="discover-hero-title font-display">{active.name}</h2>
-          {active.summary && (
-            <p className="discover-hero-summary">{active.summary}</p>
-          )}
-          <div className="discover-hero-actions">
+        <div className="hero-spot-copy">
+          <p className="hero-spot-kicker">
+            <span className="hero-spot-dot" /> Spotlight
+          </p>
+          <h2 className="hero-spot-title font-display">{active.name}</h2>
+          {active.summary && <p className="hero-spot-summary">{active.summary}</p>}
+          <div className="hero-spot-actions">
             <Link href={`/games/${active.slug}`} className="btn btn-primary">
               View Game
             </Link>
             {active.total_rating != null && active.total_rating > 0 && (
-              <span className="discover-hero-rating">
-                <StarIcon size={16} color="var(--star-gold)" />
+              <span className="hero-spot-rating">
+                <StarIcon size={18} color="var(--star-gold)" />
                 {(active.total_rating / 10).toFixed(1)}
               </span>
             )}
           </div>
         </div>
+
+        {total > 1 && (
+          <div className="hero-spot-nav" aria-hidden={false}>
+            <button type="button" className="hero-spot-arrow" onClick={() => go(-1)} aria-label="Previous game">
+              <Chevron dir="left" />
+            </button>
+            <button type="button" className="hero-spot-arrow" onClick={() => go(1)} aria-label="Next game">
+              <Chevron dir="right" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Scrolling menu / filmstrip */}
-      <div className="discover-hero-strip-wrap">
-        <div className="discover-hero-strip-fade discover-hero-strip-fade-left" aria-hidden />
-        <div className="discover-hero-strip-fade discover-hero-strip-fade-right" aria-hidden />
-        <div className="discover-hero-strip" ref={stripRef} role="tablist" aria-label="Featured game picker">
+      {total > 1 && (
+        <div className="hero-spot-strip" ref={stripRef} role="tablist" aria-label="Featured game picker">
           {games.map((game, idx) => {
-            const thumb = artUrl(game, 'cover_big') || artUrl(game, 'screenshot_med');
+            const thumb = artUrl(game, 'cover_big') || artUrl(game, '1080p');
             const selected = idx === currentIndex;
             return (
               <button
@@ -107,30 +150,22 @@ export default function GamesHeroCarousel({ games }: { games: HeroGame[] }) {
                 role="tab"
                 aria-selected={selected}
                 data-hero-thumb={idx}
-                className={`discover-hero-thumb${selected ? ' is-active' : ''}`}
+                className={`hero-spot-thumb${selected ? ' is-active' : ''}`}
                 onClick={() => setCurrentIndex(idx)}
+                title={game.name}
               >
-                <span className="discover-hero-thumb-media">
-                  {thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt="" loading={idx < 4 ? 'eager' : 'lazy'} decoding="async" />
-                  ) : (
-                    <span className="discover-hero-thumb-fallback" />
-                  )}
-                </span>
-                <span className="discover-hero-thumb-meta">
-                  <span className="discover-hero-thumb-name">{game.name}</span>
-                  {game.total_rating != null && game.total_rating > 0 && (
-                    <span className="discover-hero-thumb-score">
-                      {(game.total_rating / 10).toFixed(1)}
-                    </span>
-                  )}
-                </span>
+                {thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt="" loading={idx < 5 ? 'eager' : 'lazy'} decoding="async" />
+                ) : (
+                  <span className="hero-spot-thumb-fallback">{game.name}</span>
+                )}
+                <span className="hero-spot-thumb-label">{game.name}</span>
               </button>
             );
           })}
         </div>
-      </div>
+      )}
     </section>
   );
 }

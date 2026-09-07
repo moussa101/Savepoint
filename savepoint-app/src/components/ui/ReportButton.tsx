@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { createReport } from '@/app/actions/reports';
 import { AlertTriangleIcon, XIcon } from '@/components/ui/Icons';
 
@@ -22,10 +23,28 @@ interface ReportButtonProps {
 
 export default function ReportButton({ targetType, targetId, reportedUserId, label = 'Report' }: ReportButtonProps) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [reason, setReason] = useState('SPAM');
   const [details, setDetails] = useState('');
   const [message, setMessage] = useState('');
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => setMounted(true), []);
+
+  // Lock body scroll and support Escape-to-close while the modal is open.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +75,7 @@ export default function ReportButton({ targetType, targetId, reportedUserId, lab
         <AlertTriangleIcon size={14} /> {label}
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="modal animate-slide-up">
             <div className="modal-header">
@@ -97,7 +116,8 @@ export default function ReportButton({ targetType, targetId, reportedUserId, lab
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

@@ -211,9 +211,9 @@ export default async function GamesPage({
     <SessionProvider>
       <Navbar />
       <main className="main-content" style={{ padding: 'var(--space-xl)' }}>
-        {!q && heroGames.length > 0 && <GamesHeroCarousel games={heroGames} />}
-
         <div className="container container-wide">
+          {!q && heroGames.length > 0 && <GamesHeroCarousel games={heroGames} />}
+
           <h1 className="page-title font-display" style={{ marginTop: q ? 'var(--space-xl)' : 0 }}>
             Discover
           </h1>
