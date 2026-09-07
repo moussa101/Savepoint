@@ -42,12 +42,33 @@ export default function Navbar() {
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  const navLinks = [
+  const isAdmin = (session?.user as { isAdmin?: boolean } | undefined)?.isAdmin;
+
+  const guestLinks = [
     { href: '/games', label: 'Discover' },
     { href: '/lists', label: 'Lists' },
   ];
 
-  const isAdmin = (session?.user as { isAdmin?: boolean } | undefined)?.isAdmin;
+  const memberLinks = [
+    { href: '/feed', label: 'Feed' },
+    { href: '/games', label: 'Discover' },
+    { href: '/library', label: 'Library' },
+    { href: '/lists', label: 'Lists' },
+    { href: '/friends', label: 'Friends' },
+    { href: '/messages', label: 'Messages' },
+  ];
+
+  const navLinks = session && !isAdmin ? memberLinks : guestLinks;
+
+  function linkActive(href: string) {
+    if (href === '/feed') return pathname === '/feed';
+    if (href === '/games') return pathname === '/games' || pathname.startsWith('/games/');
+    if (href === '/library') return pathname === '/library' || pathname.startsWith('/library/');
+    if (href === '/lists') return pathname === '/lists' || pathname.startsWith('/lists/');
+    if (href === '/friends') return pathname.startsWith('/friends');
+    if (href === '/messages') return pathname.startsWith('/messages');
+    return pathname === href || pathname.startsWith(href);
+  }
 
   return (
     <>
@@ -80,7 +101,7 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`navbar-link ${pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href)) ? 'navbar-link-active' : ''}`}
+                className={`navbar-link ${linkActive(link.href) ? 'navbar-link-active' : ''}`}
               >
                 {link.label}
               </Link>

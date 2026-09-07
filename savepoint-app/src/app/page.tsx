@@ -176,6 +176,14 @@ export default async function LandingPage() {
 
         {/* Footer */}
         <footer style={{ borderTop: '1px solid var(--bg-surface-border)', padding: 'var(--space-xl)', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+          <p style={{ marginBottom: 'var(--space-sm)' }}>
+            <Link href="/terms" style={{ color: 'var(--text-secondary)', marginRight: 'var(--space-md)' }}>
+              Terms of Service
+            </Link>
+            <Link href="/privacy" style={{ color: 'var(--text-secondary)' }}>
+              Privacy Policy
+            </Link>
+          </p>
           <p>© 2026 Savepoint. Play. Rate. Review. Remember.</p>
         </footer>
       </main>
