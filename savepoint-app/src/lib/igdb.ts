@@ -99,3 +99,33 @@ export interface IGDBGame {
   similar_games?: IGDBGame[];
 }
 
+/** Official IGDB time-to-beat (seconds). Not from Savepoint users. */
+export type IGDBTimeToBeat = {
+  id: number;
+  game_id: number;
+  /** Rush / main-story-ish finish */
+  hastily?: number;
+  /** Typical finish with some extras */
+  normally?: number;
+  /** Completionist / 100% */
+  completely?: number;
+  count?: number;
+};
+
+export async function fetchIGDBTimeToBeat(igdbGameId: number): Promise<IGDBTimeToBeat | null> {
+  if (!igdbGameId || igdbGameId <= 0) return null;
+  try {
+    const rows = (await fetchIGDB(
+      'game_time_to_beats',
+      `fields game_id,hastily,normally,completely,count;
+       where game_id = ${igdbGameId};
+       limit 1;`,
+      { revalidate: 60 * 60 * 24 }
+    )) as IGDBTimeToBeat[];
+    return rows?.[0] ?? null;
+  } catch (err) {
+    console.error('IGDB time_to_beat failed:', err);
+    return null;
+  }
+}
+

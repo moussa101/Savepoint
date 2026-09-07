@@ -10,9 +10,10 @@ import StarRating from '@/components/ui/StarRating';
 import GameActions from './GameActions';
 import ReviewSection from './ReviewSection';
 import StorefrontLinks from '@/components/game/StorefrontLinks';
+import GameStatsBar, { GameStatsBarSkeleton } from '@/components/game/GameStatsBar';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { getIGDBImageUrl } from '@/lib/igdb';
-import { formatPlaytimeHours } from '@/lib/playtime';
+import { getGameCommunityStats } from '@/lib/game-stats';
 import { isGameUnreleased } from '@/lib/game-release';
 import { notifyReleaseWatchersForGame } from '@/lib/release-notify';
 import {
@@ -236,17 +237,6 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
                     )}
                   </span>
                 )}
-                {game.avgPlaytimeMinutes > 0 && game.playtimeSampleCount > 0 && (
-                  <span>
-                    {' '}
-                    | Avg playtime:{' '}
-                    <strong>{formatPlaytimeHours(game.avgPlaytimeMinutes)}</strong>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                      {' '}
-                      ({game.playtimeSampleCount} player{game.playtimeSampleCount !== 1 ? 's' : ''})
-                    </span>
-                  </span>
-                )}
               </div>
               <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', marginBottom: 'var(--space-sm)' }}>
                 {igdbGame.platforms?.map((p) => (
@@ -260,6 +250,10 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
               </div>
             </div>
           </div>
+
+          <Suspense fallback={<GameStatsBarSkeleton />}>
+            <GameStatsSection gameId={game.id} igdbId={game.igdbId ?? igdbGame.id} />
+          </Suspense>
 
           {/* Rating & Actions — streamed */}
           <Suspense fallback={<RatingSectionSkeleton avgRating={game.avgRating} ratingCount={game.ratingCount} />}>
@@ -309,6 +303,17 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
 /* ------------------------------------------------------------------------ */
 /* Streamed sections                                                         */
 /* ------------------------------------------------------------------------ */
+
+async function GameStatsSection({
+  gameId,
+  igdbId,
+}: {
+  gameId: string;
+  igdbId: number;
+}) {
+  const stats = await getGameCommunityStats(gameId, igdbId);
+  return <GameStatsBar stats={stats} />;
+}
 
 function buildDistribution(allRatings: { rating: number | null }[]) {
   const distribution = [0, 0, 0, 0, 0]; // 1-5 stars
