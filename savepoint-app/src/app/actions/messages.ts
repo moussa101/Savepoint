@@ -138,6 +138,64 @@ export async function getConversation(conversationId: string) {
   };
 }
 
+/** Lightweight poll for new ciphertext after a cursor (ISO createdAt). Marks inbound as read. */
+export async function pollConversationMessages(
+  conversationId: string,
+  afterCreatedAt?: string | null
+) {
+  const userId = await requireUserId();
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      userOne: { select: { id: true, e2ePublicKey: true } },
+      userTwo: { select: { id: true, e2ePublicKey: true } },
+    },
+  });
+
+  if (!conversation || (conversation.userOneId !== userId && conversation.userTwoId !== userId)) {
+    return { error: 'Conversation not found.' };
+  }
+
+  const other = conversation.userOneId === userId ? conversation.userTwo : conversation.userOne;
+  const after = afterCreatedAt ? new Date(afterCreatedAt) : null;
+  const afterValid = after && !Number.isNaN(after.getTime()) ? after : null;
+
+  // gte + client-side id dedupe so same-millisecond messages are never skipped
+  const messages = await prisma.directMessage.findMany({
+    where: {
+      conversationId,
+      ...(afterValid ? { createdAt: { gte: afterValid } } : {}),
+    },
+    orderBy: { createdAt: 'asc' },
+    take: 100,
+    select: {
+      id: true,
+      senderId: true,
+      ciphertext: true,
+      iv: true,
+      createdAt: true,
+      readAt: true,
+    },
+  });
+
+  if (messages.some((m) => m.senderId !== userId && !m.readAt)) {
+    await prisma.directMessage.updateMany({
+      where: {
+        conversationId,
+        senderId: { not: userId },
+        readAt: null,
+      },
+      data: { readAt: new Date() },
+    });
+  }
+
+  return {
+    success: true as const,
+    messages,
+    peerPublicKey: other.e2ePublicKey,
+  };
+}
+
 export async function sendEncryptedMessage(
   conversationId: string,
   ciphertext: string,

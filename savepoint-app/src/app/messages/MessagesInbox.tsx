@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getMyE2EPublicKey, publishE2EPublicKey } from '@/app/actions/messages';
+import { getMyE2EPublicKey, listConversations, publishE2EPublicKey } from '@/app/actions/messages';
 import { ensureLocalKeyPair } from '@/lib/e2e-crypto';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { MessageIcon } from '@/components/ui/Icons';
+
+const INBOX_POLL_MS = 5000;
 
 type ConversationRow = {
   id: string;
@@ -20,8 +22,13 @@ type ConversationRow = {
   };
 };
 
-export default function MessagesInbox({ conversations }: { conversations: ConversationRow[] }) {
+export default function MessagesInbox({ conversations: initial }: { conversations: ConversationRow[] }) {
   const [keyNote, setKeyNote] = useState('');
+  const [conversations, setConversations] = useState(initial);
+
+  useEffect(() => {
+    setConversations(initial);
+  }, [initial]);
 
   useEffect(() => {
     (async () => {
@@ -38,6 +45,39 @@ export default function MessagesInbox({ conversations }: { conversations: Conver
         setKeyNote('Could not initialize encryption keys in this browser.');
       }
     })();
+  }, []);
+
+  // Keep inbox order / unread badges fresh without a full page reload
+  useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
+
+    async function tick() {
+      if (cancelled || inFlight) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const next = await listConversations();
+        if (!cancelled) setConversations(next);
+      } catch {
+        // ignore transient errors
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    void tick();
+    const id = window.setInterval(tick, INBOX_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   return (

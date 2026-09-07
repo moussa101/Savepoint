@@ -1,49 +1,61 @@
-# ⟐ Savepoint
+# Savepoint (app)
 
 > **Play. Rate. Review. Remember.**
 
-Savepoint is a modern, beautifully designed social gaming platform built for gamers who want to track their gaming journey, rate and review titles, and discover their next favorite game. Think of it as Letterboxd or Spotify, but tailor-made for video games.
+Next.js application for [Savepoint](../README.md) — a social gaming platform to track your library, rate and review games, follow friends, and discover what to play next.
 
-## ✨ Features
+Screenshots of the live UI live in the [repository root README](../README.md).
 
-- **Massive Game Database**: Fully integrated with the IGDB API. Search a live catalog of over 300,000 video games in real-time.
-- **AI-Powered Recommendations**: Powered by Google Gemini (`@google/genai`), Savepoint analyzes your unique gaming taste profile to recommend highly personalized games you'll absolutely love.
-- **Advanced Authentication**: 
-  - Seamless "Continue with Google" OAuth powered by Auth.js.
-  - Bulletproof Email/Password registration with cryptographic email verification powered by Nodemailer.
-- **Zero-Egress Media Storage**: Upload custom avatars and profile banners instantly. Media is securely stored on Cloudflare R2 and served lightning-fast globally.
-- **NSFW Moderation**: All uploaded images are automatically scanned by Sightengine to keep the community safe.
-- **Glassmorphic UI**: A stunning, premium dark-mode interface with vibrant neon accents and fluid micro-animations.
+## Features
 
-## 🚀 Tech Stack
+- **IGDB catalog** — search and browse a live catalog of hundreds of thousands of games
+- **Discover** — Spotlight carousel, Trending Now rail, and personalized recommendations from your ratings and tastes
+- **Library** — Playing / Completed / Want to Play / Dropped; optional public libraries; Steam sync; community average playtime
+- **Reviews & ratings** — half-star precision, spoilers, comments, reports
+- **Social** — follows, friends, curated lists, activity feed
+- **Realtime friend chat** — end-to-end encrypted DMs (ciphertext only on the server) with live polling while a thread is open
+- **Auth** — email/password with verification, Google, Discord, Xbox (Auth.js)
+- **Media** — avatars and banners on Cloudflare R2 with Sightengine NSFW checks
+- **Admin** — user management, review moderation, report queue
+- **Unreleased games** — wishlist / notify on release (no ratings until released)
 
-- **Framework**: [Next.js 15 (App Router)](https://nextjs.org/)
-- **Language**: TypeScript
-- **Database**: PostgreSQL (via Supabase)
-- **ORM**: [Prisma](https://www.prisma.io/)
-- **Authentication**: [Auth.js (NextAuth v5)](https://authjs.dev/)
-- **Styling**: Vanilla CSS (Custom Design System)
-- **Media Storage**: AWS SDK + Cloudflare R2
-- **AI**: Google Gemini API
+## Tech stack
 
-## 🛠️ Getting Started
+| Layer | Choice |
+| --- | --- |
+| Framework | Next.js (App Router) |
+| Language | TypeScript |
+| Database | PostgreSQL (Supabase) + Prisma |
+| Auth | Auth.js (NextAuth v5) |
+| Games API | IGDB (Twitch credentials) |
+| Storage | Cloudflare R2 (AWS SDK) |
+| Styling | Vanilla CSS design system |
+
+## Getting started
 
 ### Prerequisites
-Make sure you have Node.js installed, and an active PostgreSQL database (we recommend Supabase).
+
+- Node.js 20+
+- A PostgreSQL database (Supabase recommended)
 
 ### Installation
 
-1. Clone the repository and install dependencies:
+1. Install dependencies:
+
 ```bash
 npm install
 ```
 
-2. Configure your environment variables. Copy `.env.example` to `.env` and fill in the values (see also [DEPLOY.md](./DEPLOY.md) for production):
+2. Configure environment variables:
+
 ```bash
 cp .env.example .env
 ```
 
-Required keys are documented in `.env.example`. Summary:
+Fill in the values documented in `.env.example`. For production hosting, also follow [DEPLOY.md](./DEPLOY.md).
+
+Summary of common keys:
+
 ```env
 # Database
 DATABASE_URL="your_postgres_pooler_url"
@@ -64,44 +76,56 @@ XBOX_CLIENT_SECRET=""
 # Steam library sync — https://steamcommunity.com/dev/apikey
 STEAM_WEB_API_KEY=""
 
-# Xbox library sync via OpenXBL — https://xbl.io/ (separate from Xbox login)
-OPENXBL_API_KEY=""
-
 # IGDB (Twitch) API
-TWITCH_CLIENT_ID="your_twitch_client_id"
-TWITCH_CLIENT_SECRET="your_twitch_client_secret"
+TWITCH_CLIENT_ID=""
+TWITCH_CLIENT_SECRET=""
 
-# Cloudflare R2 Storage
-R2_ACCOUNT_ID="your_r2_account_id"
-R2_ACCESS_KEY_ID="your_r2_access_key"
-R2_SECRET_ACCESS_KEY="your_r2_secret_key"
+# Cloudflare R2
+R2_ACCOUNT_ID=""
+R2_ACCESS_KEY_ID=""
+R2_SECRET_ACCESS_KEY=""
 R2_BUCKET_NAME="savepoint-assets"
-NEXT_PUBLIC_R2_PUBLIC_URL="your_r2_public_domain"
+NEXT_PUBLIC_R2_PUBLIC_URL=""
 
-# NSFW Moderation
-SIGHTENGINE_API_USER="your_sightengine_user"
-SIGHTENGINE_API_SECRET="your_sightengine_secret"
+# NSFW moderation
+SIGHTENGINE_API_USER=""
+SIGHTENGINE_API_SECRET=""
 
-# AI Recommendations
-GEMINI_API_KEY="your_gemini_api_key"
-
-# Email Verification (Gmail SMTP)
-GMAIL_USER="your_gmail_address"
-GMAIL_APP_PASSWORD="your_16_char_app_password"
+# Email (verification, resets, message alerts)
+GMAIL_USER=""
+GMAIL_APP_PASSWORD=""
 ```
 
-3. Push the Prisma schema to your database:
+3. Apply the schema and generate the Prisma client:
+
 ```bash
 npx prisma db push
 npx prisma generate
 ```
 
 4. Start the development server:
+
 ```bash
 npm run dev
 ```
 
-Visit `http://localhost:3000` to start your gaming journey!
+Visit [http://localhost:3000](http://localhost:3000).
+
+### Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Development server |
+| `npm run build` | `prisma generate` + production build |
+| `npm start` | Run the production build |
+| `npm run lint` | ESLint |
+
+## Project docs
+
+- [Root README](../README.md) — overview + screenshots
+- [DEPLOY.md](./DEPLOY.md) — production checklist and env matrix
+- [../savepoint-srs.md](../savepoint-srs.md) — product / requirements notes
 
 ---
-*© 2026 Savepoint.*
+
+© 2026 Savepoint.
