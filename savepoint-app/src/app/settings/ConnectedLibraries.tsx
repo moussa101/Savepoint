@@ -19,6 +19,8 @@ type Props = {
   xboxLinkedAt: Date | string | null;
   xboxLastSyncAt: Date | string | null;
   steamQuery?: string | null;
+  /** Xbox (OpenXBL) is opt-in until that integration is finished. */
+  showXbox?: boolean;
 };
 
 function formatWhen(value: Date | string | null) {
@@ -34,6 +36,7 @@ export default function ConnectedLibraries({
   xboxLinkedAt,
   xboxLastSyncAt,
   steamQuery,
+  showXbox = false,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -66,8 +69,8 @@ export default function ConnectedLibraries({
           const parts = [];
           if (typeof result.imported === 'number') parts.push(`${result.imported} new`);
           if (typeof result.updated === 'number') parts.push(`${result.updated} updated`);
-          if (typeof result.skipped === 'number' && result.skipped > 0) parts.push(`${result.skipped} skipped`);
-          setMessage(parts.length ? `Sync complete: ${parts.join(', ')}.` : 'Done.');
+          if (typeof result.skipped === 'number' && result.skipped > 0) parts.push(`${result.skipped} not matched`);
+          setMessage(parts.length ? `Sync complete: ${parts.join(', ')}.` : 'Library is already up to date.');
           router.refresh();
           return;
         }
@@ -94,7 +97,7 @@ export default function ConnectedLibraries({
         Connected libraries
       </h2>
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-lg)' }}>
-        Import owned games and playtime. Imported titles are marked Steam/Xbox; your manual ratings are never overwritten.
+        Import your owned games and playtime. Imported titles are tagged with their source; your manual ratings and statuses are never overwritten.
       </p>
 
       {(steamBanner || message) && (
@@ -147,13 +150,20 @@ export default function ConnectedLibraries({
             </div>
           </>
         ) : (
-          <a href="/api/auth/steam" className="btn btn-primary">
-            Connect Steam
-          </a>
+          <>
+            <a href="/api/auth/steam" className="btn btn-primary">
+              Sign in through Steam
+            </a>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>
+              You&apos;ll be sent to Steam to approve the link — we never see your Steam password. Your Steam profile
+              and “Game details” must be set to Public for the import to work.
+            </p>
+          </>
         )}
       </div>
 
       {/* Xbox */}
+      {showXbox && (
       <div
         style={{
           padding: 'var(--space-md)',
@@ -216,6 +226,7 @@ export default function ConnectedLibraries({
           Uses OpenXBL for title history. Separate from “Continue with Xbox” login.
         </p>
       </div>
+      )}
     </div>
   );
 }

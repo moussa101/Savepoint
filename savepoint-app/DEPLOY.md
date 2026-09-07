@@ -53,7 +53,7 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 
 | Variable | Feature | Status |
 |---|---|---|
-| `STEAM_WEB_API_KEY` | Steam library sync | Backend exists; Settings UI may be hidden |
+| `STEAM_WEB_API_KEY` | Steam library sync | Required — Library + Settings “Sign in through Steam” |
 | `OPENXBL_API_KEY` | Xbox library sync | Backend exists; Settings UI may be hidden |
 | `GEMINI_API_KEY` | Legacy README entry | **Unused** — recommendations are algorithmic IGDB, not Gemini |
 
@@ -66,7 +66,7 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 - [ ] **Cloudflare R2**: Bucket public URL works; CORS allows your domain if browser uploads need it
 - [ ] **Sightengine**: Account has NSFW/moderation credits
 - [ ] **Gmail**: App password for the sending account; SPF/DKIM if using custom domain later
-- [ ] **Steam** (when re-enabling UI): API key domain = production domain; OpenID return `https://YOUR_DOMAIN/api/auth/steam/callback`
+- [ ] **Steam**: set `STEAM_WEB_API_KEY` in Vercel; Steam API key domain = production domain; OpenID return `https://YOUR_DOMAIN/api/auth/steam/callback`; set `NEXTAUTH_URL`/`AUTH_URL` to that same production origin
 - [ ] **OpenXBL** (when re-enabling UI): Key valid; calls go to `https://api.xbl.io/v2/...` (no `/api` prefix)
 
 ## 4. Build & host config

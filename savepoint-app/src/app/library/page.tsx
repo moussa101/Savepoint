@@ -7,9 +7,12 @@ import Sidebar from '@/components/layout/Sidebar';
 import SessionProvider from '@/components/SessionProvider';
 import StarRating from '@/components/ui/StarRating';
 import { STATUS_LABELS, STATUS_COLORS, type GameStatus } from '@/lib/utils';
-import { GamepadIcon } from '@/components/ui/Icons';
+import { GamepadIcon, SteamIcon } from '@/components/ui/Icons';
+import SteamSyncButton from './SteamSyncButton';
 
 export const metadata = { title: 'My Library — Savepoint' };
+// Steam sync is a server action invoked from this route; allow time for big libraries.
+export const maxDuration = 60;
 
 const SHELVES: GameStatus[] = ['PLAYING', 'WANT_TO_PLAY', 'COMPLETED', 'DROPPED'];
 
@@ -32,13 +35,20 @@ export default async function LibraryPage() {
     redirect('/admin');
   }
 
-  const userGames = await prisma.userGame.findMany({
-    where: { userId: session.user.id },
-    include: {
-      game: { select: { id: true, name: true, slug: true, coverImage: true } },
-    },
-    orderBy: [{ updatedAt: 'desc' }],
-  });
+  const [userGames, steamLink] = await Promise.all([
+    prisma.userGame.findMany({
+      where: { userId: session.user.id },
+      include: {
+        game: { select: { id: true, name: true, slug: true, coverImage: true } },
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { steamId: true, steamLastSyncAt: true },
+    }),
+  ]);
+  const steamLinked = !!steamLink?.steamId;
 
   const byStatus = Object.fromEntries(
     SHELVES.map((status) => [status, userGames.filter((ug) => ug.status === status)])
@@ -64,6 +74,40 @@ export default async function LibraryPage() {
           </Link>
         </div>
 
+        {/* Steam */}
+        <div
+          className="card"
+          style={{
+            marginBottom: 'var(--space-xl)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-md)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', minWidth: 0 }}>
+            <SteamIcon size={28} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700 }}>Steam</div>
+              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                {steamLinked
+                  ? steamLink?.steamLastSyncAt
+                    ? `Last synced ${new Date(steamLink.steamLastSyncAt).toLocaleString()}`
+                    : 'Connected — run your first sync to import your games and playtime.'
+                  : 'Import your Steam games and hours played automatically.'}
+              </div>
+            </div>
+          </div>
+          {steamLinked ? (
+            <SteamSyncButton />
+          ) : (
+            <a href="/api/auth/steam" className="btn btn-primary btn-sm">
+              Sign in through Steam
+            </a>
+          )}
+        </div>
+
         {userGames.length === 0 && (
           <div className="empty-state card" style={{ marginBottom: 'var(--space-xl)' }}>
             <div className="empty-state-icon">
@@ -71,7 +115,9 @@ export default async function LibraryPage() {
             </div>
             <div className="empty-state-title">Your library is empty</div>
             <div className="empty-state-text">
-              Add games from Discover to start building your library.
+              {steamLinked
+                ? 'Hit “Sync now” above to import your Steam library, or add games from Discover.'
+                : 'Connect Steam above to import your games, or add them from Discover.'}
             </div>
             <Link href="/games" className="btn btn-primary" style={{ marginTop: 'var(--space-md)' }}>
               Discover games

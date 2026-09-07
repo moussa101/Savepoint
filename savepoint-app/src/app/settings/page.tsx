@@ -7,11 +7,19 @@ import Sidebar from '@/components/layout/Sidebar';
 import SessionProvider from '@/components/SessionProvider';
 import { UserIcon, ShieldIcon } from '@/components/ui/Icons';
 import SettingsForms from './SettingsForms';
+import ConnectedLibraries from './ConnectedLibraries';
 
 export const metadata = { title: 'Settings — Savepoint' };
+// Library syncs (server actions invoked from this route) can take longer than
+// the default serverless limit for very large Steam libraries.
+export const maxDuration = 60;
 
-export default async function SettingsPage() {
-  const session = await auth();
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ steam?: string }>;
+}) {
+  const [session, { steam: steamQuery }] = await Promise.all([auth(), searchParams]);
   if (!session) redirect('/login');
 
   const user = await prisma.user.findUnique({
@@ -72,6 +80,16 @@ export default async function SettingsPage() {
               <Link href="/forgot-password" className="btn btn-outline btn-sm">Change</Link>
             </div>
           </div>
+
+          <ConnectedLibraries
+            steamId={user.steamId}
+            steamLinkedAt={user.steamLinkedAt}
+            steamLastSyncAt={user.steamLastSyncAt}
+            xboxGamertag={user.xboxGamertag}
+            xboxLinkedAt={user.xboxLinkedAt}
+            xboxLastSyncAt={user.xboxLastSyncAt}
+            steamQuery={steamQuery ?? null}
+          />
 
           <SettingsForms
             isPrivate={user.isPrivate}
