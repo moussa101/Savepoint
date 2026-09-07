@@ -146,7 +146,9 @@ export async function pollConversationMessages(
   const userId = await requireUserId();
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    include: {
+    select: {
+      userOneId: true,
+      userTwoId: true,
       userOne: { select: { id: true, e2ePublicKey: true } },
       userTwo: { select: { id: true, e2ePublicKey: true } },
     },
@@ -164,10 +166,10 @@ export async function pollConversationMessages(
   const messages = await prisma.directMessage.findMany({
     where: {
       conversationId,
-      ...(afterValid ? { createdAt: { gte: afterValid } } : {}),
+      ...(afterValid ? { createdAt: { gt: afterValid } } : {}),
     },
     orderBy: { createdAt: 'asc' },
-    take: 100,
+    take: 50,
     select: {
       id: true,
       senderId: true,
@@ -178,15 +180,17 @@ export async function pollConversationMessages(
     },
   });
 
-  if (messages.some((m) => m.senderId !== userId && !m.readAt)) {
-    await prisma.directMessage.updateMany({
-      where: {
-        conversationId,
-        senderId: { not: userId },
-        readAt: null,
-      },
-      data: { readAt: new Date() },
-    });
+  const unreadInbound = messages.filter((m) => m.senderId !== userId && !m.readAt);
+  if (unreadInbound.length > 0) {
+    void prisma.directMessage
+      .updateMany({
+        where: {
+          id: { in: unreadInbound.map((m) => m.id) },
+          readAt: null,
+        },
+        data: { readAt: new Date() },
+      })
+      .catch(() => null);
   }
 
   return {
@@ -209,6 +213,7 @@ export async function sendEncryptedMessage(
 
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
+    select: { id: true, userOneId: true, userTwoId: true },
   });
   if (!conversation || (conversation.userOneId !== userId && conversation.userTwoId !== userId)) {
     return { error: 'Conversation not found.' };
@@ -217,10 +222,7 @@ export async function sendEncryptedMessage(
   const recipientId =
     conversation.userOneId === userId ? conversation.userTwoId : conversation.userOneId;
 
-  if (!(await areFriends(userId, recipientId))) {
-    return { error: 'You can only message friends.' };
-  }
-
+  // Membership in the conversation is enough — friends check on open already gated this.
   const message = await prisma.directMessage.create({
     data: {
       conversationId,
@@ -230,49 +232,51 @@ export async function sendEncryptedMessage(
     },
   });
 
-  await prisma.conversation.update({
-    where: { id: conversationId },
-    data: { lastMessageAt: message.createdAt },
-  });
+  // Side effects in parallel; never block the client on email / revalidation.
+  const sideEffects = Promise.all([
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: message.createdAt },
+    }),
+    prisma.user
+      .findUnique({
+        where: { id: recipientId },
+        select: {
+          email: true,
+          username: true,
+          notifyOnMessage: true,
+          emailOnMessage: true,
+        },
+      })
+      .then(async (recipient) => {
+        if (!recipient) return;
+        const sender = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { username: true, name: true },
+        });
+        if (recipient.notifyOnMessage !== false) {
+          await prisma.notification.create({
+            data: {
+              userId: recipientId,
+              type: 'MESSAGE',
+              sourceId: userId,
+              conversationId,
+            },
+          });
+        }
+        if (recipient.emailOnMessage !== false && recipient.email && sender) {
+          void sendDirectMessageEmail(
+            recipient.email,
+            sender.name || sender.username,
+            sender.username,
+            conversationId
+          ).catch(() => null);
+        }
+      }),
+  ]).catch((err) => console.error('Message side effects failed', err));
 
-  const recipient = await prisma.user.findUnique({
-    where: { id: recipientId },
-    select: {
-      email: true,
-      username: true,
-      notifyOnMessage: true,
-      emailOnMessage: true,
-    },
-  });
+  void sideEffects;
 
-  const sender = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { username: true, name: true },
-  });
-
-  if (recipient?.notifyOnMessage !== false) {
-    await prisma.notification.create({
-      data: {
-        userId: recipientId,
-        type: 'MESSAGE',
-        sourceId: userId,
-        conversationId,
-      },
-    });
-  }
-
-  if (recipient?.emailOnMessage !== false && recipient?.email && sender) {
-    // Fire-and-forget — never include plaintext (we don't have it server-side).
-    void sendDirectMessageEmail(
-      recipient.email,
-      sender.name || sender.username,
-      sender.username,
-      conversationId
-    ).catch(() => null);
-  }
-
-  revalidatePath('/messages');
-  revalidatePath(`/messages/${conversationId}`);
   return {
     success: true,
     message: {

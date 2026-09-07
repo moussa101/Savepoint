@@ -7,7 +7,7 @@ import { ensureLocalKeyPair } from '@/lib/e2e-crypto';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { MessageIcon } from '@/components/ui/Icons';
 
-const INBOX_POLL_MS = 5000;
+const INBOX_POLL_MS = 2500;
 
 type ConversationRow = {
   id: string;

@@ -7,6 +7,7 @@ import { GamepadIcon } from '@/components/ui/Icons';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import LiveSearch from '@/components/ui/LiveSearch';
 import RecommendedGames from '@/components/ui/RecommendedGames';
+import PopularWithFriends from '@/components/ui/PopularWithFriends';
 import GamesHeroCarousel from '@/components/ui/GamesHeroCarousel';
 import TrendingSpotlight from '@/components/ui/TrendingSpotlight';
 import GameFilters from '@/components/ui/GameFilters';
@@ -221,31 +222,59 @@ export default async function GamesPage({
           {!q && trendingGames.length > 0 && <TrendingSpotlight games={trendingGames} />}
 
           {!q && (
-            <Suspense
-              fallback={
-                <div className="discover-rail">
-                  <div
-                    style={{
-                      width: 220,
-                      height: 24,
-                      background: 'var(--bg-surface-hover)',
-                      borderRadius: 'var(--radius-sm)',
-                      marginBottom: 'var(--space-md)',
-                    }}
-                    className="animate-pulse"
-                  />
-                  <div className="scroll-row">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <div key={i} className="discover-rail-card landing-game-card">
-                        <div className="game-cover animate-pulse" style={{ background: 'var(--bg-surface-hover)' }} />
-                      </div>
-                    ))}
+            <>
+              <Suspense
+                fallback={
+                  <div className="discover-rail">
+                    <div
+                      style={{
+                        width: 220,
+                        height: 24,
+                        background: 'var(--bg-surface-hover)',
+                        borderRadius: 'var(--radius-sm)',
+                        marginBottom: 'var(--space-md)',
+                      }}
+                      className="animate-pulse"
+                    />
+                    <div className="scroll-row">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="discover-rail-card landing-game-card">
+                          <div className="game-cover animate-pulse" style={{ background: 'var(--bg-surface-hover)' }} />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              }
-            >
-              <RecommendedGames />
-            </Suspense>
+                }
+              >
+                <RecommendedGames />
+              </Suspense>
+
+              <Suspense
+                fallback={
+                  <div className="discover-rail">
+                    <div
+                      style={{
+                        width: 240,
+                        height: 24,
+                        background: 'var(--bg-surface-hover)',
+                        borderRadius: 'var(--radius-sm)',
+                        marginBottom: 'var(--space-md)',
+                      }}
+                      className="animate-pulse"
+                    />
+                    <div className="scroll-row">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="discover-rail-card landing-game-card">
+                          <div className="game-cover animate-pulse" style={{ background: 'var(--bg-surface-hover)' }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                }
+              >
+                <PopularWithFriends />
+              </Suspense>
+            </>
           )}
 
           <div style={{ marginBottom: 'var(--space-md)' }}>

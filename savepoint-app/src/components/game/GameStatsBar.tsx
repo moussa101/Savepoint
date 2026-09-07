@@ -25,32 +25,31 @@ export default function GameStatsBar({ stats }: { stats: GameCommunityStats }) {
 
   // Only show story-length tiles when IGDB has real data. Many FPS / live-service
   // titles never "finish", so blank estimates should stay hidden.
-  const time: StatItem[] = [
-    stats.finishPlaytimeMinutes != null
-      ? {
-          value: formatStatHours(stats.finishPlaytimeMinutes),
-          label: 'Main',
-          hint: `${timeHint} · main story / rush`,
-          accent: true,
-        }
-      : null,
-    stats.avgPlaytimeMinutes != null
-      ? {
-          value: formatStatHours(stats.avgPlaytimeMinutes),
-          label: 'Main+',
-          hint: `${timeHint} · main story + extras`,
-          accent: true,
-        }
-      : null,
-    stats.masterPlaytimeMinutes != null
-      ? {
-          value: formatStatHours(stats.masterPlaytimeMinutes),
-          label: '100%',
-          hint: `${timeHint} · completionist`,
-          accent: true,
-        }
-      : null,
-  ].filter((item): item is StatItem => item != null);
+  const time: StatItem[] = [];
+  if (stats.finishPlaytimeMinutes != null) {
+    time.push({
+      value: formatStatHours(stats.finishPlaytimeMinutes),
+      label: 'Main',
+      hint: `${timeHint} · main story / rush`,
+      accent: true,
+    });
+  }
+  if (stats.avgPlaytimeMinutes != null) {
+    time.push({
+      value: formatStatHours(stats.avgPlaytimeMinutes),
+      label: 'Main+',
+      hint: `${timeHint} · main story + extras`,
+      accent: true,
+    });
+  }
+  if (stats.masterPlaytimeMinutes != null) {
+    time.push({
+      value: formatStatHours(stats.masterPlaytimeMinutes),
+      label: '100%',
+      hint: `${timeHint} · completionist`,
+      accent: true,
+    });
+  }
 
   const items = [...shelf, ...time];
 

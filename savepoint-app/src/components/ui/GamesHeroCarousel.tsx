@@ -56,8 +56,13 @@ export default function GamesHeroCarousel({ games }: { games: HeroGame[] }) {
   }, [total, paused]);
 
   useEffect(() => {
-    const el = stripRef.current?.querySelector<HTMLElement>(`[data-hero-thumb="${currentIndex}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    const strip = stripRef.current;
+    if (!strip) return;
+    const el = strip.querySelector<HTMLElement>(`[data-hero-thumb="${currentIndex}"]`);
+    if (!el) return;
+    // Scroll only the thumbnail strip — never the page (scrollIntoView jumps to top).
+    const left = el.offsetLeft - (strip.clientWidth - el.clientWidth) / 2;
+    strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
   }, [currentIndex]);
 
   if (!total) return null;

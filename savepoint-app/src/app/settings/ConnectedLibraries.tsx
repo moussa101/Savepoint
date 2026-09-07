@@ -82,6 +82,8 @@ export default function ConnectedLibraries({
       warning?: string;
       onlineId?: string;
       xpGained?: number;
+      needsSync?: boolean;
+      trophyTitles?: number;
     }>
   ) {
     setMessage('');
@@ -95,14 +97,32 @@ export default function ConnectedLibraries({
           return;
         }
         if (result?.success) {
+          let syncExtra = result;
+          if (platform === 'psn' && result.needsSync) {
+            setMessage(
+              result.onlineId
+                ? `Linked as ${result.onlineId}. Syncing library in the background…`
+                : 'Linked. Syncing library in the background…'
+            );
+            syncExtra = await syncPsnLibrary();
+          }
           const parts = [];
           if (result.onlineId) parts.push(`Linked as ${result.onlineId}`);
-          if (typeof result.imported === 'number') parts.push(`${result.imported} new`);
-          if (typeof result.updated === 'number') parts.push(`${result.updated} updated`);
-          if (typeof result.skipped === 'number' && result.skipped > 0) parts.push(`${result.skipped} not matched`);
-          if (typeof result.xpGained === 'number' && result.xpGained > 0) parts.push(`+${result.xpGained} XP`);
+          if (typeof syncExtra.imported === 'number') parts.push(`${syncExtra.imported} new`);
+          if (typeof syncExtra.updated === 'number') parts.push(`${syncExtra.updated} updated`);
+          if (typeof syncExtra.skipped === 'number' && syncExtra.skipped > 0) {
+            parts.push(`${syncExtra.skipped} not matched`);
+          }
+          if (typeof syncExtra.xpGained === 'number' && syncExtra.xpGained > 0) {
+            parts.push(`+${syncExtra.xpGained} XP`);
+          }
           const base = parts.length ? parts.join(', ') + '.' : 'Connected successfully.';
-          setMessage(result.warning ? `${base} ${result.warning}` : base);
+          const warning = 'warning' in syncExtra ? syncExtra.warning : result.warning;
+          if (syncExtra.error) {
+            setError(syncExtra.error);
+          } else {
+            setMessage(warning ? `${base} ${warning}` : base);
+          }
           setPsnInput('');
           router.refresh();
           return;

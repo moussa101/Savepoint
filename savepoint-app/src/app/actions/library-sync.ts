@@ -33,8 +33,12 @@ import {
 
 const STEAM_SYNC_LIMIT = 500;
 const XBOX_SYNC_LIMIT = 150;
-const PSN_SYNC_LIMIT = 800;
-const PSN_TROPHY_DETAIL_LIMIT = 40;
+/** How many PSN catalog titles to match against IGDB per sync (playtime-first). */
+const PSN_IMPORT_MATCH_LIMIT = 180;
+/** Sony list fetch cap (catalog can be large; matching is capped separately). */
+const PSN_SYNC_LIMIT = 400;
+/** Per-title trophy lists are heavy — keep a tiny budget; game pages load the rest. */
+const PSN_TROPHY_DETAIL_LIMIT = 8;
 
 type ImportStatus = 'WANT_TO_PLAY' | 'PLAYING' | 'COMPLETED';
 
@@ -549,6 +553,7 @@ export async function linkPsnNpsso(formData: FormData) {
         psnAccountId: profile.accountId,
         psnOnlineId: profile.onlineId,
         psnLinkedAt: new Date(),
+        psnLastSyncAt: null,
         psnTrophyLevel: profile.trophyLevel,
         psnTrophyTier: profile.trophyTier,
         psnTrophyProgress: profile.trophyProgress,
@@ -560,27 +565,15 @@ export async function linkPsnNpsso(formData: FormData) {
       },
     });
 
-    // Import library right after linking (best-effort — sync can also be run manually).
-    const syncResult = await syncPsnLibraryForUser(userId);
-
+    // Library import runs in the background from Library/Settings — keep link fast.
     revalidatePath('/settings');
     revalidatePath('/library');
     revalidatePath('/profile', 'layout');
 
-    if (syncResult && 'error' in syncResult && syncResult.error) {
-      return {
-        success: true,
-        onlineId: profile.onlineId,
-        warning: `Linked as ${profile.onlineId}, but library sync failed: ${syncResult.error}`,
-      };
-    }
-
     return {
       success: true,
       onlineId: profile.onlineId,
-      imported: 'imported' in syncResult ? syncResult.imported : undefined,
-      updated: 'updated' in syncResult ? syncResult.updated : undefined,
-      skipped: 'skipped' in syncResult ? syncResult.skipped : undefined,
+      needsSync: true as const,
     };
   } catch (error) {
     console.error('PSN link failed:', error instanceof Error ? error.message : error);
@@ -728,41 +721,56 @@ export async function syncPsnLibraryForUser(userId: string) {
     const authorization = await getValidPsnAuthorization(userId);
     const accountId = user.psnAccountId;
 
-    // Fetch independently so one Sony endpoint timeout doesn't abort the whole sync.
-    let profile: Awaited<ReturnType<typeof fetchPsnAccountProfile>> | null = null;
-    let played: Awaited<ReturnType<typeof fetchPsnPlayedGames>> = [];
-    let ownedCatalog: Awaited<ReturnType<typeof fetchPsnOwnedCatalog>> = [];
-    let trophyTitles: Awaited<ReturnType<typeof fetchPsnTrophyTitles>> = [];
-    const fetchWarnings: string[] = [];
+    // Fetch Sony endpoints in parallel — one slow call shouldn't block the others.
+    const [profileSettled, playedSettled, ownedSettled, trophiesSettled] = await Promise.allSettled([
+      fetchPsnAccountProfile(authorization, accountId),
+      fetchPsnPlayedGames(authorization, accountId, PSN_SYNC_LIMIT),
+      fetchPsnOwnedCatalog(authorization, PSN_SYNC_LIMIT),
+      fetchPsnTrophyTitles(authorization, accountId, PSN_SYNC_LIMIT),
+    ]);
 
-    try {
-      profile = await fetchPsnAccountProfile(authorization, accountId);
-    } catch (err) {
-      console.error('PSN profile fetch failed', err);
+    const fetchWarnings: string[] = [];
+    const profile =
+      profileSettled.status === 'fulfilled' ? profileSettled.value : null;
+    if (profileSettled.status === 'rejected') {
+      console.error('PSN profile fetch failed', profileSettled.reason);
       fetchWarnings.push('profile');
     }
 
     const resolvedAccountId = profile?.accountId || accountId;
 
-    try {
-      played = await fetchPsnPlayedGames(authorization, resolvedAccountId, PSN_SYNC_LIMIT);
-    } catch (err) {
-      console.error('PSN played-games fetch failed', err);
+    // Re-fetch played/trophies with resolved account id if profile corrected it.
+    let played: Awaited<ReturnType<typeof fetchPsnPlayedGames>> =
+      playedSettled.status === 'fulfilled' ? playedSettled.value : [];
+    let ownedCatalog: Awaited<ReturnType<typeof fetchPsnOwnedCatalog>> =
+      ownedSettled.status === 'fulfilled' ? ownedSettled.value : [];
+    let trophyTitles: Awaited<ReturnType<typeof fetchPsnTrophyTitles>> =
+      trophiesSettled.status === 'fulfilled' ? trophiesSettled.value : [];
+
+    if (playedSettled.status === 'rejected') {
+      console.error('PSN played-games fetch failed', playedSettled.reason);
       fetchWarnings.push('played games');
     }
-    try {
-      // Purchased + recently played often has the full library; trophy APIs only
-      // return titles that have synced trophy data (can be a tiny subset).
-      ownedCatalog = await fetchPsnOwnedCatalog(authorization, PSN_SYNC_LIMIT);
-    } catch (err) {
-      console.error('PSN owned catalog fetch failed', err);
+    if (ownedSettled.status === 'rejected') {
+      console.error('PSN owned catalog fetch failed', ownedSettled.reason);
       fetchWarnings.push('owned games');
     }
-    try {
-      trophyTitles = await fetchPsnTrophyTitles(authorization, resolvedAccountId, PSN_SYNC_LIMIT);
-    } catch (err) {
-      console.error('PSN trophy-titles fetch failed', err);
+    if (trophiesSettled.status === 'rejected') {
+      console.error('PSN trophy-titles fetch failed', trophiesSettled.reason);
       fetchWarnings.push('trophy list');
+    }
+
+    if (resolvedAccountId !== accountId) {
+      const [played2, trophies2] = await Promise.allSettled([
+        fetchPsnPlayedGames(authorization, resolvedAccountId, PSN_SYNC_LIMIT),
+        fetchPsnTrophyTitles(authorization, resolvedAccountId, PSN_SYNC_LIMIT),
+      ]);
+      if (played2.status === 'fulfilled' && played2.value.length >= played.length) {
+        played = played2.value;
+      }
+      if (trophies2.status === 'fulfilled' && trophies2.value.length >= trophyTitles.length) {
+        trophyTitles = trophies2.value;
+      }
     }
 
     if (!played.length && !ownedCatalog.length && !trophyTitles.length) {
@@ -829,45 +837,54 @@ export async function syncPsnLibraryForUser(userId: string) {
       else if (earnedCount > 0 || (title.progress || 0) > 0) statusByName.set(key, 'PLAYING');
     }
 
+    // Match playtime-first, capped — IGDB name search is the slow part.
     const importBatch = [...importNames.values()]
-      .sort((a, b) => b.playtimeMinutes - a.playtimeMinutes)
-      .slice(0, PSN_SYNC_LIMIT);
+      .sort((a, b) => {
+        const aHint = statusByName.has(a.name.toLowerCase()) ? 1 : 0;
+        const bHint = statusByName.has(b.name.toLowerCase()) ? 1 : 0;
+        if (bHint !== aHint) return bHint - aHint;
+        return b.playtimeMinutes - a.playtimeMinutes;
+      })
+      .slice(0, PSN_IMPORT_MATCH_LIMIT);
 
     let markedCompleted = 0;
 
-    const resolved: Array<{
+    type ResolvedRow = {
       name: string;
       localId: string;
       igdbId: number;
       playtimeMinutes: number;
       trophyHint: 'PLAYING' | 'COMPLETED' | null;
-    }> = [];
+    };
 
-    for (const title of importBatch) {
-      try {
-        const igdbId = await resolveIgdbIdFromName(title.name);
-        if (!igdbId) {
-          skipped += 1;
-          continue;
+    const resolved = (
+      await mapConcurrent(importBatch, 6, async (title): Promise<ResolvedRow | null> => {
+        try {
+          const igdbId = await resolveIgdbIdFromName(title.name);
+          if (!igdbId) return null;
+          const localId = await ensureGameExistsLocally(String(igdbId));
+          return {
+            name: title.name,
+            localId,
+            igdbId,
+            playtimeMinutes: title.playtimeMinutes,
+            trophyHint: statusByName.get(title.name.toLowerCase()) || null,
+          };
+        } catch (err) {
+          console.error('PSN title sync item failed', title.name, err);
+          return null;
         }
-        const localId = await ensureGameExistsLocally(String(igdbId));
-        nameToGameId.set(title.name.toLowerCase(), localId);
-        resolved.push({
-          name: title.name,
-          localId,
-          igdbId,
-          playtimeMinutes: title.playtimeMinutes,
-          trophyHint: statusByName.get(title.name.toLowerCase()) || null,
-        });
-      } catch (err) {
-        console.error('PSN title sync item failed', title.name, err);
-        skipped += 1;
-      }
+      })
+    ).filter((r): r is ResolvedRow => !!r);
+
+    skipped += importBatch.length - resolved.length;
+    for (const row of resolved) {
+      nameToGameId.set(row.name.toLowerCase(), row.localId);
     }
 
     const ttbByIgdb = await fetchIGDBTimeToBeats(resolved.map((r) => r.igdbId));
 
-    for (const row of resolved) {
+    const upsertResults = await mapConcurrent(resolved, 8, async (row) => {
       const suggestedStatus = inferImportStatus({
         playtimeMinutes: row.playtimeMinutes,
         finishMinutes: finishMinutesFromTimeToBeat(ttbByIgdb.get(row.igdbId)),
@@ -880,41 +897,37 @@ export async function syncPsnLibraryForUser(userId: string) {
         source: 'PSN',
         suggestedStatus,
       });
-      if (result.result === 'created') imported += 1;
+      return { result: result.result, suggestedStatus, localId: row.localId };
+    });
+
+    for (const row of upsertResults) {
+      if (row.result === 'created') imported += 1;
       else updated += 1;
-      if (suggestedStatus === 'COMPLETED') markedCompleted += 1;
+      if (row.suggestedStatus === 'COMPLETED') markedCompleted += 1;
       touchedGameIds.push(row.localId);
     }
 
-    for (const title of trophyTitles) {
+    // Trophy title summaries (fast) — skip unresolved IGDB lookups here to save time.
+    await mapConcurrent(trophyTitles, 8, async (title) => {
       const cleaned = cleanPsnGameName(title.trophyTitleName);
-      let gameId = nameToGameId.get(cleaned.toLowerCase()) || null;
-      if (!gameId) {
-        try {
-          const igdbId = await resolveIgdbIdFromName(cleaned);
-          if (igdbId) {
-            gameId = await ensureGameExistsLocally(String(igdbId));
-            nameToGameId.set(cleaned.toLowerCase(), gameId);
-          }
-        } catch {
-          /* name match is best-effort */
-        }
-      }
+      const gameId = nameToGameId.get(cleaned.toLowerCase()) || null;
       await upsertPsnTitleProgress(userId, title, gameId);
-    }
+    });
 
+    // Only a few trophy detail lists during library sync; game pages auto-load the rest.
     const detailCandidates = trophyTitles
       .filter((t) => (t.progress || 0) > 0)
+      .sort((a, b) => (b.progress || 0) - (a.progress || 0))
       .slice(0, PSN_TROPHY_DETAIL_LIMIT);
 
-    for (const title of detailCandidates) {
+    await mapConcurrent(detailCandidates, 3, async (title) => {
       try {
         const merged = await fetchMergedTrophiesForTitle(authorization, title, resolvedAccountId);
         await persistMergedTrophies(userId, title.npCommunicationId, merged);
       } catch (err) {
         console.error('PSN trophy detail sync failed', title.npCommunicationId, err);
       }
-    }
+    });
 
     // If profile summary looks empty, fall back to summing synced title progress.
     let earnedBronze = profile?.earnedBronze ?? 0;

@@ -45,6 +45,7 @@ export default function PsnLibraryCard({
       onlineId?: string;
       trophyTitles?: number;
       xpGained?: number;
+      needsSync?: boolean;
     }>,
     opts?: { quiet?: boolean }
   ) {
@@ -69,6 +70,35 @@ export default function PsnLibraryCard({
           }
           if (typeof result.xpGained === 'number' && result.xpGained > 0) {
             parts.push(`+${result.xpGained} XP`);
+          }
+          // After a fast link, kick off library sync in the same transition.
+          if (result.needsSync && !opts?.quiet) {
+            setStatus({
+              kind: 'ok',
+              text: result.onlineId
+                ? `Linked as ${result.onlineId}. Syncing library…`
+                : 'Linked. Syncing library…',
+            });
+            const syncResult = await syncPsnLibrary();
+            if (syncResult?.error) {
+              setStatus({ kind: 'error', text: syncResult.error });
+              router.refresh();
+              return;
+            }
+            const syncParts: string[] = [];
+            if (typeof syncResult.imported === 'number') syncParts.push(`${syncResult.imported} added`);
+            if (typeof syncResult.updated === 'number') syncParts.push(`${syncResult.updated} updated`);
+            if (typeof syncResult.xpGained === 'number' && syncResult.xpGained > 0) {
+              syncParts.push(`+${syncResult.xpGained} XP`);
+            }
+            const syncBase = syncParts.length ? syncParts.join(', ') + '.' : 'Library synced.';
+            setStatus({
+              kind: 'ok',
+              text: syncResult.warning ? `${syncBase} ${syncResult.warning}` : syncBase,
+            });
+            setPsnInput('');
+            router.refresh();
+            return;
           }
           const base = parts.length
             ? (opts?.quiet ? `Auto-synced (${parts.join(', ')})` : parts.join(', ')) + '.'
@@ -127,9 +157,11 @@ export default function PsnLibraryCard({
             <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
               {psnOnlineId
                 ? `${psnOnlineId}${
-                    psnLastSyncAt
-                      ? ` · Auto-syncs when you open Library (last sync ${formatWhen(psnLastSyncAt)})`
-                      : ' · Connected — importing your library…'
+                    pending
+                      ? ' · Syncing library & trophies…'
+                      : psnLastSyncAt
+                        ? ` · Auto-syncs when you open Library (last sync ${formatWhen(psnLastSyncAt)})`
+                        : ' · Connected — sync will start automatically'
                   }`
                 : 'Connect PlayStation to import playtime and trophies. Library syncs automatically after connecting.'}
             </div>

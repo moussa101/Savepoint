@@ -12,6 +12,7 @@ import SteamSyncButton from './SteamSyncButton';
 import PsnLibraryCard from './PsnLibraryCard';
 import { syncSteamLibraryForUser } from '@/app/actions/library-sync';
 import { shouldAutoSyncSteam } from '@/lib/steam-sync';
+import { shouldAutoSyncPsn } from '@/lib/psn-sync';
 import { formatPlaytimeHours } from '@/lib/playtime';
 
 export const metadata = { title: 'My Library — Savepoint' };
@@ -157,6 +158,10 @@ export default async function LibraryPage({
         <PsnLibraryCard
           psnOnlineId={steamLink?.psnOnlineId ?? null}
           psnLastSyncAt={steamLink?.psnLastSyncAt ?? null}
+          autoSync={
+            !!steamLink?.psnOnlineId &&
+            shouldAutoSyncPsn(steamLink.psnLastSyncAt)
+          }
         />
 
         {userGames.length === 0 && (

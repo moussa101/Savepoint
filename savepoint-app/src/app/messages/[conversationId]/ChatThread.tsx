@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   getMyE2EPublicKey,
@@ -11,7 +11,8 @@ import {
 import { decryptMessage, encryptMessage, ensureLocalKeyPair } from '@/lib/e2e-crypto';
 import UserAvatar from '@/components/ui/UserAvatar';
 
-const POLL_MS = 2000;
+/** Poll cadence while chat is open (ms). */
+const POLL_MS = 900;
 
 type WireMessage = {
   id: string;
@@ -61,34 +62,49 @@ export default function ChatThread({
   const [plainById, setPlainById] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState(initialMessages);
-  const [pending, startTransition] = useTransition();
+  const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [live, setLive] = useState(false);
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const privateKeyRef = useRef<CryptoKey | null>(null);
   const peerKeyRef = useRef(other.e2ePublicKey);
   const knownIdsRef = useRef(new Set(initialMessages.map((m) => m.id)));
   const cursorRef = useRef<string | null>(latestCreatedAt(initialMessages));
   const pollingRef = useRef(false);
+  const stickToBottomRef = useRef(true);
 
   peerKeyRef.current = peerPublicKey;
 
+  const scrollToBottom = useCallback((smooth = false) => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    // Scroll only the chat pane — never the page.
+    if (smooth) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+    } else {
+      scroller.scrollTop = scroller.scrollHeight;
+    }
+  }, []);
+
   const decryptIncoming = useCallback(async (batch: WireMessage[], peerKey: string | null) => {
     if (!privateKeyRef.current || !peerKey || !batch.length) return {};
-    const decrypted: Record<string, string> = {};
-    for (const m of batch) {
-      try {
-        decrypted[m.id] = await decryptMessage(
-          m.ciphertext,
-          m.iv,
-          privateKeyRef.current,
-          peerKey
-        );
-      } catch {
-        decrypted[m.id] = '[Unable to decrypt on this device]';
-      }
-    }
-    return decrypted;
+    const entries = await Promise.all(
+      batch.map(async (m) => {
+        try {
+          const text = await decryptMessage(
+            m.ciphertext,
+            m.iv,
+            privateKeyRef.current!,
+            peerKey
+          );
+          return [m.id, text] as const;
+        } catch {
+          return [m.id, '[Unable to decrypt on this device]'] as const;
+        }
+      })
+    );
+    return Object.fromEntries(entries);
   }, []);
 
   const mergeMessages = useCallback(
@@ -141,22 +157,11 @@ export default function ChatThread({
           return;
         }
 
-        const decrypted: Record<string, string> = {};
-        for (const m of initialMessages) {
-          try {
-            decrypted[m.id] = await decryptMessage(
-              m.ciphertext,
-              m.iv,
-              pair.privateKey,
-              other.e2ePublicKey
-            );
-          } catch {
-            decrypted[m.id] = '[Unable to decrypt on this device]';
-          }
-        }
+        const decrypted = await decryptIncoming(initialMessages, other.e2ePublicKey);
         if (!cancelled) {
           setPlainById(decrypted);
           setReady(true);
+          requestAnimationFrame(() => scrollToBottom(false));
         }
       } catch (e) {
         if (!cancelled) {
@@ -171,11 +176,12 @@ export default function ChatThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, other.e2ePublicKey, other.username]);
 
-  // Realtime: short-interval poll while the tab is visible
+  // Realtime: tight poll while the tab is visible (chain after each tick finishes).
   useEffect(() => {
     if (!ready) return;
 
     let cancelled = false;
+    let timer: number | undefined;
 
     async function tick() {
       if (cancelled || pollingRef.current) return;
@@ -196,11 +202,13 @@ export default function ChatThread({
         // Keep the last known state; next tick retries.
       } finally {
         pollingRef.current = false;
+        if (!cancelled) {
+          timer = window.setTimeout(tick, POLL_MS);
+        }
       }
     }
 
     void tick();
-    const id = window.setInterval(tick, POLL_MS);
     const onVisible = () => {
       if (document.visibilityState === 'visible') void tick();
     };
@@ -208,40 +216,81 @@ export default function ChatThread({
 
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      if (timer) window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [ready, conversationId, mergeMessages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, plainById]);
+    if (stickToBottomRef.current) scrollToBottom(true);
+  }, [messages, plainById, scrollToBottom]);
 
-  function handleSend(e: React.FormEvent) {
+  async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || !privateKeyRef.current || !peerPublicKey) return;
+    if (!text || !privateKeyRef.current || !peerPublicKey || sending) return;
     setSendError('');
-    startTransition(async () => {
-      try {
-        const { ciphertext, iv } = await encryptMessage(text, privateKeyRef.current!, peerPublicKey);
-        const result = await sendEncryptedMessage(conversationId, ciphertext, iv);
-        if (result.error || !result.message) {
-          setSendError(result.error || 'Send failed');
-          return;
-        }
-        knownIdsRef.current.add(result.message.id);
-        const createdIso = new Date(result.message.createdAt).toISOString();
-        if (!cursorRef.current || createdIso > cursorRef.current) {
-          cursorRef.current = createdIso;
-        }
-        setMessages((prev) => [...prev, result.message!]);
-        setPlainById((prev) => ({ ...prev, [result.message!.id]: text }));
-        setDraft('');
-      } catch (err) {
-        setSendError(err instanceof Error ? err.message : 'Encryption failed');
+    setSending(true);
+    setDraft('');
+
+    const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: WireMessage = {
+      id: tempId,
+      senderId: myUserId,
+      ciphertext: '',
+      iv: '',
+      createdAt: new Date().toISOString(),
+      readAt: null,
+    };
+    knownIdsRef.current.add(tempId);
+    stickToBottomRef.current = true;
+    setMessages((prev) => [...prev, optimistic]);
+    setPlainById((prev) => ({ ...prev, [tempId]: text }));
+
+    try {
+      const { ciphertext, iv } = await encryptMessage(text, privateKeyRef.current, peerPublicKey);
+      const result = await sendEncryptedMessage(conversationId, ciphertext, iv);
+      if (result.error || !result.message) {
+        setSendError(result.error || 'Send failed');
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setPlainById((prev) => {
+          const next = { ...prev };
+          delete next[tempId];
+          return next;
+        });
+        knownIdsRef.current.delete(tempId);
+        setDraft(text);
+        return;
       }
-    });
+
+      knownIdsRef.current.delete(tempId);
+      knownIdsRef.current.add(result.message.id);
+      const createdIso = new Date(result.message.createdAt).toISOString();
+      if (!cursorRef.current || createdIso > cursorRef.current) {
+        cursorRef.current = createdIso;
+      }
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? result.message! : m))
+      );
+      setPlainById((prev) => {
+        const next = { ...prev };
+        delete next[tempId];
+        next[result.message!.id] = text;
+        return next;
+      });
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Encryption failed');
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setPlainById((prev) => {
+        const next = { ...prev };
+        delete next[tempId];
+        return next;
+      });
+      knownIdsRef.current.delete(tempId);
+      setDraft(text);
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -269,7 +318,15 @@ export default function ChatThread({
         </Link>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div
+        ref={scrollerRef}
+        onScroll={() => {
+          const el = scrollerRef.current;
+          if (!el) return;
+          stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+        style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column', gap: 10 }}
+      >
         {!ready && <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Unlocking secure keys…</p>}
         {setupError && (
           <p role="status" style={{ color: 'var(--text-muted)', textAlign: 'center', fontSize: 'var(--text-sm)' }}>
@@ -288,6 +345,7 @@ export default function ChatThread({
                 borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                 background: mine ? 'rgba(0, 229, 160, 0.18)' : 'var(--bg-surface-hover)',
                 border: '1px solid rgba(255,255,255,0.06)',
+                opacity: m.id.startsWith('local-') ? 0.75 : 1,
               }}
             >
               <div style={{ fontSize: 'var(--text-sm)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -317,10 +375,10 @@ export default function ChatThread({
           placeholder={peerPublicKey ? 'Write a message…' : 'Waiting for their encryption key…'}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          disabled={pending || !peerPublicKey || !ready}
+          disabled={!peerPublicKey || !ready}
           maxLength={4000}
         />
-        <button type="submit" className="btn btn-primary" disabled={pending || !draft.trim() || !peerPublicKey}>
+        <button type="submit" className="btn btn-primary" disabled={sending || !draft.trim() || !peerPublicKey || !ready}>
           Send
         </button>
       </form>
