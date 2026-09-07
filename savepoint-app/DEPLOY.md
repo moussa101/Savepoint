@@ -10,7 +10,8 @@ Deploy from `savepoint-app/`. Treat this as a standard Next.js Node app + Postgr
 - [ ] `./node_modules/.bin/prisma db push` (or migrate) against **production** DB
 - [ ] `./node_modules/.bin/prisma generate`
 - [ ] Generate a new strong `AUTH_SECRET` (`openssl rand -base64 32`) — do **not** reuse a local/dev secret
-- [ ] Set `NEXTAUTH_URL=https://your-domain.com` (no trailing slash) — used by email links, Steam OpenID return, Auth.js
+- [ ] Set `NEXTAUTH_URL=https://savepoint.life` (no trailing slash) — used by email links, Steam OpenID return, Auth.js
+- [ ] Set `AUTH_URL=https://savepoint.life` to the same value
 
 ## 2. Environment variables
 
@@ -23,7 +24,8 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 | `DATABASE_URL` | Prisma | Prefer Supabase **pooler** URL |
 | `DIRECT_URL` | Prisma `directUrl` | Non-pooled URL for schema push |
 | `AUTH_SECRET` | Auth.js / `src/lib/security.ts` | Also unlocks internal `/api/track` + `/api/banned-ips` |
-| `NEXTAUTH_URL` | Auth, mail, Steam | Must match public HTTPS origin |
+| `NEXTAUTH_URL` | Auth, mail, Steam | Must be `https://savepoint.life` in production |
+| `AUTH_URL` | Auth.js v5 | Same as `NEXTAUTH_URL` |
 | `TWITCH_CLIENT_ID` | IGDB via Twitch | Required for Discover / game pages / recs |
 | `TWITCH_CLIENT_SECRET` | IGDB | Same Twitch app |
 | `GMAIL_USER` | `src/lib/mail.ts` | Verification + password reset |
@@ -45,9 +47,9 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 
 | Variable | Provider | Console callback |
 |---|---|---|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google | `https://YOUR_DOMAIN/api/auth/callback/google` |
-| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord | `https://YOUR_DOMAIN/api/auth/callback/discord` |
-| `XBOX_CLIENT_ID` / `XBOX_CLIENT_SECRET` | Microsoft Entra (login only) | `https://YOUR_DOMAIN/api/auth/callback/microsoft-entra-id` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google | `https://savepoint.life/api/auth/callback/google` |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord | `https://savepoint.life/api/auth/callback/discord` |
+| `XBOX_CLIENT_ID` / `XBOX_CLIENT_SECRET` | Microsoft Entra (login only) | `https://savepoint.life/api/auth/callback/microsoft-entra-id` |
 
 ### Optional / currently UI-hidden
 
@@ -66,7 +68,7 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 - [ ] **Cloudflare R2**: Bucket public URL works; CORS allows your domain if browser uploads need it
 - [ ] **Sightengine**: Account has NSFW/moderation credits
 - [ ] **Gmail**: App password for the sending account; SPF/DKIM if using custom domain later
-- [ ] **Steam**: set `STEAM_WEB_API_KEY` in Vercel; Steam API key domain = production domain; OpenID return `https://YOUR_DOMAIN/api/auth/steam/callback`; set `NEXTAUTH_URL`/`AUTH_URL` to that same production origin
+- [ ] **Steam**: set `STEAM_WEB_API_KEY` in Vercel; Steam API key domain = `savepoint.life`; OpenID return `https://savepoint.life/api/auth/steam/callback`; set `NEXTAUTH_URL`/`AUTH_URL` to `https://savepoint.life`
 - [ ] **OpenXBL** (when re-enabling UI): Key valid; calls go to `https://api.xbl.io/v2/...` (no `/api` prefix)
 
 ## 4. Build & host config
