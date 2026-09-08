@@ -1364,26 +1364,19 @@ ul, ol {
   /* keep padding-bottom from .main-content so the tab bar never covers content */
 }
 
-/* Chat fills the viewport under the navbar so the composer sits at the bottom */
+/* Desktop chat: message list scrolls; header + composer stay put */
 .main-with-sidebar:has(.chat-thread) {
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
-  height: calc(100dvh - var(--navbar-height) - var(--safe-top));
-  max-height: calc(100dvh - var(--navbar-height) - var(--safe-top));
-  min-height: 0;
-  overflow: hidden;
-  padding-top: var(--space-md);
-  padding-bottom: var(--space-md);
+  min-height: calc(100dvh - var(--navbar-height) - var(--safe-top));
 }
 
 .chat-thread {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
+  min-height: calc(100dvh - var(--navbar-height) - var(--safe-top) - 2.5rem);
+  max-height: calc(100dvh - var(--navbar-height) - var(--safe-top) - 2.5rem);
 }
 
 .chat-thread-header {
@@ -1393,8 +1386,9 @@ ul, ol {
 .chat-thread-messages {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1403,10 +1397,8 @@ ul, ol {
 
 .chat-composer {
   flex-shrink: 0;
-  margin-top: 0;
+  margin-top: 8px;
   padding-top: 8px;
-  padding-bottom: max(4px, env(safe-area-inset-bottom));
-  background: var(--bg-primary, #0a0a0c);
 }
 
 /* Chat message ticks + edit (WhatsApp-style) */
@@ -1419,6 +1411,108 @@ ul, ol {
   font-weight: 600;
   padding: 0;
   cursor: pointer;
+}
+
+.chat-msg-menu {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 3;
+}
+
+.chat-bubble.is-mine .chat-msg-menu {
+  left: auto;
+  right: 2px;
+}
+
+.chat-msg-menu-trigger {
+  appearance: none;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-secondary);
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.chat-bubble.has-actions:hover .chat-msg-menu-trigger,
+.chat-bubble.has-actions:focus-within .chat-msg-menu-trigger,
+.chat-msg-menu.is-open .chat-msg-menu-trigger {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .chat-msg-menu-trigger {
+    opacity: 0.7;
+    pointer-events: auto;
+  }
+}
+
+.chat-msg-menu-trigger:hover,
+.chat-msg-menu.is-open .chat-msg-menu-trigger {
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text-primary);
+}
+
+.chat-msg-menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 132px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--bg-secondary, #121218);
+  border: 1px solid var(--bg-surface-border);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-bubble:not(.is-mine) .chat-msg-menu-panel {
+  right: auto;
+  left: 0;
+}
+
+.chat-msg-menu-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-msg-menu-item:hover {
+  background: var(--bg-surface-hover);
+}
+
+.chat-msg-menu-item.is-danger {
+  color: #f07178;
+}
+
+.chat-msg-menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .msg-ticks {
@@ -1813,10 +1907,16 @@ ul, ol {
     flex-shrink: 0;
   }
 
-  /* Mobile chat: one height chain — fill screen, composer pinned bottom */
+  /* Mobile chat: full-height shell — header clear of navbar, composer pinned bottom */
   .main-with-sidebar:has(.chat-thread),
   body.chat-open .main-with-sidebar:has(.chat-thread) {
-    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+    margin-top: calc(var(--navbar-height) + var(--safe-top)) !important;
+    margin-left: 0 !important;
+    padding: 0 var(--space-sm) !important;
+    padding-bottom: 0 !important;
     height: calc(100dvh - var(--navbar-height) - var(--safe-top)) !important;
     max-height: calc(100dvh - var(--navbar-height) - var(--safe-top)) !important;
     min-height: 0 !important;
@@ -1825,20 +1925,43 @@ ul, ol {
 
   .chat-thread,
   body.chat-open .chat-thread {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
     height: 100% !important;
     max-height: 100% !important;
     min-height: 0 !important;
-    padding: 0 var(--space-sm);
-    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    overflow: hidden !important;
+    padding: 0;
     border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
   }
 
   .chat-thread-header {
+    flex-shrink: 0;
     padding-top: var(--space-sm);
+    padding-bottom: var(--space-sm);
+    background: var(--bg-primary, #0a0a0c);
+  }
+
+  .chat-thread-messages {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-x: hidden;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .chat-composer {
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    flex-shrink: 0;
+    margin-top: 0;
+    padding-top: 8px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    background: var(--bg-primary, #0a0a0c);
+    border-top: 1px solid var(--bg-surface-border);
   }
 
   .group-manage-panel {
@@ -2160,10 +2283,11 @@ ul, ol {
 
   body.chat-open {
     --bottom-nav-height: 0px;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   body.chat-open .main-with-sidebar {
-    padding: 0;
     padding-bottom: 0;
     overflow: hidden;
   }

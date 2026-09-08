@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
-import { editEncryptedMessage, sendEncryptedMessage } from '@/app/actions/messages';
+import {
+  deleteEncryptedMessage,
+  editEncryptedMessage,
+  sendEncryptedMessage,
+} from '@/app/actions/messages';
 
 /**
- * Send/edit via Route Handler so Server Actions don’t remount the chat RSC tree.
+ * Send/edit/delete via Route Handler so Server Actions don’t remount the chat RSC tree.
  */
 export async function POST(
   request: Request,
@@ -11,7 +15,7 @@ export async function POST(
   const { conversationId } = await context.params;
 
   let body: {
-    action?: 'send' | 'edit';
+    action?: 'send' | 'edit' | 'delete';
     ciphertext?: string;
     iv?: string;
     kind?: 'CHAT' | 'MEDIA';
@@ -21,6 +25,14 @@ export async function POST(
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  if (body.action === 'delete') {
+    if (!body.messageId) {
+      return NextResponse.json({ error: 'Missing messageId' }, { status: 400 });
+    }
+    const result = await deleteEncryptedMessage(body.messageId);
+    return NextResponse.json(result, { status: result.error ? 400 : 200 });
   }
 
   const ciphertext = body.ciphertext || '';

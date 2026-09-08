@@ -22,6 +22,12 @@ import ReportButton from '@/components/ui/ReportButton';
 import { MessageContent } from '@/components/messages/MessageContent';
 import GifPicker from '@/components/messages/GifPicker';
 import GroupManagePanel from '@/components/messages/GroupManagePanel';
+import { EditIcon, TrashIcon } from '@/components/ui/Icons';
+import {
+  MESSAGE_DELETE_WINDOW_MS,
+  MESSAGE_EDIT_WINDOW_MS,
+  withinMessageWindow,
+} from '@/lib/message-limits';
 
 /** Poll when visible; back off when quiet. */
 const POLL_MS_ACTIVE = 4000;
@@ -46,6 +52,7 @@ type WireMessage = {
   createdAt: Date | string;
   updatedAt?: Date | string | null;
   editedAt?: Date | string | null;
+  deletedAt?: Date | string | null;
   readAt: Date | string | null;
   sender?: Sender | null;
 };
@@ -70,7 +77,7 @@ function latestSyncCursor(msgs: WireMessage[]): string | null {
   let max = 0;
   let iso: string | null = null;
   for (const m of msgs) {
-    for (const value of [m.createdAt, m.updatedAt, m.editedAt, m.readAt]) {
+    for (const value of [m.createdAt, m.updatedAt, m.editedAt, m.deletedAt, m.readAt]) {
       const t = toMs(value);
       if (t > max) {
         max = t;
@@ -104,6 +111,90 @@ function MessageTicks({ pending, read }: { pending?: boolean; read?: boolean }) 
     >
       ✓✓
     </span>
+  );
+}
+
+function OwnMessageMenu({
+  canEdit,
+  canDelete,
+  disabled,
+  onEdit,
+  onDelete,
+}: {
+  canEdit: boolean;
+  canDelete: boolean;
+  disabled?: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent | TouchEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('touchstart', onDoc);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('touchstart', onDoc);
+    };
+  }, [open]);
+
+  if (!canEdit && !canDelete) return null;
+
+  return (
+    <div className={`chat-msg-menu${open ? ' is-open' : ''}`} ref={rootRef}>
+      <button
+        type="button"
+        className="chat-msg-menu-trigger"
+        aria-label="Message options"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      >
+        ···
+      </button>
+      {open && (
+        <div className="chat-msg-menu-panel" role="menu">
+          {canEdit && (
+            <button
+              type="button"
+              role="menuitem"
+              className="chat-msg-menu-item"
+              disabled={disabled}
+              onClick={() => {
+                setOpen(false);
+                onEdit();
+              }}
+            >
+              <EditIcon size={14} />
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              role="menuitem"
+              className="chat-msg-menu-item is-danger"
+              disabled={disabled}
+              onClick={() => {
+                setOpen(false);
+                onDelete();
+              }}
+            >
+              <TrashIcon size={14} />
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -239,7 +330,7 @@ export default function ChatThread({
       if (!privateKeyRef.current || !batch.length) return {};
       const entries = await Promise.all(
         batch
-          .filter((m) => m.kind !== 'SYSTEM' && m.ciphertext && m.iv)
+          .filter((m) => m.kind !== 'SYSTEM' && !m.deletedAt && m.ciphertext && m.iv)
           .map(async (m) => {
             try {
               let text: string;
@@ -317,6 +408,7 @@ export default function ChatThread({
       cursorRef.current = advanceCursor(cursorRef.current, incoming);
       // Only redecrypt when ciphertext actually changed (not readAt bumps).
       const ciphertextChanged = updated.filter((m) => {
+        if (m.deletedAt) return false;
         const prev = existingById.get(m.id);
         if (!prev) return !!(m.ciphertext && m.iv);
         return (
@@ -326,7 +418,10 @@ export default function ChatThread({
           (prev.ciphertext !== m.ciphertext || prev.iv !== m.iv || prev.editedAt !== m.editedAt)
         );
       });
-      const toDecrypt = [...fresh, ...ciphertextChanged];
+      const toDecrypt = [
+        ...fresh.filter((m) => !m.deletedAt),
+        ...ciphertextChanged,
+      ];
       const decrypted = await decryptIncoming(toDecrypt, peerKey, gKey);
       if (fresh.length || updated.length) {
         setMessages((prev) => {
@@ -337,6 +432,14 @@ export default function ChatThread({
           }
           for (const m of fresh) byId.set(m.id, m);
           return [...byId.values()].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt));
+        });
+      }
+      const deletedIds = incoming.filter((m) => m.deletedAt).map((m) => m.id);
+      if (deletedIds.length) {
+        setPlainById((prev) => {
+          const next = { ...prev };
+          for (const id of deletedIds) delete next[id];
+          return next;
         });
       }
       if (Object.keys(decrypted).length) mergePlain(decrypted);
@@ -358,7 +461,19 @@ export default function ChatThread({
 
   useEffect(() => {
     document.body.classList.add('chat-open');
-    return () => document.body.classList.remove('chat-open');
+    const mq = window.matchMedia('(max-width: 768px)');
+    const syncOverflow = () => {
+      document.documentElement.style.overflow = mq.matches ? 'hidden' : '';
+      document.body.style.overflow = mq.matches ? 'hidden' : '';
+    };
+    syncOverflow();
+    mq.addEventListener('change', syncOverflow);
+    return () => {
+      document.body.classList.remove('chat-open');
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      mq.removeEventListener('change', syncOverflow);
+    };
   }, []);
 
   // Hydrate decrypted plaintext from IndexedDB before crypto finishes.
@@ -477,7 +592,12 @@ export default function ChatThread({
       const legacy = legacyPrivateKeyRef.current;
       const peer = peerPublicKey;
       const candidates = messagesRef.current.filter(
-        (m) => m.kind !== 'SYSTEM' && m.ciphertext && m.iv && !m.id.startsWith('local-')
+        (m) =>
+          m.kind !== 'SYSTEM' &&
+          !m.deletedAt &&
+          m.ciphertext &&
+          m.iv &&
+          !m.id.startsWith('local-')
       );
 
       const updates: { id: string; ciphertext: string; iv: string }[] = [];
@@ -697,7 +817,7 @@ export default function ChatThread({
       }
       const sender = m.sender || memberById(m.senderId);
       const who = sender?.username || m.senderId;
-      const body = plainById[m.id] || '[undecrypted]';
+      const body = m.deletedAt ? '[deleted]' : plainById[m.id] || '[undecrypted]';
       lines.push(`[${when}] @${who}: ${body}`);
     }
     return lines.join('\n').slice(0, 100_000);
@@ -714,9 +834,59 @@ export default function ChatThread({
   }
 
   function startEdit(m: WireMessage) {
+    if (m.deletedAt) return;
     setEditingId(m.id);
     setDraft(plainById[m.id] || '');
     inputRef.current?.focus();
+  }
+
+  async function deleteMessage(m: WireMessage) {
+    if (!m.id || m.id.startsWith('local-') || m.deletedAt || sending) return;
+    if (m.senderId !== myUserId) return;
+    if (!window.confirm('Delete this message for everyone? This can’t be undone.')) return;
+
+    setSending(true);
+    setSendError('');
+    const prev = m;
+    setMessages((list) =>
+      list.map((row) =>
+        row.id === m.id
+          ? { ...row, ciphertext: '', iv: '', deletedAt: new Date().toISOString() }
+          : row
+      )
+    );
+    setPlainById((p) => {
+      const next = { ...p };
+      delete next[m.id];
+      return next;
+    });
+    if (editingId === m.id) {
+      setEditingId(null);
+      setDraft('');
+    }
+
+    try {
+      const res = await fetch(`/api/messages/${conversationId}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', messageId: m.id }),
+      });
+      const result = (await res.json()) as { error?: string; message?: WireMessage };
+      if (result.error || !result.message) {
+        setSendError(result.error || 'Delete failed');
+        setMessages((list) => list.map((row) => (row.id === m.id ? prev : row)));
+        return;
+      }
+      setMessages((list) =>
+        list.map((row) => (row.id === m.id ? { ...row, ...result.message! } : row))
+      );
+      cursorRef.current = advanceCursor(cursorRef.current, [result.message]);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Delete failed');
+      setMessages((list) => list.map((row) => (row.id === m.id ? prev : row)));
+    } finally {
+      setSending(false);
+    }
   }
 
   async function sendPlaintext(text: string, kind: 'CHAT' | 'MEDIA' = 'CHAT') {
@@ -977,9 +1147,42 @@ export default function ChatThread({
 
           const mine = m.senderId === myUserId;
           const pending = m.id.startsWith('local-');
+          const deleted = !!m.deletedAt;
           const sender = m.sender || memberById(m.senderId);
           const canEdit =
-            mine && !pending && Date.now() - toMs(m.createdAt) <= 24 * 60 * 60 * 1000;
+            mine &&
+            !pending &&
+            !deleted &&
+            withinMessageWindow(m.createdAt, MESSAGE_EDIT_WINDOW_MS);
+          const canDelete =
+            mine &&
+            !pending &&
+            !deleted &&
+            withinMessageWindow(m.createdAt, MESSAGE_DELETE_WINDOW_MS);
+
+          if (deleted) {
+            return (
+              <div
+                key={m.id}
+                style={{
+                  alignSelf: mine ? 'flex-end' : 'flex-start',
+                  maxWidth: 'min(560px, 92%)',
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: 10,
+                  background: 'transparent',
+                  border: '1px dashed rgba(255,255,255,0.12)',
+                  color: 'var(--text-muted)',
+                  fontSize: 'var(--text-sm)',
+                  fontStyle: 'italic',
+                }}
+              >
+                Message deleted
+                <span style={{ marginLeft: 8, fontSize: '0.65rem', fontStyle: 'normal' }}>
+                  {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            );
+          }
 
           return (
             <div
@@ -1005,7 +1208,7 @@ export default function ChatThread({
                 </Link>
               )}
               <div
-                className={`chat-bubble${mine ? ' is-mine' : ''}`}
+                className={`chat-bubble${mine ? ' is-mine' : ''}${canEdit || canDelete ? ' has-actions' : ''}`}
                 style={{
                   padding: '0.65rem 0.9rem',
                   borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
@@ -1013,8 +1216,18 @@ export default function ChatThread({
                   border: '1px solid rgba(255,255,255,0.06)',
                   opacity: pending ? 0.75 : 1,
                   minWidth: 0,
+                  position: 'relative',
                 }}
               >
+                {(canEdit || canDelete) && (
+                  <OwnMessageMenu
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    disabled={sending}
+                    onEdit={() => startEdit(m)}
+                    onDelete={() => void deleteMessage(m)}
+                  />
+                )}
                 {isGroup && !mine && sender && (
                   <div style={{ fontSize: '0.7rem', color: 'var(--accent-primary)', marginBottom: 4, fontWeight: 600 }}>
                     {sender.name || sender.username}
@@ -1040,11 +1253,6 @@ export default function ChatThread({
                     {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   {mine && <MessageTicks pending={pending} read={!!m.readAt} />}
-                  {canEdit && (
-                    <button type="button" className="chat-edit-btn" onClick={() => startEdit(m)} disabled={sending}>
-                      Edit
-                    </button>
-                  )}
                   {!mine && (
                     <ReportButton
                       targetType="MESSAGE"

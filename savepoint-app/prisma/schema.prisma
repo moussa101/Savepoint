@@ -683,6 +683,8 @@ model DirectMessage {
   updatedAt      DateTime  @updatedAt
   /// Set when the sender replaces ciphertext (client re-encrypts).
   editedAt       DateTime?
+  /// Soft-delete — ciphertext cleared; tombstone syncs to other devices.
+  deletedAt      DateTime?
   /// When the recipient opened the chat and marked this inbound message read.
   readAt         DateTime?
 

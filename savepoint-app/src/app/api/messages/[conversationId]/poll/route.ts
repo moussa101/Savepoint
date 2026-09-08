@@ -13,6 +13,7 @@ const messageSelect = {
   createdAt: true,
   updatedAt: true,
   editedAt: true,
+  deletedAt: true,
   readAt: true,
 } as const;
 

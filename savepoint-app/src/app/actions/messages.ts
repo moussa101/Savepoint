@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { areFriends, orderedUserPair } from '@/lib/friendship';
 import { sendDirectMessageEmail } from '@/lib/mail';
+import { MESSAGE_DELETE_WINDOW_MS, MESSAGE_EDIT_WINDOW_MS } from '@/lib/message-limits';
 
 const MAX_CIPHERTEXT = 40000;
 
@@ -25,6 +26,7 @@ const messageSelect = {
   createdAt: true,
   updatedAt: true,
   editedAt: true,
+  deletedAt: true,
   readAt: true,
 } as const;
 
@@ -461,16 +463,18 @@ export async function editEncryptedMessage(
       conversationId: true,
       createdAt: true,
       kind: true,
+      deletedAt: true,
     },
   });
 
   if (!existing) return { error: 'Message not found.' };
   if (existing.senderId !== userId) return { error: 'You can only edit your own messages.' };
   if (existing.kind === 'SYSTEM') return { error: 'System messages cannot be edited.' };
+  if (existing.deletedAt) return { error: 'Deleted messages cannot be edited.' };
 
   const ageMs = Date.now() - new Date(existing.createdAt).getTime();
-  if (ageMs > 24 * 60 * 60 * 1000) {
-    return { error: 'Messages can only be edited within 24 hours.' };
+  if (ageMs > MESSAGE_EDIT_WINDOW_MS) {
+    return { error: 'Messages can only be edited within 2 hours.' };
   }
 
   const conversation = await assertConversationAccess(existing.conversationId, userId);
@@ -482,6 +486,50 @@ export async function editEncryptedMessage(
       ciphertext,
       iv,
       editedAt: new Date(),
+    },
+    select: {
+      ...messageSelect,
+      sender: { select: userLite },
+    },
+  });
+
+  return { success: true, message };
+}
+
+export async function deleteEncryptedMessage(messageId: string) {
+  const userId = await requireUserId();
+
+  const existing = await prisma.directMessage.findUnique({
+    where: { id: messageId },
+    select: {
+      id: true,
+      senderId: true,
+      conversationId: true,
+      kind: true,
+      deletedAt: true,
+      createdAt: true,
+    },
+  });
+
+  if (!existing) return { error: 'Message not found.' };
+  if (existing.senderId !== userId) return { error: 'You can only delete your own messages.' };
+  if (existing.kind === 'SYSTEM') return { error: 'System messages cannot be deleted.' };
+  if (existing.deletedAt) return { error: 'Message already deleted.' };
+
+  const ageMs = Date.now() - new Date(existing.createdAt).getTime();
+  if (ageMs > MESSAGE_DELETE_WINDOW_MS) {
+    return { error: 'Messages can only be deleted within 2 hours.' };
+  }
+
+  const conversation = await assertConversationAccess(existing.conversationId, userId);
+  if (!conversation) return { error: 'Conversation not found.' };
+
+  const message = await prisma.directMessage.update({
+    where: { id: messageId },
+    data: {
+      ciphertext: '',
+      iv: '',
+      deletedAt: new Date(),
     },
     select: {
       ...messageSelect,

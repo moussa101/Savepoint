@@ -26,6 +26,7 @@ export type CachedWireMessage = {
   createdAt: string;
   updatedAt?: string | null;
   editedAt?: string | null;
+  deletedAt?: string | null;
   readAt: string | null;
   sender?: CachedSender | null;
 };
@@ -99,6 +100,7 @@ function normalizeMessage(m: {
   createdAt: Date | string;
   updatedAt?: Date | string | null;
   editedAt?: Date | string | null;
+  deletedAt?: Date | string | null;
   readAt: Date | string | null;
   sender?: CachedSender | null;
 }): CachedWireMessage | null {
@@ -115,6 +117,7 @@ function normalizeMessage(m: {
     createdAt,
     updatedAt: toIso(m.updatedAt ?? null),
     editedAt: toIso(m.editedAt ?? null),
+    deletedAt: toIso(m.deletedAt ?? null),
     readAt: toIso(m.readAt),
     sender: m.sender
       ? {
@@ -270,18 +273,25 @@ export async function putCachedInbox(
 
 /** Merge server wire messages with cached plaintext for matching ciphertext. */
 export function applyCachedPlaintext(
-  messages: Array<{ id: string; ciphertext: string; editedAt?: Date | string | null }>,
+  messages: Array<{
+    id: string;
+    ciphertext: string;
+    editedAt?: Date | string | null;
+    deletedAt?: Date | string | null;
+  }>,
   cached: CachedThread | null
 ): Record<string, string> {
   if (!cached) return {};
   const byId = new Map(cached.messages.map((m) => [m.id, m]));
   const out: Record<string, string> = {};
   for (const m of messages) {
+    if (m.deletedAt) continue;
     const plain = cached.plainById[m.id];
     if (!plain || isPlaceholderPlain(plain)) continue;
     const prev = byId.get(m.id);
     // Reuse plaintext only if ciphertext unchanged (edits invalidate).
     if (prev && prev.ciphertext && prev.ciphertext !== m.ciphertext) continue;
+    if (prev?.deletedAt) continue;
     out[m.id] = plain;
   }
   return out;
