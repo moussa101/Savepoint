@@ -1940,9 +1940,49 @@ ul, ol {
 
   .chat-thread-header {
     flex-shrink: 0;
-    padding-top: var(--space-sm);
-    padding-bottom: var(--space-sm);
+    padding-top: 14px !important;
+    padding-bottom: 12px !important;
+    margin-bottom: 4px;
     background: var(--bg-primary, #0a0a0c);
+  }
+
+  /* Extra air under the site navbar so the chat user header isn’t cramped */
+  .chat-thread,
+  body.chat-open .chat-thread {
+    padding-top: 6px !important;
+  }
+
+  /* Keep ··· off the message text on touch */
+  .chat-bubble.has-actions.is-mine {
+    padding-right: 2rem !important;
+  }
+
+  .chat-bubble.has-actions:not(.is-mine) {
+    padding-left: 2rem !important;
+  }
+
+  .chat-msg-menu {
+    top: 6px;
+    right: 4px;
+    left: auto;
+  }
+
+  .chat-bubble:not(.is-mine) .chat-msg-menu {
+    left: 4px;
+    right: auto;
+  }
+
+  .chat-msg-menu-trigger {
+    opacity: 0.8;
+    pointer-events: auto;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.28);
+  }
+
+  .chat-msg-menu-panel {
+    top: auto;
+    bottom: calc(100% + 6px);
   }
 
   .chat-thread-messages {
