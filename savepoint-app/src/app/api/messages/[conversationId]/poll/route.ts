@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { listTyping } from '@/lib/typing-store';
 
 const messageSelect = {
   id: true,
@@ -142,5 +143,6 @@ export async function GET(
       .map((r) => ({ id: r.id, readAt: r.readAt })),
     peerPublicKey,
     wrappedGroupKey,
+    typing: listTyping(conversationId, userId),
   });
 }

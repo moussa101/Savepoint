@@ -170,10 +170,6 @@ function LoginForm() {
             <XboxSignInButton />
             <SteamSignInButton />
           </div>
-          <p className="auth-social-note">
-            Steam signs you into an existing account after you link it in Settings — Steam
-            doesn&apos;t provide an email, so it can&apos;t create a new Savepoint account.
-          </p>
 
           <p className="auth-footer">
             Don&apos;t have an account? <Link href="/register">Sign Up</Link>

@@ -69,20 +69,8 @@ export default function MessagesInbox({
   useEffect(() => {
     (async () => {
       try {
-        const { publicKeyB64 } = await ensureLocalKeyPair();
-        const res = await fetch('/api/messages/e2e-key', { cache: 'no-store' });
-        const data = res.ok ? ((await res.json()) as { publicKey?: string | null }) : null;
-        const server = data?.publicKey ?? null;
-        if (server !== publicKeyB64) {
-          await fetch('/api/messages/e2e-key', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ publicKey: publicKeyB64 }),
-          });
-          setKeyNote('Encryption keys ready on this device.');
-        } else {
-          setKeyNote('End-to-end encryption is active on this device.');
-        }
+        await ensureLocalKeyPair();
+        setKeyNote('Messages sync across your devices.');
       } catch {
         setKeyNote('Could not initialize encryption keys in this browser.');
       }

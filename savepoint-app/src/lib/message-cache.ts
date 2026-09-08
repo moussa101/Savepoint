@@ -129,6 +129,7 @@ function normalizeMessage(m: {
 
 function isPlaceholderPlain(text: string) {
   return (
+    !text ||
     text.startsWith('[Unable') ||
     text.startsWith('[Encrypted') ||
     text.startsWith('[Waiting') ||

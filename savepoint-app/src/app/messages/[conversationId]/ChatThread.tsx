@@ -25,6 +25,7 @@ import GroupManagePanel from '@/components/messages/GroupManagePanel';
 /** Poll when the tab is visible; backoff when idle so we don’t saturate the DB. */
 const POLL_MS_ACTIVE = 4000;
 const POLL_MS_IDLE = 12000;
+const TYPING_HEARTBEAT_MS = 2500;
 
 type Sender = {
   id: string;
@@ -141,6 +142,7 @@ export default function ChatThread({
   const [showGifs, setShowGifs] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showGroupPanel, setShowGroupPanel] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<{ userId: string; username: string }[]>([]);
   const keysFetchedRef = useRef(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -156,6 +158,8 @@ export default function ChatThread({
   const messagesRef = useRef(messages);
   const plainByIdRef = useRef(plainById);
   const cacheTimerRef = useRef<number | undefined>(undefined);
+  const typingHeartbeatRef = useRef<number | undefined>(undefined);
+  const typingActiveRef = useRef(false);
 
   peerKeyRef.current = peerPublicKey;
   groupKeyRef.current = groupKey;
@@ -176,6 +180,55 @@ export default function ChatThread({
     if (smooth) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
     else scroller.scrollTop = scroller.scrollHeight;
   }, []);
+
+  const notifyTyping = useCallback(
+    async (typing: boolean) => {
+      try {
+        await fetch(`/api/messages/${conversationId}/typing`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ typing }),
+          keepalive: !typing,
+        });
+      } catch {
+        /* ignore */
+      }
+    },
+    [conversationId]
+  );
+
+  const stopTyping = useCallback(() => {
+    if (typingHeartbeatRef.current) {
+      window.clearInterval(typingHeartbeatRef.current);
+      typingHeartbeatRef.current = undefined;
+    }
+    if (typingActiveRef.current) {
+      typingActiveRef.current = false;
+      void notifyTyping(false);
+    }
+  }, [notifyTyping]);
+
+  const onDraftChange = useCallback(
+    (value: string) => {
+      setDraft(value);
+      if (editingId) return;
+      const shouldType = value.trim().length > 0;
+      if (!shouldType) {
+        stopTyping();
+        return;
+      }
+      if (!typingActiveRef.current) {
+        typingActiveRef.current = true;
+        void notifyTyping(true);
+        typingHeartbeatRef.current = window.setInterval(() => {
+          void notifyTyping(true);
+        }, TYPING_HEARTBEAT_MS);
+      }
+    },
+    [editingId, notifyTyping, stopTyping]
+  );
+
+  useEffect(() => () => stopTyping(), [stopTyping]);
 
   const decryptIncoming = useCallback(
     async (batch: WireMessage[], peerKey: string | null, gKey: CryptoKey | null) => {
@@ -200,14 +253,12 @@ export default function ChatThread({
               }
               return [m.id, text] as const;
             } catch {
-              return [
-                m.id,
-                '[Encrypted — may need the original device/browser keys]',
-              ] as const;
+              // Omit failures — never overwrite good plaintext with empty/`…`.
+              return null;
             }
           })
       );
-      return Object.fromEntries(entries);
+      return Object.fromEntries(entries.filter((e): e is readonly [string, string] => !!e));
     },
     [isGroup]
   );
@@ -215,9 +266,12 @@ export default function ChatThread({
   /** Never replace good plaintext with a failure placeholder. */
   const mergePlain = useCallback((incoming: Record<string, string>) => {
     const isPlaceholder = (t: string) =>
+      !t ||
       t.startsWith('[Unable') ||
       t.startsWith('[Encrypted') ||
-      t.startsWith('[Waiting');
+      t.startsWith('[Waiting') ||
+      t === '[undecrypted]' ||
+      t === '…';
     setPlainById((prev) => {
       const next = { ...prev };
       for (const [id, text] of Object.entries(incoming)) {
@@ -339,38 +393,9 @@ export default function ChatThread({
     let cancelled = false;
     (async () => {
       try {
-        const { publicKeyB64, pair } = await ensureLocalKeyPair();
+        const { pair } = await ensureLocalKeyPair();
         if (cancelled) return;
         privateKeyRef.current = pair.privateKey;
-
-        // Unlock UI immediately — sync public key via API (avoids Server Action RSC remount).
-        void (async () => {
-          try {
-            const res = await fetch('/api/messages/e2e-key', { cache: 'no-store' });
-            if (!res.ok || cancelled) return;
-            const data = (await res.json()) as { publicKey?: string | null };
-            const serverKey = data.publicKey ?? null;
-            if (!serverKey || serverKey !== publicKeyB64) {
-              const put = await fetch('/api/messages/e2e-key', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ publicKey: publicKeyB64 }),
-              });
-              if (
-                put.ok &&
-                serverKey &&
-                serverKey !== publicKeyB64 &&
-                !cancelled
-              ) {
-                setSetupError(
-                  'This browser has new chat keys (storage was cleared or this is a new device). Older messages may stay encrypted.'
-                );
-              }
-            }
-          } catch {
-            /* non-fatal */
-          }
-        })();
 
         let gKey: CryptoKey | null = null;
         if (isGroup) {
@@ -395,8 +420,8 @@ export default function ChatThread({
           gKey
         );
         if (!cancelled) {
-          // Prefer freshly decrypted text; keep cached plaintext for anything still pending.
-          setPlainById((prev) => ({ ...prev, ...decrypted }));
+          // Merge so failed decrypts don't wipe cached plaintext.
+          mergePlain(decrypted);
           setReady(true);
           requestAnimationFrame(() => scrollToBottom(false));
         }
@@ -438,7 +463,15 @@ export default function ChatThread({
         if (!res.ok || cancelled) return;
         const result = await res.json();
         if (result.error) return;
-        gotActivity = !!(result.messages?.length || result.readReceipts?.length);
+        const typingList = Array.isArray(result.typing)
+          ? (result.typing as { userId: string; username: string }[])
+          : [];
+        setTypingUsers(typingList);
+        gotActivity = !!(
+          result.messages?.length ||
+          result.readReceipts?.length ||
+          typingList.length
+        );
 
         if (needKeys) keysFetchedRef.current = true;
 
@@ -633,6 +666,7 @@ export default function ChatThread({
       return;
     }
 
+    stopTyping();
     setDraft('');
     await sendPlaintext(text, 'CHAT');
   }
@@ -671,7 +705,7 @@ export default function ChatThread({
       : '';
 
   return (
-    <div className="chat-thread" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+    <div className="chat-thread">
       <div
         className="chat-thread-header"
         style={{
@@ -682,6 +716,7 @@ export default function ChatThread({
           borderBottom: '1px solid var(--bg-surface-border)',
           marginBottom: 'var(--space-md)',
           position: 'relative',
+          flexShrink: 0,
         }}
       >
         <Link href="/messages" className="btn btn-ghost btn-sm">
@@ -741,12 +776,12 @@ export default function ChatThread({
 
       <div
         ref={scrollerRef}
+        className="chat-thread-messages"
         onScroll={() => {
           const el = scrollerRef.current;
           if (!el) return;
           stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
-        style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 8 }}
       >
         {!ready && (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Unlocking secure keys…</p>
@@ -909,9 +944,23 @@ export default function ChatThread({
         />
       )}
 
-      <form onSubmit={handleSubmit} style={{ marginTop: 8, flexShrink: 0, paddingBottom: 'max(4px, env(safe-area-inset-bottom))' }}>
+      <form onSubmit={handleSubmit} className="chat-composer">
         {sendError && (
           <p style={{ color: '#eb5757', fontSize: 'var(--text-xs)', marginBottom: 6 }}>{sendError}</p>
+        )}
+        {typingUsers.length > 0 && (
+          <p className="chat-typing-indicator" aria-live="polite">
+            {typingUsers.length === 1
+              ? `${typingUsers[0]!.username} is typing`
+              : typingUsers.length === 2
+                ? `${typingUsers[0]!.username} and ${typingUsers[1]!.username} are typing`
+                : `${typingUsers.length} people are typing`}
+            <span className="chat-typing-dots" aria-hidden>
+              <span />
+              <span />
+              <span />
+            </span>
+          </p>
         )}
         <div className="chat-composer-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
@@ -945,7 +994,7 @@ export default function ChatThread({
             ref={inputRef}
             className="input"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => onDraftChange(e.target.value)}
             placeholder={editingId ? 'Edit message…' : 'Message…'}
             disabled={!ready || sending}
             style={{ flex: 1, minWidth: 0 }}

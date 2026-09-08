@@ -111,9 +111,10 @@ model User {
   notifyOnMessage      Boolean @default(true)
   emailOnMessage       Boolean @default(true)
 
-  // E2E messaging — public key only (private key never leaves the client)
-  e2ePublicKey       String?   @db.Text
+  // Messaging identity keys — private key backup is sealed at rest for multi-device sync
+  e2ePublicKey          String?   @db.Text
   e2ePublicKeyUpdatedAt DateTime?
+  e2ePrivateKeyBackup   String?   @db.Text
 
   // Gamification
   xp            Int       @default(0)

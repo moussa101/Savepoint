@@ -193,10 +193,6 @@ export default function RegisterPage() {
             <DiscordSignInButton />
             <XboxSignInButton />
           </div>
-          <p className="auth-social-note">
-            No Steam signup — Steam OpenID doesn&apos;t share an email. Create an account
-            here, then connect Steam from Settings or Library to sync your games.
-          </p>
 
           <p className="auth-footer">
             Already have an account? <Link href="/login">Sign In</Link>
