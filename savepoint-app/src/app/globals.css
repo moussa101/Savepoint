@@ -320,43 +320,55 @@ ul, ol {
 /* OAuth / social sign-in buttons */
 .btn-oauth {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: 48px;
-  padding: 0 1.25rem;
-  gap: 0.75rem;
+  padding: 0 1rem;
+  gap: 0.65rem;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   border: 1px solid var(--bg-surface-border);
   font-weight: 600;
   font-size: var(--text-sm);
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  justify-content: flex-start;
 }
 
 .btn-oauth:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .btn-oauth:active {
-  transform: translateY(0);
+  transform: none;
 }
 
 .btn-oauth svg,
 .btn-oauth img {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   display: block;
 }
 
 .auth-social {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-sm);
+  width: 100%;
+  min-width: 0;
 }
 
-.auth-social > *:only-child,
-.auth-social > *:nth-child(odd):last-child {
-  grid-column: 1 / -1;
+.auth-social-note {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.45;
 }
 
 /* Auth pages (login / register / forgot / reset) — keep light */
@@ -370,6 +382,7 @@ ul, ol {
   padding-top: calc(var(--space-lg) + var(--safe-top));
   padding-bottom: calc(var(--space-lg) + var(--safe-bottom));
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .auth-bg {
@@ -384,9 +397,11 @@ ul, ol {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
   margin: 0 auto;
   padding-top: var(--space-md);
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .auth-header {
@@ -405,12 +420,15 @@ ul, ol {
 
 .auth-card {
   width: 100%;
-  max-width: 380px;
+  max-width: 100%;
   margin: 0 auto;
   padding: var(--space-lg) var(--space-md);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
   border: 1px solid var(--bg-surface-border);
+  box-sizing: border-box;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .auth-card.card-glass {
@@ -1610,10 +1628,6 @@ ul, ol {
   .auth-card {
     width: 100%;
     max-width: 100%;
-  }
-
-  .auth-social {
-    grid-template-columns: 1fr;
   }
 
   /* Touch-friendly controls */

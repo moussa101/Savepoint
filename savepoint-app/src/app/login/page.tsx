@@ -170,8 +170,9 @@ function LoginForm() {
             <XboxSignInButton />
             <SteamSignInButton />
           </div>
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textAlign: 'center', marginTop: 'var(--space-sm)' }}>
-            Steam sign-in works after you connect Steam from Settings or Library — it doesn&apos;t create a new Savepoint account.
+          <p className="auth-social-note">
+            Steam signs you into an existing account after you link it in Settings — Steam
+            doesn&apos;t provide an email, so it can&apos;t create a new Savepoint account.
           </p>
 
           <p className="auth-footer">
