@@ -35,6 +35,29 @@ type Notification = {
   } | null;
 };
 
+const NOTIF_CACHE_KEY = 'sp-notif-cache-v1';
+const NOTIF_CACHE_TTL_MS = 60_000;
+
+function readNotifCache(): Notification[] | null {
+  try {
+    const raw = sessionStorage.getItem(NOTIF_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at: number; items: Notification[] };
+    if (!parsed?.at || Date.now() - parsed.at > NOTIF_CACHE_TTL_MS) return null;
+    return Array.isArray(parsed.items) ? parsed.items : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeNotifCache(items: Notification[]) {
+  try {
+    sessionStorage.setItem(NOTIF_CACHE_KEY, JSON.stringify({ at: Date.now(), items }));
+  } catch {
+    /* private mode */
+  }
+}
+
 export default function NotificationsDropdown() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -59,24 +82,37 @@ export default function NotificationsDropdown() {
 
   useEffect(() => {
     if (!notificationsOpen) return;
-    void fetchNotifications();
+    void fetchNotifications(true);
   }, [notificationsOpen]);
 
-  // Deferred so the first paint / navigation isn’t competing with this request.
+  // Hydrate from cache instantly; network only if cache is cold/stale.
   useEffect(() => {
+    const cached = readNotifCache();
+    if (cached) {
+      setNotifications(cached);
+      return;
+    }
     const t = window.setTimeout(() => {
-      if (document.visibilityState === 'visible') void fetchNotifications();
-    }, 4000);
+      if (document.visibilityState === 'visible') void fetchNotifications(false);
+    }, 8000);
     return () => window.clearTimeout(t);
   }, []);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (force = false) => {
+    if (!force) {
+      const cached = readNotifCache();
+      if (cached) {
+        setNotifications(cached);
+        return;
+      }
+    }
     try {
       setLoading(true);
       const res = await fetch('/api/notifications');
       if (res.ok) {
         const data = await res.json();
         setNotifications(data);
+        writeNotifCache(data);
       }
     } catch (e) {
       console.error('Failed to fetch notifications', e);
@@ -89,7 +125,11 @@ export default function NotificationsDropdown() {
     if (unreadCount === 0) return;
     
     // Optimistic UI
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setNotifications(prev => {
+      const next = prev.map(n => ({ ...n, isRead: true }));
+      writeNotifCache(next);
+      return next;
+    });
     
     try {
       await fetch('/api/notifications', { method: 'POST', body: JSON.stringify({}) });
@@ -103,7 +143,11 @@ export default function NotificationsDropdown() {
     if (!notification || notification.isRead) return;
     
     // Optimistic UI
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    setNotifications(prev => {
+      const next = prev.map(n => n.id === id ? { ...n, isRead: true } : n);
+      writeNotifCache(next);
+      return next;
+    });
     
     try {
       await fetch('/api/notifications', { method: 'POST', body: JSON.stringify({ notificationIds: [id] }) });

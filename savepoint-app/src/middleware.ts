@@ -77,8 +77,12 @@ function shouldTrack(req: NextRequest, pathname: string): boolean {
   // otherwise dominate the traffic log without adding signal.
   if (pathname.startsWith('/api/auth/')) return false;
   if (pathname.startsWith('/api/notifications')) return false;
+  if (pathname.startsWith('/api/messages/')) return false;
+  if (pathname.startsWith('/api/track')) return false;
   // RSC payload requests for client-side navigations are already logged as the page.
   if (req.headers.get('rsc') === '1' && req.headers.get('next-url')) return false;
+  // Sample ~15% of navigations to cut DB write load.
+  if (Math.random() > 0.15) return false;
   return true;
 }
 

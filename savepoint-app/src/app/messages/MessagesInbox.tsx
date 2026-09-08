@@ -9,7 +9,7 @@ import UserAvatar from '@/components/ui/UserAvatar';
 import { MessageIcon, PlusIcon } from '@/components/ui/Icons';
 import { formatRelativeTime } from '@/lib/utils';
 
-const INBOX_POLL_MS = 12000;
+const INBOX_POLL_MS = 30000;
 
 type ConversationRow = {
   id: string;
@@ -67,14 +67,17 @@ export default function MessagesInbox({
   }, [userId, initial.length]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        await ensureLocalKeyPair();
-        setKeyNote('Messages sync across your devices.');
-      } catch {
-        setKeyNote('Could not initialize encryption keys in this browser.');
-      }
-    })();
+    const t = window.setTimeout(() => {
+      void (async () => {
+        try {
+          await ensureLocalKeyPair();
+          setKeyNote('Messages sync across your devices.');
+        } catch {
+          setKeyNote('Could not initialize encryption keys in this browser.');
+        }
+      })();
+    }, 1500);
+    return () => window.clearTimeout(t);
   }, []);
 
   useEffect(() => {
@@ -99,7 +102,7 @@ export default function MessagesInbox({
       }
     }
 
-    void tick();
+    // SSR already loaded the list — don't double-fetch on mount.
     const id = window.setInterval(tick, INBOX_POLL_MS);
     const onVisible = () => {
       if (document.visibilityState === 'visible') void tick();
@@ -116,7 +119,7 @@ export default function MessagesInbox({
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 'var(--space-lg)', flexWrap: 'wrap' }}>
         <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: 0, flex: 1 }}>
-          {keyNote} Private keys never leave your browser.
+          {keyNote}
           {fromCache ? ' Showing cached inbox…' : ''}
         </p>
         <Link href="/messages/new-group" className="btn btn-primary btn-sm">

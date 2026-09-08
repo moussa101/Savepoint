@@ -24,10 +24,10 @@ import GifPicker from '@/components/messages/GifPicker';
 import GroupManagePanel from '@/components/messages/GroupManagePanel';
 
 /** Poll when visible; back off when quiet. */
-const POLL_MS_ACTIVE = 3000;
-const POLL_MS_IDLE = 8000;
-const TYPING_HEARTBEAT_MS = 2500;
-const KEYS_REFRESH_EVERY = 5;
+const POLL_MS_ACTIVE = 4000;
+const POLL_MS_IDLE = 12000;
+const TYPING_HEARTBEAT_MS = 5000;
+const KEYS_REFRESH_EVERY = 10;
 
 type Sender = {
   id: string;
@@ -597,11 +597,7 @@ export default function ChatThread({
           }
           return typingList;
         });
-        gotActivity = !!(
-          result.messages?.length ||
-          result.readReceipts?.length ||
-          typingList.length
-        );
+        gotActivity = !!(result.messages?.length || result.readReceipts?.length);
 
         if (needKeys) keysFetchedRef.current = true;
 
