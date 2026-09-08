@@ -16,7 +16,16 @@ export default function GameFilters() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<number[]>([]);
   const [sort, setSort] = useState('');
   const [year, setYear] = useState('');
-  
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   // Sync state from URL
   useEffect(() => {
     const genres = searchParams.get('genres');
@@ -25,14 +34,14 @@ export default function GameFilters() {
     } else {
       setSelectedGenres([]);
     }
-    
+
     const platforms = searchParams.get('platforms');
     if (platforms) {
       setSelectedPlatforms(platforms.split(',').map(Number));
     } else {
       setSelectedPlatforms([]);
     }
-    
+
     setSort(searchParams.get('sort') || '');
     setYear(searchParams.get('year') || '');
   }, [searchParams]);

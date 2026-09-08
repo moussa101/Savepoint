@@ -115,8 +115,8 @@ export default function GameActions({
 
   if (!isLoggedIn) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', alignItems: 'center' }}>
-        <a href="/login" className="btn btn-primary">Sign in to track</a>
+      <div className="game-actions-wrap" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', alignItems: 'center', width: '100%', maxWidth: '280px' }}>
+        <a href="/login" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Sign in to track</a>
       </div>
     );
   }
@@ -124,7 +124,7 @@ export default function GameActions({
   const currentStatusObj = ALL_STATUSES.find((s) => s.value === status);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', alignItems: 'center', width: '100%', maxWidth: '280px' }}>
+    <div className="game-actions-wrap" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', alignItems: 'center', width: '100%', maxWidth: '280px' }}>
       {isUnreleased ? (
         <div style={{ textAlign: 'center', maxWidth: 260 }}>
           <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--space-sm)' }}>

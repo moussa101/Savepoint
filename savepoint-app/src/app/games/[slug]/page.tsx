@@ -207,22 +207,27 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
           <div className="game-banner-overlay" />
         </div>
 
-        <div className="container" style={{ position: 'relative', marginTop: '-120px', zIndex: 2 }}>
+        <div className="container game-page-body" style={{ position: 'relative', marginTop: '-120px', zIndex: 2 }}>
           <div className="game-header">
-            <div className="game-cover" style={{ width: '180px', height: '240px', flexShrink: 0 }}>
+            <div className="game-cover game-header-cover" style={{ width: '180px', height: '240px', flexShrink: 0 }}>
               {game.coverImage && <img src={game.coverImage} alt={game.name} fetchPriority="high" />}
             </div>
             <div className="game-header-info">
-              <h1 className="font-display" style={{ fontSize: 'var(--text-4xl)', fontWeight: 900, marginBottom: 'var(--space-sm)' }}>
+              <h1 className="font-display game-header-title" style={{ fontSize: 'var(--text-4xl)', fontWeight: 900, marginBottom: 'var(--space-sm)' }}>
                 {game.name}
               </h1>
-              <div style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)' }}>
+              <div className="game-header-meta" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)' }}>
                 {game.developer && <span>Developer: <strong>{game.developer}</strong></span>}
-                {game.publisher && <span> | Publisher: <strong>{game.publisher}</strong></span>}
+                {game.publisher && (
+                  <span>
+                    <span className="meta-sep"> | </span>
+                    Publisher: <strong>{game.publisher}</strong>
+                  </span>
+                )}
                 {game.releaseDate && (
                   <span>
-                    {' '}
-                    | {unreleased ? 'Releases' : 'Release'}:{' '}
+                    <span className="meta-sep"> | </span>
+                    {unreleased ? 'Releases' : 'Release'}:{' '}
                     <strong>
                       {new Date(game.releaseDate).toLocaleDateString('en-US', {
                         year: 'numeric',
@@ -238,12 +243,12 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', marginBottom: 'var(--space-sm)' }}>
+              <div className="game-header-pills" style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', marginBottom: 'var(--space-sm)' }}>
                 {igdbGame.platforms?.map((p) => (
                   <span key={p.id} className="pill pill-platform">{p.name}</span>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+              <div className="game-header-pills" style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
                 {igdbGame.genres?.map((g) => (
                   <span key={g.id} className="pill">{g.name}</span>
                 ))}
@@ -376,7 +381,7 @@ function RatingSectionSkeleton({ avgRating, ratingCount }: { avgRating: number; 
       <div style={{ display: 'flex', gap: 'var(--space-2xl)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <RatingSummary avgRating={avgRating} ratingCount={ratingCount} />
         <DistributionChart distribution={[0, 0, 0, 0, 0]} />
-        <div className="skeleton" style={{ width: 200, height: 44, borderRadius: 'var(--radius-md)' }} />
+        <div className="game-actions-wrap skeleton" style={{ width: '100%', maxWidth: 280, height: 120, borderRadius: 'var(--radius-md)' }} />
       </div>
     </div>
   );

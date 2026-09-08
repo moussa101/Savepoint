@@ -65,6 +65,8 @@ export default function GamesHeroCarousel({ games }: { games: HeroGame[] }) {
     strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
   }, [currentIndex]);
 
+  const touchStartX = useRef<number | null>(null);
+
   if (!total) return null;
 
   const active = games[currentIndex];
@@ -75,6 +77,19 @@ export default function GamesHeroCarousel({ games }: { games: HeroGame[] }) {
       className="hero-spot"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onTouchStart={(e) => {
+        touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+      }}
+      onTouchEnd={(e) => {
+        const start = touchStartX.current;
+        touchStartX.current = null;
+        if (start == null) return;
+        const end = e.changedTouches[0]?.clientX;
+        if (end == null) return;
+        const delta = end - start;
+        if (Math.abs(delta) < 48) return;
+        go(delta < 0 ? 1 : -1);
+      }}
       aria-roledescription="carousel"
       aria-label="Featured games"
     >

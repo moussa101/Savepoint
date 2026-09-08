@@ -279,7 +279,7 @@ export default async function GamesPage({
           <div style={{ marginBottom: 'var(--space-md)' }}>
             <h2 className="section-title font-display">Explore All Games</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-              Search the complete IGDB database of over 200,000 games.
+              Search and filter the IGDB catalog.
             </p>
           </div>
 

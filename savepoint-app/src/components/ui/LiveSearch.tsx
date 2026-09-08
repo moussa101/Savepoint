@@ -30,16 +30,17 @@ export default function LiveSearch({ initialQuery = '' }: { initialQuery?: strin
   }, [debouncedQuery, pathname, router, searchParams]);
 
   return (
-    <div style={{ marginBottom: 'var(--space-xl)', marginTop: 'var(--space-lg)' }}>
+    <div className="discover-search" style={{ marginBottom: 'var(--space-xl)', marginTop: 'var(--space-lg)' }}>
       <div className="input-group">
         <span className="input-icon"><SearchIcon size={16} /></span>
         <input
-          type="text"
-          placeholder="Search the IGDB database..."
+          type="search"
+          enterKeyHint="search"
+          placeholder="Search games…"
           className="input input-with-icon"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          style={{ maxWidth: '600px' }}
+          style={{ maxWidth: '600px', width: '100%' }}
         />
       </div>
     </div>
