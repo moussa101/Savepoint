@@ -37,6 +37,13 @@ export default function Sidebar() {
       </Link>
 
       <nav className="sidebar-nav">
+        <Link
+          href={`/profile/${session.user.username}`}
+          className={`sidebar-link ${pathname.startsWith('/profile') ? 'sidebar-link-active' : ''}`}
+        >
+          <span><UserIcon size={18} /></span>
+          My Profile
+        </Link>
         {sidebarLinks.map((link) => {
           let isActive = pathname === link.href;
           if (link.href === '/games' && pathname.startsWith('/games')) isActive = true;
@@ -57,13 +64,6 @@ export default function Sidebar() {
             </Link>
           );
         })}
-        <Link
-          href={`/profile/${session.user.username}`}
-          className={`sidebar-link ${pathname.startsWith('/profile') ? 'sidebar-link-active' : ''}`}
-        >
-          <span><UserIcon size={18} /></span>
-          My Profile
-        </Link>
       </nav>
     </aside>
   );

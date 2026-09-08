@@ -45,6 +45,7 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
   const username = session?.user?.username;
   const memberLinks = username
     ? [
+        { href: `/profile/${username}`, label: 'My Profile', icon: <UserIcon size={20} /> },
         { href: '/feed', label: 'Home', icon: <HomeIcon size={20} /> },
         { href: '/games', label: 'Discover', icon: <GamepadIcon size={20} /> },
         { href: '/library', label: 'My Library', icon: <BookOpenIcon size={20} /> },
@@ -52,7 +53,6 @@ export default function MobileNavDrawer({ open, onClose }: Props) {
         { href: '/lists', label: 'My Lists', icon: <ListIcon size={20} /> },
         { href: '/friends', label: 'Friends', icon: <UsersIcon size={20} /> },
         { href: '/messages', label: 'Messages', icon: <MessageIcon size={20} /> },
-        { href: `/profile/${username}`, label: 'My Profile', icon: <UserIcon size={20} /> },
         { href: '/settings', label: 'Settings', icon: <SettingsIcon size={20} /> },
       ]
     : [

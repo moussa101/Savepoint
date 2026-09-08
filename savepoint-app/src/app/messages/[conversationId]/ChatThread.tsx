@@ -5,11 +5,12 @@ import Link from 'next/link';
 import { uploadChatImage } from '@/app/actions/upload';
 import {
   decryptMessage,
+  decryptMessageWithFallback,
   decryptWithGroupKey,
   encryptMessage,
   encryptWithGroupKey,
   ensureLocalKeyPair,
-  unwrapGroupKey,
+  unwrapGroupKeyWithFallback,
 } from '@/lib/e2e-crypto';
 import {
   applyCachedPlaintext,
@@ -22,10 +23,11 @@ import { MessageContent } from '@/components/messages/MessageContent';
 import GifPicker from '@/components/messages/GifPicker';
 import GroupManagePanel from '@/components/messages/GroupManagePanel';
 
-/** Poll when the tab is visible; backoff when idle so we don’t saturate the DB. */
-const POLL_MS_ACTIVE = 4000;
-const POLL_MS_IDLE = 12000;
+/** Poll when visible; back off when quiet. */
+const POLL_MS_ACTIVE = 3000;
+const POLL_MS_IDLE = 8000;
 const TYPING_HEARTBEAT_MS = 2500;
+const KEYS_REFRESH_EVERY = 5;
 
 type Sender = {
   id: string;
@@ -147,6 +149,8 @@ export default function ChatThread({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const privateKeyRef = useRef<CryptoKey | null>(null);
+  const legacyPrivateKeyRef = useRef<CryptoKey | null>(null);
+  const rewrappedIdsRef = useRef(new Set<string>());
   const peerKeyRef = useRef(other?.e2ePublicKey ?? null);
   const groupKeyRef = useRef<CryptoKey | null>(null);
   const knownIdsRef = useRef(new Set(initialMessages.map((m) => m.id)));
@@ -244,11 +248,12 @@ export default function ChatThread({
                 text = await decryptWithGroupKey(m.ciphertext, m.iv, gKey);
               } else {
                 if (!peerKey) return [m.id, '[Waiting for peer key]'] as const;
-                text = await decryptMessage(
+                text = await decryptMessageWithFallback(
                   m.ciphertext,
                   m.iv,
                   privateKeyRef.current!,
-                  peerKey
+                  peerKey,
+                  legacyPrivateKeyRef.current
                 );
               }
               return [m.id, text] as const;
@@ -264,24 +269,28 @@ export default function ChatThread({
   );
 
   /** Never replace good plaintext with a failure placeholder. */
-  const mergePlain = useCallback((incoming: Record<string, string>) => {
-    const isPlaceholder = (t: string) =>
+  const isPlainPlaceholder = useCallback((t: string) => {
+    return (
       !t ||
       t.startsWith('[Unable') ||
       t.startsWith('[Encrypted') ||
       t.startsWith('[Waiting') ||
       t === '[undecrypted]' ||
-      t === '…';
+      t === '…'
+    );
+  }, []);
+
+  const mergePlain = useCallback((incoming: Record<string, string>) => {
     setPlainById((prev) => {
       const next = { ...prev };
       for (const [id, text] of Object.entries(incoming)) {
         const existing = prev[id];
-        if (existing && !isPlaceholder(existing) && isPlaceholder(text)) continue;
+        if (existing && !isPlainPlaceholder(existing) && isPlainPlaceholder(text)) continue;
         next[id] = text;
       }
       return next;
     });
-  }, []);
+  }, [isPlainPlaceholder]);
 
   const redecryptAll = useCallback(
     async (peerKey: string | null, gKey: CryptoKey | null) => {
@@ -297,6 +306,7 @@ export default function ChatThread({
       if (!incoming.length) return;
       const fresh: WireMessage[] = [];
       const updated: WireMessage[] = [];
+      const existingById = new Map(messagesRef.current.map((m) => [m.id, m]));
       for (const m of incoming) {
         if (knownIdsRef.current.has(m.id)) updated.push(m);
         else {
@@ -305,7 +315,18 @@ export default function ChatThread({
         }
       }
       cursorRef.current = advanceCursor(cursorRef.current, incoming);
-      const toDecrypt = [...fresh, ...updated.filter((m) => m.editedAt && m.ciphertext)];
+      // Only redecrypt when ciphertext actually changed (not readAt bumps).
+      const ciphertextChanged = updated.filter((m) => {
+        const prev = existingById.get(m.id);
+        if (!prev) return !!(m.ciphertext && m.iv);
+        return (
+          !!m.ciphertext &&
+          !!m.iv &&
+          m.kind !== 'SYSTEM' &&
+          (prev.ciphertext !== m.ciphertext || prev.iv !== m.iv || prev.editedAt !== m.editedAt)
+        );
+      });
+      const toDecrypt = [...fresh, ...ciphertextChanged];
       const decrypted = await decryptIncoming(toDecrypt, peerKey, gKey);
       if (fresh.length || updated.length) {
         setMessages((prev) => {
@@ -393,9 +414,11 @@ export default function ChatThread({
     let cancelled = false;
     (async () => {
       try {
-        const { pair } = await ensureLocalKeyPair();
+        const { pair, legacyPair } = await ensureLocalKeyPair();
         if (cancelled) return;
         privateKeyRef.current = pair.privateKey;
+        legacyPrivateKeyRef.current = legacyPair?.privateKey ?? null;
+        rewrappedIdsRef.current = new Set();
 
         let gKey: CryptoKey | null = null;
         if (isGroup) {
@@ -404,7 +427,11 @@ export default function ChatThread({
             setReady(true);
             return;
           }
-          gKey = await unwrapGroupKey(wrappedGroupKey, pair.privateKey);
+          gKey = await unwrapGroupKeyWithFallback(
+            wrappedGroupKey,
+            pair.privateKey,
+            legacyPrivateKeyRef.current
+          );
           if (!cancelled) setGroupKey(gKey);
         } else if (!other?.e2ePublicKey) {
           setSetupError(
@@ -438,10 +465,103 @@ export default function ChatThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
+  // One-shot (chunked) rewrite of old ciphertext onto synced account keys.
+  useEffect(() => {
+    if (!ready || isGroup) return;
+    if (!privateKeyRef.current || !peerPublicKey) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const priv = privateKeyRef.current!;
+      const legacy = legacyPrivateKeyRef.current;
+      const peer = peerPublicKey;
+      const candidates = messagesRef.current.filter(
+        (m) => m.kind !== 'SYSTEM' && m.ciphertext && m.iv && !m.id.startsWith('local-')
+      );
+
+      const updates: { id: string; ciphertext: string; iv: string }[] = [];
+      const recoveredPlain: Record<string, string> = {};
+
+      for (const m of candidates) {
+        if (rewrappedIdsRef.current.has(m.id)) continue;
+        if (updates.length >= 15) break;
+
+        const cached = plainByIdRef.current[m.id];
+
+        // Already readable under account key — mark done, no rewrite.
+        let accountPlain: string | null = null;
+        try {
+          accountPlain = await decryptMessage(m.ciphertext, m.iv, priv, peer);
+        } catch {
+          accountPlain = null;
+        }
+        if (accountPlain !== null) {
+          rewrappedIdsRef.current.add(m.id);
+          continue;
+        }
+
+        let plain: string | null = null;
+        if (legacy) {
+          try {
+            plain = await decryptMessage(m.ciphertext, m.iv, legacy, peer);
+          } catch {
+            plain = null;
+          }
+        }
+        if (!plain && cached && !isPlainPlaceholder(cached)) plain = cached;
+        if (!plain) {
+          rewrappedIdsRef.current.add(m.id); // don't retry forever
+          continue;
+        }
+
+        try {
+          const next = await encryptMessage(plain, priv, peer);
+          updates.push({ id: m.id, ciphertext: next.ciphertext, iv: next.iv });
+          recoveredPlain[m.id] = plain;
+          rewrappedIdsRef.current.add(m.id);
+        } catch {
+          rewrappedIdsRef.current.add(m.id);
+        }
+      }
+
+      if (!updates.length || cancelled) return;
+
+      try {
+        const res = await fetch(`/api/messages/${conversationId}/reencrypt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates }),
+        });
+        if (!res.ok) {
+          for (const u of updates) rewrappedIdsRef.current.delete(u.id);
+          return;
+        }
+        if (cancelled) return;
+        mergePlain(recoveredPlain);
+        setMessages((prev) =>
+          prev.map((m) => {
+            const hit = updates.find((u) => u.id === m.id);
+            return hit ? { ...m, ciphertext: hit.ciphertext, iv: hit.iv } : m;
+          })
+        );
+      } catch {
+        for (const u of updates) rewrappedIdsRef.current.delete(u.id);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Run once per chat/peer key — not on every message poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, isGroup, peerPublicKey, conversationId]);
+
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
     let timer: number | undefined;
+    let pollCount = 0;
 
     async function tick() {
       if (cancelled || pollingRef.current) return;
@@ -449,11 +569,13 @@ export default function ChatThread({
       pollingRef.current = true;
       let gotActivity = false;
       try {
+        pollCount += 1;
         const since = cursorRef.current ? `since=${encodeURIComponent(cursorRef.current)}` : '';
         const needKeys =
           !keysFetchedRef.current ||
           (!isGroup && !peerKeyRef.current) ||
-          (isGroup && !groupKeyRef.current);
+          (isGroup && !groupKeyRef.current) ||
+          pollCount % KEYS_REFRESH_EVERY === 0;
         const keys = needKeys ? 'keys=1' : '';
         const qs = [since, keys].filter(Boolean).join('&');
         const res = await fetch(
@@ -466,7 +588,15 @@ export default function ChatThread({
         const typingList = Array.isArray(result.typing)
           ? (result.typing as { userId: string; username: string }[])
           : [];
-        setTypingUsers(typingList);
+        setTypingUsers((prev) => {
+          if (
+            prev.length === typingList.length &&
+            prev.every((p, i) => p.userId === typingList[i]?.userId)
+          ) {
+            return prev;
+          }
+          return typingList;
+        });
         gotActivity = !!(
           result.messages?.length ||
           result.readReceipts?.length ||
@@ -486,13 +616,23 @@ export default function ChatThread({
           setSetupError('');
           keyChanged = true;
         }
-        if (result.wrappedGroupKey && privateKeyRef.current && !groupKeyRef.current) {
+        if (
+          result.wrappedGroupKey &&
+          privateKeyRef.current &&
+          (!groupKeyRef.current || keyChanged)
+        ) {
           try {
-            const gk = await unwrapGroupKey(result.wrappedGroupKey, privateKeyRef.current);
-            groupForDecrypt = gk;
-            setGroupKey(gk);
-            groupKeyRef.current = gk;
-            keyChanged = true;
+            const gk = await unwrapGroupKeyWithFallback(
+              result.wrappedGroupKey,
+              privateKeyRef.current,
+              legacyPrivateKeyRef.current
+            );
+            if (gk !== groupKeyRef.current) {
+              groupForDecrypt = gk;
+              setGroupKey(gk);
+              groupKeyRef.current = gk;
+              keyChanged = true;
+            }
           } catch {
             /* keep existing */
           }
@@ -543,7 +683,7 @@ export default function ChatThread({
 
   useEffect(() => {
     if (stickToBottomRef.current) scrollToBottom(true);
-  }, [messages, plainById, scrollToBottom]);
+  }, [messages.length, scrollToBottom]);
 
   const buildChatLog = useCallback(() => {
     const lines: string[] = [

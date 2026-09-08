@@ -23,10 +23,14 @@ export async function GET() {
     select: { e2ePublicKey: true, e2ePrivateKeyBackup: true },
   });
 
-  const privateKey =
-    user?.e2ePrivateKeyBackup
-      ? openE2EPrivateKey(session.user.id, user.e2ePrivateKeyBackup)
-      : null;
+  let privateKey: string | null = null;
+  if (user?.e2ePrivateKeyBackup) {
+    try {
+      privateKey = openE2EPrivateKey(session.user.id, user.e2ePrivateKeyBackup);
+    } catch {
+      privateKey = null;
+    }
+  }
 
   return NextResponse.json({
     publicKey: user?.e2ePublicKey ?? null,

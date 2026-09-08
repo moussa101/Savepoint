@@ -67,16 +67,6 @@ async function idbSetIdentity(identity: StoredIdentity): Promise<void> {
   });
 }
 
-async function idbClearIdentityV2(): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(KEY_ID);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
 export async function exportPublicKeyB64(publicKey: CryptoKey): Promise<string> {
   const raw = await crypto.subtle.exportKey('spki', publicKey);
   return bufToB64(raw);
@@ -139,16 +129,6 @@ async function pushIdentityToServer(identity: StoredIdentity): Promise<void> {
   if (!res.ok) throw new Error('Failed to sync chat keys');
 }
 
-/** Publish public key only and clear any sealed private backup (avoids mismatched pairs). */
-async function pushPublicKeyOnly(publicKeyB64: string): Promise<void> {
-  const res = await fetch('/api/messages/e2e-key', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ publicKey: publicKeyB64, clearPrivateBackup: true }),
-  });
-  if (!res.ok) throw new Error('Failed to sync chat public key');
-}
-
 async function pullIdentityFromServer(): Promise<StoredIdentity | null> {
   const res = await fetch('/api/messages/e2e-key', { cache: 'no-store' });
   if (!res.ok) return null;
@@ -176,40 +156,18 @@ async function idbGetLegacyPair(): Promise<CryptoKeyPair | null> {
 
 /**
  * Ensure this browser has the account identity keypair.
- * Prefers existing browser keys that can decrypt history; syncs extractable
- * backups to the server for other devices when possible.
+ * Server backup is canonical so every device shares the same keys.
+ * Legacy non-extractable IndexedDB keys are kept only as a decrypt fallback
+ * for messages encrypted before multi-device sync.
  */
-export async function ensureLocalKeyPair(): Promise<{ publicKeyB64: string; pair: CryptoKeyPair }> {
-  // Legacy CryptoKeyPair from before multi-device sync. Never replace these —
-  // minting a new pair makes all existing ciphertext undecryptable.
+export async function ensureLocalKeyPair(): Promise<{
+  publicKeyB64: string;
+  pair: CryptoKeyPair;
+  legacyPair: CryptoKeyPair | null;
+  legacyPublicKeyB64: string | null;
+}> {
   const legacy = await idbGetLegacyPair();
-  if (legacy) {
-    const publicKeyB64 = await exportPublicKeyB64(legacy.publicKey);
-    try {
-      const privateKeyB64 = await exportPrivateKeyB64(legacy.privateKey);
-      const identity = { publicKeyB64, privateKeyB64 };
-      await idbSetIdentity(identity);
-      try {
-        await pushIdentityToServer(identity);
-      } catch {
-        /* offline */
-      }
-      return { publicKeyB64, pair: legacy };
-    } catch {
-      // Non-extractable: keep using this device's keys; drop any mismatched v2 backup.
-      try {
-        await idbClearIdentityV2();
-      } catch {
-        /* ignore */
-      }
-      try {
-        await pushPublicKeyOnly(publicKeyB64);
-      } catch {
-        /* offline */
-      }
-      return { publicKeyB64, pair: legacy };
-    }
-  }
+  const legacyPublicKeyB64 = legacy ? await exportPublicKeyB64(legacy.publicKey) : null;
 
   let local = await idbGetIdentity();
   let remote: StoredIdentity | null = null;
@@ -219,26 +177,47 @@ export async function ensureLocalKeyPair(): Promise<{ publicKeyB64: string; pair
     remote = null;
   }
 
-  // Canonical account key from server (other devices / restored browsers).
+  // 1) Server backup wins — this is what makes other devices work.
   if (remote) {
     if (!local || local.publicKeyB64 !== remote.publicKeyB64) {
       await idbSetIdentity(remote);
       local = remote;
     }
     const pair = await pairFromStored(local);
-    return { publicKeyB64: local.publicKeyB64, pair };
+    return { publicKeyB64: local.publicKeyB64, pair, legacyPair: legacy, legacyPublicKeyB64 };
   }
 
+  // 2) Existing extractable local identity — publish for other devices.
   if (local) {
     try {
       await pushIdentityToServer(local);
     } catch {
-      /* offline */
+      /* offline / migration pending */
     }
     const pair = await pairFromStored(local);
-    return { publicKeyB64: local.publicKeyB64, pair };
+    return { publicKeyB64: local.publicKeyB64, pair, legacyPair: legacy, legacyPublicKeyB64 };
   }
 
+  // 3) Try upgrading a legacy CryptoKeyPair into a syncable backup.
+  if (legacy) {
+    try {
+      const publicKeyB64 = await exportPublicKeyB64(legacy.publicKey);
+      const privateKeyB64 = await exportPrivateKeyB64(legacy.privateKey);
+      local = { publicKeyB64, privateKeyB64 };
+      await idbSetIdentity(local);
+      try {
+        await pushIdentityToServer(local);
+      } catch {
+        /* offline */
+      }
+      return { publicKeyB64, pair: legacy, legacyPair: legacy, legacyPublicKeyB64 };
+    } catch {
+      /* non-extractable — mint a syncable account key below */
+    }
+  }
+
+  // 4) Mint extractable account keys and back them up (multi-device).
+  // Keep legacy alongside for decrypting older ciphertext on this device.
   local = await generateExtractablePair();
   await idbSetIdentity(local);
   try {
@@ -248,7 +227,7 @@ export async function ensureLocalKeyPair(): Promise<{ publicKeyB64: string; pair
   }
 
   const pair = await pairFromStored(local);
-  return { publicKeyB64: local.publicKeyB64, pair };
+  return { publicKeyB64: local.publicKeyB64, pair, legacyPair: legacy, legacyPublicKeyB64 };
 }
 
 async function deriveAesKey(myPrivate: CryptoKey, theirPublic: CryptoKey): Promise<CryptoKey> {
@@ -288,6 +267,22 @@ export async function decryptMessage(
     b64ToBuf(ciphertextB64)
   );
   return new TextDecoder().decode(plain);
+}
+
+/** Try account key first, then legacy device key (pre multi-device messages). */
+export async function decryptMessageWithFallback(
+  ciphertextB64: string,
+  ivB64: string,
+  myPrivate: CryptoKey,
+  theirPublicB64: string,
+  legacyPrivate: CryptoKey | null
+): Promise<string> {
+  try {
+    return await decryptMessage(ciphertextB64, ivB64, myPrivate, theirPublicB64);
+  } catch (err) {
+    if (!legacyPrivate) throw err;
+    return decryptMessage(ciphertextB64, ivB64, legacyPrivate, theirPublicB64);
+  }
 }
 
 /** Shared AES key for group chats (exportable raw for wrapping). */
@@ -346,6 +341,19 @@ export async function unwrapGroupKey(
     b64ToBuf(parsed.ciphertext)
   );
   return importGroupKeyRawB64(bufToB64(plain));
+}
+
+export async function unwrapGroupKeyWithFallback(
+  wrappedJson: string,
+  myPrivate: CryptoKey,
+  legacyPrivate: CryptoKey | null
+): Promise<CryptoKey> {
+  try {
+    return await unwrapGroupKey(wrappedJson, myPrivate);
+  } catch (err) {
+    if (!legacyPrivate) throw err;
+    return unwrapGroupKey(wrappedJson, legacyPrivate);
+  }
 }
 
 export async function encryptWithGroupKey(

@@ -1386,10 +1386,15 @@ ul, ol {
   overflow: hidden;
 }
 
+.chat-thread-header {
+  flex-shrink: 0;
+}
+
 .chat-thread-messages {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1398,9 +1403,10 @@ ul, ol {
 
 .chat-composer {
   flex-shrink: 0;
-  margin-top: auto;
+  margin-top: 0;
   padding-top: 8px;
   padding-bottom: max(4px, env(safe-area-inset-bottom));
+  background: var(--bg-primary, #0a0a0c);
 }
 
 /* Chat message ticks + edit (WhatsApp-style) */
@@ -1793,24 +1799,46 @@ ul, ol {
   }
 
   .chat-composer-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 6px;
   }
 
   .chat-composer-row .input {
-    flex: 1 1 100%;
+    flex: 1 1 auto;
     min-width: 0;
-    order: -1;
+    order: 0;
   }
 
-  .chat-thread {
-    height: calc(100dvh - var(--navbar-height) - var(--safe-top) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
+  .chat-composer-row .btn {
+    flex-shrink: 0;
+  }
+
+  /* Mobile chat: one height chain — fill screen, composer pinned bottom */
+  .main-with-sidebar:has(.chat-thread),
+  body.chat-open .main-with-sidebar:has(.chat-thread) {
+    padding: 0 !important;
+    height: calc(100dvh - var(--navbar-height) - var(--safe-top)) !important;
+    max-height: calc(100dvh - var(--navbar-height) - var(--safe-top)) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .chat-thread,
+  body.chat-open .chat-thread {
+    height: 100% !important;
+    max-height: 100% !important;
     min-height: 0 !important;
     padding: 0 var(--space-sm);
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    border-radius: 0 !important;
   }
 
-  body.chat-open .chat-thread {
-    height: calc(100dvh - var(--navbar-height) - var(--safe-top)) !important;
-    padding-bottom: var(--safe-bottom);
+  .chat-thread-header {
+    padding-top: var(--space-sm);
+  }
+
+  .chat-composer {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
 
   .group-manage-panel {
@@ -2137,20 +2165,10 @@ ul, ol {
   body.chat-open .main-with-sidebar {
     padding: 0;
     padding-bottom: 0;
-    min-height: calc(100dvh - var(--navbar-height) - var(--safe-top));
-    height: calc(100dvh - var(--navbar-height) - var(--safe-top));
-    max-height: calc(100dvh - var(--navbar-height) - var(--safe-top));
     overflow: hidden;
   }
 
-  body.chat-open .main-with-sidebar:has(.chat-thread) {
-    padding: 0;
-  }
-
   .chat-thread {
-    height: 100%;
-    min-height: 0 !important;
-    border-radius: 0 !important;
     border-left: none !important;
     border-right: none !important;
   }
