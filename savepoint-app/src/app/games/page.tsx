@@ -11,8 +11,7 @@ import GamesHeroCarousel from '@/components/ui/GamesHeroCarousel';
 import TrendingSpotlight from '@/components/ui/TrendingSpotlight';
 import GameFilters from '@/components/ui/GameFilters';
 import ListCard from '@/components/ui/ListCard';
-import { getPopularListsCached, getRecentReviewsCached, getTrendingGamesCached } from '@/lib/cached-queries';
-import { formatRelativeTime } from '@/lib/utils';
+import { getPopularListsCached, getTrendingGamesCached } from '@/lib/cached-queries';
 import { shuffleCopy, shuffleTier } from '@/lib/shuffle';
 
 export const metadata = {
@@ -96,13 +95,12 @@ export default async function GamesPage({
   let heroGames: IGDBGame[] = [];
   let trendingGames: Parameters<typeof TrendingSpotlight>[0]['games'] = [];
   let popularLists: Awaited<ReturnType<typeof getPopularListsCached>> = [];
-  let recentReviews: Awaited<ReturnType<typeof getRecentReviewsCached>> = [];
 
   try {
     const nowUnix = Math.floor(Date.now() / 1000);
     const twoYearsAgo = nowUnix - 60 * 60 * 24 * 730;
 
-    const [gamesRes, popularPool, recentHits, cultFavorites, communityTrending, listsRes, reviewsRes] =
+    const [gamesRes, popularPool, recentHits, cultFavorites, communityTrending, listsRes] =
       await Promise.all([
         fetchIGDB('games', query),
         // Blockbusters — popular & well-rated
@@ -138,7 +136,6 @@ export default async function GamesPage({
         ),
         getTrendingGamesCached(),
         getPopularListsCached(),
-        getRecentReviewsCached(),
       ]);
 
     games = gamesRes;
@@ -202,7 +199,6 @@ export default async function GamesPage({
     trendingGames = top ? [top, ...rest] : rest;
 
     popularLists = listsRes;
-    recentReviews = reviewsRes;
   } catch (err) {
     console.error('Failed to fetch from IGDB:', err);
   }
@@ -308,49 +304,6 @@ export default async function GamesPage({
                   <div className="responsive-card-grid" style={{ gap: 'var(--space-xl)' }}>
                     {popularLists.map((list) => (
                       <ListCard key={list.id} list={list} showAuthor={true} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {!q && recentReviews.length > 0 && (
-                <div style={{ marginBottom: 'var(--space-2xl)' }}>
-                  <h2 className="section-title font-display" style={{ marginBottom: 'var(--space-md)' }}>
-                    Recently Reviewed
-                  </h2>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                    {recentReviews.map((review) => (
-                      <Link
-                        key={review.id}
-                        href={`/games/${review.game.slug}`}
-                        className="card"
-                        style={{ display: 'flex', gap: 'var(--space-md)', textDecoration: 'none', color: 'inherit' }}
-                      >
-                        <div className="game-cover" style={{ width: 48, height: 64, flexShrink: 0 }}>
-                          {review.game.coverImage && (
-                            <img src={review.game.coverImage} alt="" loading="lazy" decoding="async" />
-                          )}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700 }}>{review.game.name}</div>
-                          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 4 }}>
-                            by {review.user.name || review.user.username} · {formatRelativeTime(review.createdAt)}
-                          </div>
-                          <StarRating rating={review.rating} size="sm" />
-                          <p
-                            style={{
-                              fontSize: 'var(--text-sm)',
-                              color: 'var(--text-secondary)',
-                              marginTop: 4,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {review.text}
-                          </p>
-                        </div>
-                      </Link>
                     ))}
                   </div>
                 </div>
