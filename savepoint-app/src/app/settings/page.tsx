@@ -7,6 +7,8 @@ import Sidebar from '@/components/layout/Sidebar';
 import { UserIcon, ShieldIcon } from '@/components/ui/Icons';
 import SettingsForms from './SettingsForms';
 import ConnectedLibraries from './ConnectedLibraries';
+import PasskeysManager from '@/components/settings/PasskeysManager';
+import type { PasskeyListItem } from '@/app/actions/passkeys';
 
 export const metadata = { title: 'Settings — Savepoint' };
 // Library syncs (Steam / PSN trophies) can take longer than the default serverless limit.
@@ -22,10 +24,30 @@ export default async function SettingsPage({
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
+    include: {
+      authenticators: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          credentialID: true,
+          name: true,
+          credentialDeviceType: true,
+          credentialBackedUp: true,
+          createdAt: true,
+        },
+      },
+    },
   });
 
   if (!user) redirect('/login');
   if (user.isAdmin) redirect('/admin/settings');
+
+  const passkeys: PasskeyListItem[] = user.authenticators.map((a) => ({
+    credentialID: a.credentialID,
+    name: a.name,
+    deviceType: a.credentialDeviceType,
+    backedUp: a.credentialBackedUp,
+    createdAt: a.createdAt.toISOString(),
+  }));
 
   return (
     <>
@@ -70,12 +92,15 @@ export default async function SettingsPage({
               <ShieldIcon size={24} color="var(--accent-primary)" />
               Security
             </h2>
-            <div style={{ padding: 'var(--space-md)', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ display: 'block', fontWeight: 600, marginBottom: '4px' }}>Password</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Reset your login password via email</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+              <div style={{ padding: 'var(--space-md)', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ display: 'block', fontWeight: 600, marginBottom: '4px' }}>Password</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Reset your login password via email</span>
+                </div>
+                <Link href="/forgot-password" className="btn btn-outline btn-sm">Change</Link>
               </div>
-              <Link href="/forgot-password" className="btn btn-outline btn-sm">Change</Link>
+              <PasskeysManager initial={passkeys} />
             </div>
           </div>
 

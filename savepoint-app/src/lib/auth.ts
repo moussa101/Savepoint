@@ -3,6 +3,7 @@ import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
 import Discord from 'next-auth/providers/discord';
 import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
+import Passkey from 'next-auth/providers/passkey';
 import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { PrismaAdapter } from '@auth/prisma-adapter';
@@ -55,6 +56,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   providers: [
+    Passkey({}),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -147,6 +149,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
+  experimental: {
+    enableWebAuthn: true,
+  },
   callbacks: {
     async signIn({ user }) {
       if (!user?.email) return false;

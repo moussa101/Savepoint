@@ -4,11 +4,12 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn, getSession } from 'next-auth/react';
+import { signIn as signInPasskey } from 'next-auth/webauthn';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 import DiscordSignInButton from '@/components/ui/DiscordSignInButton';
 import XboxSignInButton from '@/components/ui/XboxSignInButton';
 import SteamSignInButton from '@/components/ui/SteamSignInButton';
-import { MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
+import { MailIcon, LockIcon, EyeIcon, EyeOffIcon, KeyIcon } from '@/components/ui/Icons';
 
 function LoginForm() {
   const router = useRouter();
@@ -17,6 +18,7 @@ function LoginForm() {
   const oauthError = searchParams.get('error');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const oauthErrorMessage =
@@ -33,6 +35,35 @@ function LoginForm() {
               : oauthError
                 ? 'Sign-in failed. Please try again.'
                 : '';
+
+  async function routeAfterLogin() {
+    const session = await getSession();
+    if ((session?.user as { isAdmin?: boolean })?.isAdmin) {
+      router.push('/admin');
+    } else {
+      router.push('/feed');
+    }
+    router.refresh();
+  }
+
+  async function handlePasskey() {
+    setError('');
+    setPasskeyLoading(true);
+    try {
+      await signInPasskey('passkey');
+      await routeAfterLogin();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Passkey sign-in failed.';
+      if (!/abort|cancel/i.test(msg)) {
+        setError(
+          /not allowed|timed out|failed/i.test(msg)
+            ? 'Passkey sign-in failed. Add a passkey in Settings first, or try again.'
+            : msg
+        );
+      }
+      setPasskeyLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -59,15 +90,7 @@ function LoginForm() {
       return;
     }
 
-    // Check session to determine where to route
-    const session = await getSession();
-    if ((session?.user as any)?.isAdmin) {
-      router.push('/admin');
-    } else {
-      router.push('/feed');
-    }
-    
-    router.refresh();
+    await routeAfterLogin();
   }
 
   return (
@@ -97,6 +120,28 @@ function LoginForm() {
             <div className="auth-error">{error || oauthErrorMessage}</div>
           )}
 
+          <button
+            type="button"
+            className="btn btn-outline btn-lg"
+            style={{
+              width: '100%',
+              marginBottom: 'var(--space-lg)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+            onClick={handlePasskey}
+            disabled={passkeyLoading || loading}
+          >
+            <KeyIcon size={18} />
+            {passkeyLoading ? 'Waiting for passkey…' : 'Sign in with Passkey'}
+          </button>
+
+          <div className="divider" style={{ margin: '0 0 var(--space-lg)' }}>
+            or use email
+          </div>
+
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <div className="input-group">
@@ -107,7 +152,7 @@ function LoginForm() {
                   placeholder="Email"
                   className="input input-with-icon"
                   required
-                  autoComplete="email"
+                  autoComplete="username webauthn"
                 />
               </div>
             </div>
@@ -116,7 +161,7 @@ function LoginForm() {
               <div className="input-group">
                 <span className="input-icon"><LockIcon size={16} /></span>
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   name="password"
                   placeholder="Password"
                   className="input input-with-icon"
@@ -139,10 +184,10 @@ function LoginForm() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: 0
+                    padding: 0,
                   }}
                   tabIndex={-1}
-                  title={showPassword ? "Hide password" : "Show password"}
+                  title={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
                 </button>
@@ -155,7 +200,12 @@ function LoginForm() {
               </Link>
             </div>
 
-            <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
+            <button
+              type="submit"
+              className="btn btn-primary btn-lg"
+              style={{ width: '100%' }}
+              disabled={loading || passkeyLoading}
+            >
               {loading ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
@@ -182,7 +232,13 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
+    <Suspense
+      fallback={
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          Loading...
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
