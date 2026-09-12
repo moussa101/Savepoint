@@ -21,15 +21,39 @@ import {
   findLocalGameForIgdb,
   resolveIgdbGameFromSlug,
 } from '@/lib/resolve-game';
+import { absoluteUrl, videoGameJsonLd, breadcrumbJsonLd } from '@/lib/seo';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   try {
     const game = await resolveIgdbGameFromSlug(slug);
     if (!game) return { title: 'Game Not Found' };
+
+    const description =
+      game.summary?.replace(/\s+/g, ' ').trim().slice(0, 160) ||
+      `Track, rate, and review ${game.name} on Savepoint.`;
+    const cover = game.cover?.image_id
+      ? getIGDBImageUrl(game.cover.image_id, 'cover_big')
+      : undefined;
+    const url = `/games/${game.slug || slug}`;
+
     return {
-      title: `${game.name} — Savepoint`,
-      description: game.summary?.slice(0, 160),
+      title: `${game.name} reviews & library tracking`,
+      description,
+      alternates: { canonical: url },
+      openGraph: {
+        title: `${game.name} · Savepoint`,
+        description,
+        url,
+        type: 'website',
+        images: cover ? [{ url: cover, alt: game.name }] : undefined,
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${game.name} · Savepoint`,
+        description,
+        images: cover ? [cover] : undefined,
+      },
     };
   } catch {
     return { title: 'Game Not Found' };
@@ -199,6 +223,39 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            videoGameJsonLd({
+              name: game.name,
+              description: game.description,
+              image: game.coverImage,
+              url: absoluteUrl(`/games/${igdbGame.slug || slug}`),
+              datePublished: game.releaseDate
+                ? new Date(game.releaseDate).toISOString().slice(0, 10)
+                : null,
+              genre: igdbGame.genres?.map((g) => g.name).filter(Boolean) as string[],
+              aggregateRating:
+                game.ratingCount > 0
+                  ? { ratingValue: game.avgRating, ratingCount: game.ratingCount }
+                  : undefined,
+            })
+          ),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            breadcrumbJsonLd([
+              { name: 'Home', url: absoluteUrl('/') },
+              { name: 'Games', url: absoluteUrl('/games') },
+              { name: game.name, url: absoluteUrl(`/games/${igdbGame.slug || slug}`) },
+            ])
+          ),
+        }}
+      />
       <Navbar />
       <main className="main-content">
         {/* Banner */}

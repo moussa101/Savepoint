@@ -5,7 +5,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import { getConversation } from '@/app/actions/messages';
 import ChatThread from './ChatThread';
 
-export const metadata = { title: 'Chat — Savepoint' };
+export const metadata = { title: 'Chat', robots: { index: false, follow: false } };
 
 export default async function ConversationPage({
   params,

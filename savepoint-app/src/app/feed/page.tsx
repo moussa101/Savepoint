@@ -13,7 +13,7 @@ import ActivityActionBar from '@/components/feed/ActivityActionBar';
 import { getTrendingGamesCached } from '@/lib/cached-queries';
 import UserAvatar from '@/components/ui/UserAvatar';
 
-export const metadata = { title: 'Feed — Savepoint' };
+export const metadata = { title: 'Feed', robots: { index: false, follow: false } };
 
 export default async function FeedPage() {
   const session = await auth();

@@ -6,7 +6,7 @@ import { getFriendsData } from '@/app/actions/friends';
 import FriendsClient from './FriendsClient';
 import Link from 'next/link';
 
-export const metadata = { title: 'Friends — Savepoint' };
+export const metadata = { title: 'Friends', robots: { index: false, follow: false } };
 
 export default async function FriendsPage() {
   const session = await auth();

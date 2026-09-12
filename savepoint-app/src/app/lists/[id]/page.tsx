@@ -10,6 +10,37 @@ import ListLikeButton from './ListLikeButton';
 import ListControls from './ListControls';
 import ReportButton from '@/components/ui/ReportButton';
 import UserAvatar from '@/components/ui/UserAvatar';
+import type { Metadata } from 'next';
+import { absoluteUrl, gameListJsonLd, breadcrumbJsonLd, SITE_NAME } from '@/lib/seo';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const list = await prisma.list.findUnique({
+    where: { id },
+    select: {
+      title: true,
+      description: true,
+      visibility: true,
+      user: { select: { name: true, username: true } },
+      _count: { select: { items: true } },
+    },
+  });
+  if (!list || list.visibility === 'PRIVATE') return { title: 'List', robots: { index: false, follow: false } };
+  const author = list.user.name || list.user.username;
+  const description = list.description ||
+    `A game list by ${author} on ${SITE_NAME} — ${list._count.items} games.`;
+  return {
+    title: list.title,
+    description,
+    alternates: { canonical: absoluteUrl(`/lists/${id}`) },
+    openGraph: {
+      title: `${list.title} · ${SITE_NAME}`,
+      description,
+      url: absoluteUrl(`/lists/${id}`),
+      type: 'website',
+    },
+  };
+}
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,8 +68,45 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
 
   const isOwner = list.userId === session?.user?.id;
 
+  const author = list.user.name || list.user.username;
+  const listUrl = absoluteUrl(`/lists/${list.id}`);
+
   return (
     <>
+      {list.visibility === 'PUBLIC' && (
+        <>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(
+                gameListJsonLd({
+                  name: list.title,
+                  description: list.description,
+                  url: listUrl,
+                  author,
+                  games: list.items.map((item) => ({
+                    name: item.game.name,
+                    url: absoluteUrl(`/games/${item.game.slug}`),
+                    image: item.game.coverImage,
+                  })),
+                })
+              ),
+            }}
+          />
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(
+                breadcrumbJsonLd([
+                  { name: 'Home', url: absoluteUrl('/') },
+                  { name: 'Lists', url: absoluteUrl('/lists') },
+                  { name: list.title, url: listUrl },
+                ])
+              ),
+            }}
+          />
+        </>
+      )}
       <Navbar />
       <main className="main-content main-content-padded">
         <div className="container" style={{ maxWidth: '800px' }}>

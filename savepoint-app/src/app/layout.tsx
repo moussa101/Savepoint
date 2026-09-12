@@ -1,11 +1,10 @@
-import type { Metadata, Viewport } from 'next';
+import type { Viewport } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import './globals.css';
 import SessionProvider from '@/components/SessionProvider';
 import UpdateAnnouncement from '@/components/ui/UpdateAnnouncement';
+import { buildRootMetadata, organizationJsonLd, websiteJsonLd } from '@/lib/seo';
 
-// Self-hosted via next/font: no render-blocking request to fonts.googleapis.com,
-// fonts are preloaded and served from our own origin with `font-display: swap`.
 const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
@@ -18,22 +17,7 @@ const outfit = Outfit({
   variable: '--font-outfit',
 });
 
-export const metadata: Metadata = {
-  title: 'Savepoint — Your Gaming Story, Told Beautifully',
-  description:
-    'Track, rate, review, and share your gaming experiences. Build your gaming profile and discover your next favorite game.',
-  keywords: ['games', 'gaming', 'reviews', 'social', 'game tracking', 'game diary'],
-  applicationName: 'Savepoint',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Savepoint',
-  },
-  formatDetection: {
-    telephone: false,
-  },
-  manifest: '/manifest.webmanifest',
-};
+export const metadata = buildRootMetadata();
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -52,12 +36,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const jsonLd = [websiteJsonLd(), organizationJsonLd()];
+
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
       <head>
-        {/* Almost every page paints IGDB cover art; warm the connection early. */}
         <link rel="preconnect" href="https://images.igdb.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://images.igdb.com" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </head>
       <body>
         <SessionProvider>

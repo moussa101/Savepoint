@@ -15,8 +15,16 @@ import { getPopularListsCached, getTrendingGamesCached } from '@/lib/cached-quer
 import { shuffleCopy, shuffleTier } from '@/lib/shuffle';
 
 export const metadata = {
-  title: 'Discover Games — Savepoint',
-  description: 'Discover and explore video games. Find popular, highly rated, and trending games.',
+  title: 'Discover Games',
+  description:
+    'Discover popular, highly rated, and trending video games. Search, filter, and add titles to your Savepoint library.',
+  alternates: { canonical: '/games' },
+  openGraph: {
+    title: 'Discover Games · Savepoint',
+    description:
+      'Discover popular, highly rated, and trending video games on Savepoint.',
+    url: '/games',
+  },
 };
 
 /** Page can be statically regenerated; hero shuffle is fine from cached pools. */

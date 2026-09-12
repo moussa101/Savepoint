@@ -1,13 +1,21 @@
 {
   "name": "Savepoint",
   "short_name": "Savepoint",
-  "description": "Track, rate, and share your gaming journey.",
-  "start_url": "/feed",
+  "description": "Track, rate, review, and share your games. Sync Steam, PlayStation, and Xbox libraries.",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
   "orientation": "portrait-primary",
+  "categories": ["games", "social", "entertainment"],
+  "lang": "en",
   "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "/favicon.ico",
       "sizes": "48x48",

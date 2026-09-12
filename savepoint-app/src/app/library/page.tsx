@@ -14,7 +14,7 @@ import { shouldAutoSyncSteam } from '@/lib/steam-sync';
 import { shouldAutoSyncPsn } from '@/lib/psn-sync';
 import { formatPlaytimeHours } from '@/lib/playtime';
 
-export const metadata = { title: 'My Library — Savepoint' };
+export const metadata = { title: 'My Library', robots: { index: false, follow: false } };
 // Steam / PSN sync can take a while for large libraries.
 export const maxDuration = 120;
 

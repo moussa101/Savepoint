@@ -10,7 +10,7 @@ import ConnectedLibraries from './ConnectedLibraries';
 import PasskeysManager from '@/components/settings/PasskeysManager';
 import type { PasskeyListItem } from '@/app/actions/passkeys';
 
-export const metadata = { title: 'Settings — Savepoint' };
+export const metadata = { title: 'Settings', robots: { index: false, follow: false } };
 // Library syncs (Steam / PSN trophies) can take longer than the default serverless limit.
 export const maxDuration = 180;
 

@@ -18,6 +18,7 @@ import { calculateLevel, getTierFromLevel, BADGE_DEFINITIONS } from '@/lib/gamif
 import ProfilePsnTrophies from '@/components/profile/ProfilePsnTrophies';
 import ProfilePlatformTags from '@/components/profile/ProfilePlatformTags';
 import { Suspense, cache } from 'react';
+import { absoluteUrl, profileJsonLd } from '@/lib/seo';
 
 const getUser = cache(async (username: string) => {
   // Everything is keyed by username (via relation filters) so the user row and
@@ -129,7 +130,39 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   const { username } = await params;
   const user = await getUser(username);
   if (!user) return { title: 'User Not Found' };
-  return { title: `${user.name || user.username} — Savepoint` };
+
+  const display = user.name || user.username;
+  const description =
+    user.bio?.replace(/\s+/g, ' ').trim().slice(0, 160) ||
+    `${display}'s gaming profile on Savepoint — library, reviews, and trophies.`;
+  const path = `/profile/${user.username}`;
+
+  if (user.isPrivate) {
+    return {
+      title: `${display}'s profile`,
+      description: 'This Savepoint profile is private.',
+      robots: { index: false, follow: false },
+    };
+  }
+
+  return {
+    title: `${display} (@${user.username})`,
+    description,
+    alternates: { canonical: path },
+    openGraph: {
+      title: `${display} · Savepoint`,
+      description,
+      url: path,
+      type: 'profile',
+      images: user.image ? [{ url: user.image, alt: display }] : undefined,
+    },
+    twitter: {
+      card: 'summary',
+      title: `${display} · Savepoint`,
+      description,
+      images: user.image ? [user.image] : undefined,
+    },
+  };
 }
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
@@ -373,6 +406,22 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   return (
     <>
+      {!user.isPrivate ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(
+              profileJsonLd({
+                name: user.name || user.username,
+                username: user.username,
+                description: user.bio,
+                image: user.image,
+                url: absoluteUrl(`/profile/${user.username}`),
+              })
+            ),
+          }}
+        />
+      ) : null}
       <Navbar />
       <main className="main-content">
         <div style={{

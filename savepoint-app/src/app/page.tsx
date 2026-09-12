@@ -1,10 +1,24 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { getSiteStatsCached } from '@/lib/cached-queries';
 import Navbar from '@/components/layout/Navbar';
 import StarRating from '@/components/ui/StarRating';
 import { GamepadIcon, StarIcon, UsersIcon } from '@/components/ui/Icons';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import { auth } from '@/lib/auth';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, absoluteUrl } from '@/lib/seo';
+
+export const metadata: Metadata = {
+  title: { absolute: `${SITE_NAME} — ${SITE_TAGLINE}` },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: absoluteUrl('/') },
+  openGraph: {
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    url: absoluteUrl('/'),
+    type: 'website',
+  },
+};
 
 export default async function LandingPage() {
   // All four are independent — one round of latency instead of four.
@@ -46,10 +60,13 @@ export default async function LandingPage() {
           </div>
           <div className="landing-hero-content animate-fade-in-up">
             <h1 className="landing-hero-title font-display">
-              Your Gaming Story,<br />Told Beautifully
+              Savepoint
             </h1>
+            <p className="landing-hero-subtitle" style={{ fontSize: 'clamp(1.1rem, 3vw, 1.5rem)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
+              The Video Game Tracker for Serious Gamers
+            </p>
             <p className="landing-hero-subtitle">
-              Play. Rate. Review. Remember.
+              Rate, review, and track every game you play. Sync Steam &amp; PlayStation. The Letterboxd for games.
             </p>
             <div className="landing-hero-actions">
               {session ? (

@@ -10,7 +10,7 @@ import { ensureReleaseAnnouncement } from '@/lib/ensure-release-announcement';
 import { SITE_VERSION } from '@/lib/site-version';
 import UserAvatar from '@/components/ui/UserAvatar';
 
-export const metadata = { title: 'Forums — Savepoint' };
+export const metadata = { title: 'Forums', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 export default async function ForumsPage({

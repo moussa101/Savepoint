@@ -6,7 +6,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import { listConversations } from '@/app/actions/messages';
 import MessagesInbox from './MessagesInbox';
 
-export const metadata = { title: 'Messages — Savepoint' };
+export const metadata = { title: 'Messages', robots: { index: false, follow: false } };
 
 export default async function MessagesPage() {
   const session = await auth();

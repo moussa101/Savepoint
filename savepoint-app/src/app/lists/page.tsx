@@ -8,7 +8,7 @@ import ListForm from './ListForm';
 import ListCard from '@/components/ui/ListCard';
 import { ListIcon } from '@/components/ui/Icons';
 
-export const metadata = { title: 'My Lists — Savepoint' };
+export const metadata = { title: 'My Lists', robots: { index: false, follow: false } };
 
 export default async function ListsPage() {
   const session = await auth();
