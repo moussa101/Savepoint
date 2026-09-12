@@ -185,14 +185,8 @@ export default function ConnectedLibraries({
         {steamId ? (
           <>
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-sm)' }}>
-              {steamPersonaName ? (
-                <>
-                  <strong style={{ color: 'var(--text-primary)' }}>{steamPersonaName}</strong>
-                  {steamLinkedAt ? ` · linked ${formatWhen(steamLinkedAt)}` : ''}
-                </>
-              ) : (
-                <>Linked{steamLinkedAt ? ` · ${formatWhen(steamLinkedAt)}` : ''}</>
-              )}
+              {steamPersonaName || 'Linked'}
+              {steamLinkedAt ? ` · Linked ${formatWhen(steamLinkedAt)}` : ''}
               {steamLastSyncAt
                 ? ` · Last sync ${formatWhen(steamLastSyncAt)} · Auto-syncs when you open Library`
                 : ' · Library auto-syncs when you open it'}
