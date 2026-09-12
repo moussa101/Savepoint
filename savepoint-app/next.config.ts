@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '5mb',
     },
+    authInterrupts: true,
   },
   async redirects() {
     return [{ source: '/diary', destination: '/library', permanent: true }];
