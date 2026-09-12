@@ -16,6 +16,7 @@ import { PlaystationIcon, SteamIcon, XboxIcon } from '@/components/ui/Icons';
 
 type Props = {
   steamId: string | null;
+  steamPersonaName?: string | null;
   steamLinkedAt: Date | string | null;
   steamLastSyncAt: Date | string | null;
   xboxGamertag: string | null;
@@ -36,6 +37,7 @@ function formatWhen(value: Date | string | null) {
 
 export default function ConnectedLibraries({
   steamId,
+  steamPersonaName,
   steamLinkedAt,
   steamLastSyncAt,
   xboxGamertag,
@@ -183,7 +185,14 @@ export default function ConnectedLibraries({
         {steamId ? (
           <>
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-sm)' }}>
-              Linked{steamLinkedAt ? ` · ${formatWhen(steamLinkedAt)}` : ''}
+              {steamPersonaName ? (
+                <>
+                  <strong style={{ color: 'var(--text-primary)' }}>{steamPersonaName}</strong>
+                  {steamLinkedAt ? ` · linked ${formatWhen(steamLinkedAt)}` : ''}
+                </>
+              ) : (
+                <>Linked{steamLinkedAt ? ` · ${formatWhen(steamLinkedAt)}` : ''}</>
+              )}
               {steamLastSyncAt
                 ? ` · Last sync ${formatWhen(steamLastSyncAt)} · Auto-syncs when you open Library`
                 : ' · Library auto-syncs when you open it'}

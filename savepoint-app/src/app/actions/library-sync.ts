@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { ensureGameExistsLocally } from '@/app/actions/games';
-import { fetchSteamOwnedGames } from '@/lib/steam';
+import { fetchSteamOwnedGames, resolveSteamPersonaName } from '@/lib/steam';
 import {
   fetchIGDBGamesByIds,
   resolveIgdbIdFromName,
@@ -136,12 +136,14 @@ export async function unlinkSteam() {
     where: { id: userId },
     data: {
       steamId: null,
+      steamPersonaName: null,
       steamLinkedAt: null,
       steamLastSyncAt: null,
     },
   });
   revalidatePath('/settings');
   revalidatePath('/library');
+  revalidatePath('/profile', 'layout');
   return { success: true };
 }
 
@@ -166,7 +168,7 @@ async function mapConcurrent<T, R>(items: T[], limit: number, fn: (item: T) => P
 export async function syncSteamLibraryForUser(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { steamId: true },
+    select: { steamId: true, steamPersonaName: true },
   });
 
   if (!user?.steamId) {
@@ -174,6 +176,9 @@ export async function syncSteamLibraryForUser(userId: string) {
   }
 
   try {
+    // Refresh Steam display name in the background of every sync.
+    const personaPromise = resolveSteamPersonaName(user.steamId);
+
     // 1. Owned games from Steam, most-played first.
     const owned = await fetchSteamOwnedGames(user.steamId);
     const batch = [...owned]
@@ -187,9 +192,14 @@ export async function syncSteamLibraryForUser(userId: string) {
 
     const igdbIds = [...new Set(igdbByAppId.values())];
     if (igdbIds.length === 0) {
-      await prisma.user.update({ where: { id: userId }, data: { steamLastSyncAt: new Date() } });
+      const steamPersonaName = (await personaPromise) || user.steamPersonaName || null;
+      await prisma.user.update({
+        where: { id: userId },
+        data: { steamLastSyncAt: new Date(), steamPersonaName },
+      });
       revalidatePath('/settings');
       revalidatePath('/library');
+      revalidatePath('/profile', 'layout');
       return { success: true, imported: 0, updated: 0, skipped, total: batch.length };
     }
 
@@ -341,9 +351,10 @@ export async function syncSteamLibraryForUser(userId: string) {
       });
     });
 
+    const steamPersonaName = (await personaPromise) || user.steamPersonaName || null;
     await prisma.user.update({
       where: { id: userId },
-      data: { steamLastSyncAt: now },
+      data: { steamLastSyncAt: now, steamPersonaName },
     });
 
     // 7. Refresh community average playtime for every game we touched.

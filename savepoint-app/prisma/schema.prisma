@@ -142,6 +142,8 @@ model User {
 
   // Connected libraries
   steamId          String?   @unique
+  /// Cached Steam community display name (personaname)
+  steamPersonaName String?
   steamLinkedAt    DateTime?
   steamLastSyncAt  DateTime?
   xboxGamertag     String?

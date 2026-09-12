@@ -106,6 +106,7 @@ export default async function SettingsPage({
 
           <ConnectedLibraries
             steamId={user.steamId}
+            steamPersonaName={user.steamPersonaName}
             steamLinkedAt={user.steamLinkedAt}
             steamLastSyncAt={user.steamLastSyncAt}
             xboxGamertag={user.xboxGamertag}

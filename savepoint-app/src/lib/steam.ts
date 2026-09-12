@@ -64,6 +64,18 @@ export async function fetchSteamPersona(steamId: string): Promise<SteamPersona |
   return player ?? null;
 }
 
+/** Best-effort Steam display name (personaname); never throws. */
+export async function resolveSteamPersonaName(steamId: string): Promise<string | null> {
+  try {
+    const persona = await fetchSteamPersona(steamId);
+    const name = persona?.personaname?.trim();
+    return name || null;
+  } catch (err) {
+    console.warn('Steam persona lookup failed', err);
+    return null;
+  }
+}
+
 export function extractSteamIdFromClaimedId(claimedId: string | null): string | null {
   if (!claimedId) return null;
   const match = claimedId.match(/\/openid\/id\/(\d+)$/);

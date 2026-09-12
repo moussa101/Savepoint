@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import {
   extractSteamIdFromClaimedId,
   getAppBaseUrl,
+  resolveSteamPersonaName,
   verifySteamOpenId,
   type SteamLinkReturn,
   type SteamOpenIdMode,
@@ -67,10 +68,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const steamPersonaName = await resolveSteamPersonaName(steamId);
+
       await prisma.user.update({
         where: { id: session.user.id },
         data: {
           steamId,
+          steamPersonaName,
           steamLinkedAt: new Date(),
         },
       });

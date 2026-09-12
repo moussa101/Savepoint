@@ -253,8 +253,23 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   const ownLists = ownListsResult ?? user.lists;
 
-  let steamPersonaName: string | null = null;
-  // Don't block profile TTFB on a live Steam API call — use the stored Steam ID label.
+  // Prefer cached Steam persona; fill it once if missing so profiles show the real name.
+  let steamPersonaName = (user as { steamPersonaName?: string | null }).steamPersonaName ?? null;
+  if (user.steamId && !steamPersonaName) {
+    const { resolveSteamPersonaName } = await import('@/lib/steam');
+    steamPersonaName = await resolveSteamPersonaName(user.steamId);
+    if (steamPersonaName) {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { steamPersonaName },
+        });
+      } catch (err) {
+        // Stale Prisma client / mid-deploy — still show the name this request.
+        console.warn('Could not cache steamPersonaName', err);
+      }
+    }
+  }
 
   // Shared library with the signed-in viewer — only on a friend's profile (never your own).
   type SharedGameRow = {
