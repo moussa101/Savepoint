@@ -47,6 +47,26 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+/// WebAuthn / Passkey credentials (Auth.js Passkey provider)
+model Authenticator {
+  credentialID         String
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+  /// Optional friendly label shown in Settings
+  name                 String?
+  createdAt            DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, credentialID])
+  @@unique([credentialID])
+}
+
 model PasswordResetToken {
   id        String   @id @default(cuid())
   email     String
@@ -146,9 +166,10 @@ model User {
   psnEarnedPlatinum Int      @default(0)
 
   // Relations
-  accounts     Account[]
-  sessions     Session[]
-  userGames    UserGame[]
+  accounts       Account[]
+  sessions       Session[]
+  authenticators Authenticator[]
+  userGames      UserGame[]
   reviews      Review[]
   reviewLikes  ReviewLike[]
   lists        List[]

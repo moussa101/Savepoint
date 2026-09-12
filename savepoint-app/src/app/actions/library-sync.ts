@@ -697,21 +697,36 @@ async function persistMergedTrophies(
 export async function syncPsnLibraryForUser(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { psnAccountId: true, psnOnlineId: true },
+    select: { psnAccountId: true, psnOnlineId: true, psnLastSyncAt: true },
   });
   if (!user?.psnAccountId) {
     return { error: 'Connect PlayStation first.' };
   }
 
+  const isFirstSync = !user.psnLastSyncAt;
+
   try {
     const authorization = await getValidPsnAuthorization(userId);
     const accountId = user.psnAccountId;
 
-    // Fetch Sony endpoints in parallel — one slow call shouldn't block the others.
+    // Reuse prior PSN→game matches so we don't re-hit IGDB every sync.
+    const priorProgress = await prisma.psnTitleProgress.findMany({
+      where: { userId, gameId: { not: null } },
+      select: { titleName: true, gameId: true },
+    });
+    const nameToGameId = new Map<string, string>();
+    for (const row of priorProgress) {
+      if (row.gameId) nameToGameId.set(row.titleName.toLowerCase(), row.gameId);
+    }
+
+    // Fetch Sony endpoints in parallel — skip full purchased catalog on re-sync.
     const [profileSettled, playedSettled, ownedSettled, trophiesSettled] = await Promise.allSettled([
       fetchPsnAccountProfile(authorization, accountId),
       fetchPsnPlayedGames(authorization, accountId, PSN_SYNC_LIMIT),
-      fetchPsnOwnedCatalog(authorization, PSN_SYNC_LIMIT),
+      fetchPsnOwnedCatalog(authorization, isFirstSync ? PSN_SYNC_LIMIT : 80, {
+        includePurchased: isFirstSync,
+        maxPurchasedPages: isFirstSync ? PSN_OWNED_PAGES_FIRST : 0,
+      }),
       fetchPsnTrophyTitles(authorization, accountId, PSN_SYNC_LIMIT),
     ]);
 
@@ -725,7 +740,6 @@ export async function syncPsnLibraryForUser(userId: string) {
 
     const resolvedAccountId = profile?.accountId || accountId;
 
-    // Re-fetch played/trophies with resolved account id if profile corrected it.
     let played: Awaited<ReturnType<typeof fetchPsnPlayedGames>> =
       playedSettled.status === 'fulfilled' ? playedSettled.value : [];
     let ownedCatalog: Awaited<ReturnType<typeof fetchPsnOwnedCatalog>> =
@@ -768,7 +782,6 @@ export async function syncPsnLibraryForUser(userId: string) {
       };
     }
 
-    const nameToGameId = new Map<string, string>();
     let imported = 0;
     let updated = 0;
     let skipped = 0;
@@ -823,15 +836,29 @@ export async function syncPsnLibraryForUser(userId: string) {
       else if (earnedCount > 0 || (title.progress || 0) > 0) statusByName.set(key, 'PLAYING');
     }
 
-    // Match playtime-first, capped — IGDB name search is the slow part.
-    const importBatch = [...importNames.values()]
-      .sort((a, b) => {
-        const aHint = statusByName.has(a.name.toLowerCase()) ? 1 : 0;
-        const bHint = statusByName.has(b.name.toLowerCase()) ? 1 : 0;
-        if (bHint !== aHint) return bHint - aHint;
-        return b.playtimeMinutes - a.playtimeMinutes;
-      })
-      .slice(0, PSN_IMPORT_MATCH_LIMIT);
+    const matchBudget = isFirstSync ? PSN_IMPORT_MATCH_LIMIT_FIRST : PSN_IMPORT_MATCH_LIMIT;
+
+    // Prefer already-matched titles; only IGDB-resolve unknowns.
+    const alreadyMatched: { name: string; playtimeMinutes: number; localId: string }[] = [];
+    const needsMatch: { name: string; playtimeMinutes: number }[] = [];
+
+    const ranked = [...importNames.values()].sort((a, b) => {
+      const aHint = statusByName.has(a.name.toLowerCase()) ? 1 : 0;
+      const bHint = statusByName.has(b.name.toLowerCase()) ? 1 : 0;
+      if (bHint !== aHint) return bHint - aHint;
+      return b.playtimeMinutes - a.playtimeMinutes;
+    });
+
+    for (const title of ranked) {
+      const existingId = nameToGameId.get(title.name.toLowerCase());
+      if (existingId) {
+        alreadyMatched.push({ ...title, localId: existingId });
+      } else {
+        needsMatch.push(title);
+      }
+    }
+
+    const importBatch = needsMatch.slice(0, matchBudget);
 
     let markedCompleted = 0;
 
@@ -843,12 +870,44 @@ export async function syncPsnLibraryForUser(userId: string) {
       trophyHint: 'PLAYING' | 'COMPLETED' | null;
     };
 
-    const resolved = (
-      await mapConcurrent(importBatch, 6, async (title): Promise<ResolvedRow | null> => {
+    // Local DB name hit before expensive IGDB search.
+    const localNameHits = importBatch.length
+      ? await prisma.game.findMany({
+          where: {
+            OR: importBatch.map((t) => ({
+              name: { equals: t.name, mode: 'insensitive' as const },
+            })),
+          },
+          select: { id: true, name: true, igdbId: true },
+          take: importBatch.length * 2,
+        })
+      : [];
+    const localByName = new Map(
+      localNameHits.map((g) => [g.name.toLowerCase(), g] as const)
+    );
+    const igdbResolveCache = new Map<string, number | null>();
+
+    const freshlyResolved = (
+      await mapConcurrent(importBatch, 8, async (title): Promise<ResolvedRow | null> => {
         try {
-          const igdbId = await resolveIgdbIdFromName(title.name);
-          if (!igdbId) return null;
-          const localId = await ensureGameExistsLocally(String(igdbId));
+          const local = localByName.get(title.name.toLowerCase());
+          let igdbId = local?.igdbId ?? (local?.id && /^\d+$/.test(local.id) ? Number(local.id) : null);
+          let localId = local?.id ?? null;
+
+          if (!igdbId) {
+            const cacheKey = title.name.toLowerCase();
+            if (igdbResolveCache.has(cacheKey)) {
+              igdbId = igdbResolveCache.get(cacheKey) ?? null;
+            } else {
+              igdbId = await resolveIgdbIdFromName(title.name);
+              igdbResolveCache.set(cacheKey, igdbId);
+            }
+            if (!igdbId) return null;
+            localId = await ensureGameExistsLocally(String(igdbId));
+          } else if (!localId) {
+            localId = await ensureGameExistsLocally(String(igdbId));
+          }
+
           return {
             name: title.name,
             localId,
@@ -863,14 +922,28 @@ export async function syncPsnLibraryForUser(userId: string) {
       })
     ).filter((r): r is ResolvedRow => !!r);
 
-    skipped += importBatch.length - resolved.length;
-    for (const row of resolved) {
+    skipped += importBatch.length - freshlyResolved.length;
+    for (const row of freshlyResolved) {
       nameToGameId.set(row.name.toLowerCase(), row.localId);
     }
 
-    const ttbByIgdb = await fetchIGDBTimeToBeats(resolved.map((r) => r.igdbId));
+    // Also refresh playtime/status for already-matched titles (no IGDB).
+    const reuseRows: ResolvedRow[] = alreadyMatched.map((t) => ({
+      name: t.name,
+      localId: t.localId,
+      igdbId: /^\d+$/.test(t.localId) ? Number(t.localId) : 0,
+      playtimeMinutes: t.playtimeMinutes,
+      trophyHint: statusByName.get(t.name.toLowerCase()) || null,
+    }));
 
-    const upsertResults = await mapConcurrent(resolved, 8, async (row) => {
+    // Cap reuse upserts on re-sync so we don't rewrite the whole library every time.
+    const reuseBudget = isFirstSync ? reuseRows.length : Math.min(reuseRows.length, 120);
+    const resolved = [...freshlyResolved, ...reuseRows.slice(0, reuseBudget)];
+
+    const ttbIds = resolved.map((r) => r.igdbId).filter((id) => id > 0);
+    const ttbByIgdb = await fetchIGDBTimeToBeats(ttbIds);
+
+    const upsertResults = await mapConcurrent(resolved, 10, async (row) => {
       const suggestedStatus = inferImportStatus({
         playtimeMinutes: row.playtimeMinutes,
         finishMinutes: finishMinutesFromTimeToBeat(ttbByIgdb.get(row.igdbId)),
@@ -893,26 +966,11 @@ export async function syncPsnLibraryForUser(userId: string) {
       touchedGameIds.push(row.localId);
     }
 
-    // Trophy title summaries (fast) — skip unresolved IGDB lookups here to save time.
-    await mapConcurrent(trophyTitles, 8, async (title) => {
+    // Trophy title summaries only — detailed lists load on the game page.
+    await mapConcurrent(trophyTitles, 12, async (title) => {
       const cleaned = cleanPsnGameName(title.trophyTitleName);
       const gameId = nameToGameId.get(cleaned.toLowerCase()) || null;
       await upsertPsnTitleProgress(userId, title, gameId);
-    });
-
-    // Only a few trophy detail lists during library sync; game pages auto-load the rest.
-    const detailCandidates = trophyTitles
-      .filter((t) => (t.progress || 0) > 0)
-      .sort((a, b) => (b.progress || 0) - (a.progress || 0))
-      .slice(0, PSN_TROPHY_DETAIL_LIMIT);
-
-    await mapConcurrent(detailCandidates, 3, async (title) => {
-      try {
-        const merged = await fetchMergedTrophiesForTitle(authorization, title, resolvedAccountId);
-        await persistMergedTrophies(userId, title.npCommunicationId, merged);
-      } catch (err) {
-        console.error('PSN trophy detail sync failed', title.npCommunicationId, err);
-      }
     });
 
     // If profile summary looks empty, fall back to summing synced title progress.
@@ -961,15 +1019,15 @@ export async function syncPsnLibraryForUser(userId: string) {
       imported,
       updated,
       skipped,
-      total: importBatch.length,
+      total: alreadyMatched.length + importBatch.length,
       trophyTitles: trophyTitles.length,
       xpGained: xp.gained,
       xp: xp.xp,
       warning:
         fetchWarnings.length > 0
           ? `Partial sync — could not load: ${fetchWarnings.join(', ')}`
-          : trophyTitles.length <= 2 && importBatch.length > trophyTitles.length
-            ? `Imported ${importBatch.length} games from your PSN library. Sony only reported ${trophyTitles.length} trophy title(s) for this account (level ${trophyLevel ?? 1}).`
+          : trophyTitles.length <= 2 && alreadyMatched.length + importBatch.length > trophyTitles.length
+            ? `Imported library games from PSN. Sony only reported ${trophyTitles.length} trophy title(s) for this account (level ${trophyLevel ?? 1}).`
             : markedCompleted > 0
               ? `Marked ${markedCompleted} game(s) Completed from trophies or playtime vs story length.`
               : undefined,
