@@ -117,14 +117,20 @@ function expiresAtFromSeconds(expiresIn: number): Date {
   return new Date(Date.now() + Math.max(30, expiresIn - 60) * 1000);
 }
 
-async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 5): Promise<T> {
+async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 3): Promise<T> {
   let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
       return await fn();
     } catch (err) {
       lastError = err;
-      const delay = 1200 * (i + 1);
+      const msg = err instanceof Error ? err.message : String(err);
+      // Don't burn minutes retrying hard auth / permission failures.
+      if (/401|403|unauthorized|forbidden|npsso|invalid.?token/i.test(msg)) {
+        throw err;
+      }
+      if (i === attempts - 1) break;
+      const delay = 400 * (i + 1);
       console.warn(`PSN ${label} attempt ${i + 1}/${attempts} failed; retrying in ${delay}ms`);
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -342,9 +348,12 @@ export async function fetchPsnTrophyTitles(
  */
 export async function fetchPsnOwnedCatalog(
   authorization: AuthorizationPayload,
-  maxTitles = 800
+  maxTitles = 800,
+  opts?: { maxPurchasedPages?: number; includePurchased?: boolean }
 ): Promise<PsnPlayedTitle[]> {
   const byName = new Map<string, PsnPlayedTitle>();
+  const includePurchased = opts?.includePurchased !== false;
+  const maxPurchasedPages = opts?.maxPurchasedPages ?? 8;
 
   const add = (nameRaw: string, imageUrl: string | null, lastPlayedAt: Date | null) => {
     const name = cleanPsnGameName(nameRaw);
@@ -367,30 +376,7 @@ export async function fetchPsnOwnedCatalog(
     }
   };
 
-  try {
-    let start = 0;
-    for (let page = 0; page < 30 && byName.size < maxTitles; page++) {
-      const size = Math.min(50, maxTitles - byName.size);
-      const res = await withRetry(`purchased@${start}`, () =>
-        getPurchasedGames(authorization, {
-          size,
-          start,
-          platform: ['ps4', 'ps5'],
-          isActive: true,
-        })
-      );
-      const games = res?.data?.purchasedTitlesRetrieve?.games || [];
-      if (!games.length) break;
-      for (const g of games) {
-        add(g.name, g.image?.url || null, null);
-      }
-      if (games.length < size) break;
-      start += games.length;
-    }
-  } catch (err) {
-    console.warn('PSN purchased catalog failed', err);
-  }
-
+  // Recently played is one call and covers what users care about most.
   try {
     const recent = await withRetry('recentlyPlayed', () =>
       getRecentlyPlayedGames(authorization, {
@@ -407,6 +393,32 @@ export async function fetchPsnOwnedCatalog(
     }
   } catch (err) {
     console.warn('PSN recently-played catalog failed', err);
+  }
+
+  if (includePurchased) {
+    try {
+      let start = 0;
+      for (let page = 0; page < maxPurchasedPages && byName.size < maxTitles; page++) {
+        const size = Math.min(50, maxTitles - byName.size);
+        const res = await withRetry(`purchased@${start}`, () =>
+          getPurchasedGames(authorization, {
+            size,
+            start,
+            platform: ['ps4', 'ps5'],
+            isActive: true,
+          })
+        );
+        const games = res?.data?.purchasedTitlesRetrieve?.games || [];
+        if (!games.length) break;
+        for (const g of games) {
+          add(g.name, g.image?.url || null, null);
+        }
+        if (games.length < size) break;
+        start += games.length;
+      }
+    } catch (err) {
+      console.warn('PSN purchased catalog failed', err);
+    }
   }
 
   return [...byName.values()].slice(0, maxTitles);

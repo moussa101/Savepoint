@@ -120,74 +120,39 @@ export default async function ProfilePsnTrophies({ userId, isOwnProfile }: Props
       </div>
 
       {titles.length > 0 && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: 'var(--space-md)',
-          }}
-        >
+        <div className="psn-title-grid">
           {titles.map((title) => {
             const imageSrc = title.game?.coverImage || title.iconUrl || '';
             const inner = (
               <>
-                <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+                <div className="psn-title-row">
                   {imageSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
+                      className="psn-title-cover"
                       src={imageSrc}
                       alt=""
-                      width={40}
-                      height={54}
+                      width={36}
+                      height={48}
                       referrerPolicy="no-referrer"
-                      style={{ borderRadius: 4, objectFit: 'cover', flexShrink: 0, background: 'var(--bg-surface-hover)' }}
                     />
                   ) : (
-                    <div
-                      style={{
-                        width: 40,
-                        height: 54,
-                        borderRadius: 4,
-                        background: 'var(--bg-surface-hover)',
-                        flexShrink: 0,
-                      }}
-                    />
+                    <div className="psn-title-cover psn-title-cover-fallback" />
                   )}
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 'var(--text-sm)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {title.game?.name || title.titleName}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  <div className="psn-title-info">
+                    <div className="psn-title-name">{title.game?.name || title.titleName}</div>
+                    <div className="psn-title-meta">
                       {title.platform || 'PSN'} · {title.progress}%
                     </div>
                   </div>
                 </div>
-                <div
-                  style={{
-                    height: 6,
-                    borderRadius: 999,
-                    background: 'var(--bg-surface-hover)',
-                    overflow: 'hidden',
-                    marginBottom: 6,
-                  }}
-                >
+                <div className="psn-title-progress">
                   <div
-                    style={{
-                      width: `${Math.min(100, title.progress)}%`,
-                      height: '100%',
-                      background: 'var(--accent-primary)',
-                    }}
+                    className="psn-title-progress-fill"
+                    style={{ width: `${Math.min(100, title.progress)}%` }}
                   />
                 </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                <div className="psn-title-counts">
                   <span style={{ color: TYPE_COLOR.platinum }}>{title.earnedPlatinum}P</span>
                   {' · '}
                   <span style={{ color: TYPE_COLOR.gold }}>{title.earnedGold}G</span>
@@ -200,11 +165,11 @@ export default async function ProfilePsnTrophies({ userId, isOwnProfile }: Props
             );
 
             return title.game?.slug ? (
-              <Link key={title.id} href={`/games/${title.game.slug}`} className="card" style={{ padding: 'var(--space-md)' }}>
+              <Link key={title.id} href={`/games/${title.game.slug}`} className="card psn-title-card">
                 {inner}
               </Link>
             ) : (
-              <div key={title.id} className="card" style={{ padding: 'var(--space-md)' }}>
+              <div key={title.id} className="card psn-title-card">
                 {inner}
               </div>
             );

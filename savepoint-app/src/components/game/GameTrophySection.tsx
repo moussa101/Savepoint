@@ -84,33 +84,14 @@ export default async function GameTrophySection({
     progress.earnedPlatinum;
 
   return (
-    <div className="card" style={{ marginTop: 'var(--space-xl)' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 'var(--space-md)',
-          flexWrap: 'wrap',
-          marginBottom: 'var(--space-md)',
-        }}
-      >
+    <div className="card game-trophy-section" style={{ marginTop: 'var(--space-xl)' }}>
+      <div className="game-trophy-header">
         <div>
-          <h2
-            className="font-display"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-sm)',
-              fontSize: 'var(--text-xl)',
-              fontWeight: 700,
-              marginBottom: 4,
-            }}
-          >
-            <PlaystationIcon size={22} />
+          <h2 className="font-display game-trophy-title">
+            <PlaystationIcon size={20} />
             PlayStation trophies
           </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+          <p className="game-trophy-meta">
             {progress.platform ? `${progress.platform} · ` : ''}
             {progress.progress}% complete
             {definedTotal > 0 ? ` · ${earnedTotal}/${definedTotal}` : ''}
@@ -118,15 +99,7 @@ export default async function GameTrophySection({
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 'var(--space-md)',
-          flexWrap: 'wrap',
-          marginBottom: 'var(--space-md)',
-          fontSize: 'var(--text-sm)',
-        }}
-      >
+      <div className="game-trophy-counts">
         {(
           [
             ['platinum', progress.earnedPlatinum, progress.definedPlatinum],
@@ -141,21 +114,10 @@ export default async function GameTrophySection({
         ))}
       </div>
 
-      <div
-        style={{
-          height: 8,
-          borderRadius: 999,
-          background: 'var(--bg-surface-hover)',
-          overflow: 'hidden',
-          marginBottom: 'var(--space-md)',
-        }}
-      >
+      <div className="game-trophy-progress">
         <div
-          style={{
-            width: `${Math.min(100, Math.max(0, progress.progress))}%`,
-            height: '100%',
-            background: 'var(--accent-primary)',
-          }}
+          className="game-trophy-progress-fill"
+          style={{ width: `${Math.min(100, Math.max(0, progress.progress))}%` }}
         />
       </div>
 
@@ -168,98 +130,55 @@ export default async function GameTrophySection({
           </p>
         )
       ) : (
-        <ul
-          style={{
-            listStyle: 'none',
-            padding: 0,
-            margin: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-sm)',
-          }}
-        >
+        <ul className="game-trophy-list">
           {trophies.map((t) => (
             <li
               key={t.id}
-              style={{
-                display: 'flex',
-                gap: 'var(--space-md)',
-                alignItems: 'flex-start',
-                opacity: t.earned ? 1 : 0.55,
-                padding: 'var(--space-sm)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-surface-hover)',
-              }}
+              className={`game-trophy-row${t.earned ? ' is-earned' : ''}`}
             >
               {t.trophyIconUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
+                  className="game-trophy-icon"
                   src={t.trophyIconUrl}
                   alt=""
-                  width={40}
-                  height={40}
+                  width={32}
+                  height={32}
                   loading="lazy"
                   decoding="async"
-                  style={{ borderRadius: 6, flexShrink: 0, objectFit: 'cover' }}
                 />
               ) : (
                 <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 6,
-                    background: TYPE_COLOR[t.trophyType] || 'var(--text-muted)',
-                    flexShrink: 0,
-                  }}
+                  className="game-trophy-icon game-trophy-icon-fallback"
+                  style={{ background: TYPE_COLOR[t.trophyType] || 'var(--text-muted)' }}
                 />
               )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 'var(--space-sm)',
-                    alignItems: 'baseline',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <strong style={{ fontSize: 'var(--text-sm)' }}>{t.trophyName}</strong>
+              <div className="game-trophy-body">
+                <div className="game-trophy-name-row">
+                  <strong className="game-trophy-name">{t.trophyName}</strong>
                   <span
-                    style={{
-                      fontSize: '0.7rem',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                      color: TYPE_COLOR[t.trophyType] || 'var(--text-muted)',
-                    }}
+                    className="game-trophy-type"
+                    style={{ color: TYPE_COLOR[t.trophyType] || 'var(--text-muted)' }}
                   >
                     {t.trophyType}
                   </span>
                   {t.earned && t.earnedDateTime && (
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    <span className="game-trophy-date">
                       {new Date(t.earnedDateTime).toLocaleDateString()}
                     </span>
                   )}
                 </div>
                 {t.trophyDetail && (
-                  <p
-                    style={{
-                      margin: '4px 0 0',
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    {t.trophyDetail}
-                  </p>
+                  <p className="game-trophy-detail">{t.trophyDetail}</p>
                 )}
               </div>
               {typeof t.earnedRate === 'number' && !Number.isNaN(t.earnedRate) && (
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                  {t.earnedRate.toFixed(1)}%
-                </span>
+                <span className="game-trophy-rate">{t.earnedRate.toFixed(1)}%</span>
               )}
             </li>
           ))}
           {earnedCount > 0 && (
-            <li style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', paddingTop: 4 }}>
+            <li className="game-trophy-footer">
               {earnedCount} earned of {trophies.length} listed
             </li>
           )}

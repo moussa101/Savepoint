@@ -33,12 +33,14 @@ import {
 
 const STEAM_SYNC_LIMIT = 500;
 const XBOX_SYNC_LIMIT = 150;
-/** How many PSN catalog titles to match against IGDB per sync (playtime-first). */
-const PSN_IMPORT_MATCH_LIMIT = 180;
+/** How many *new* PSN titles to match against IGDB per sync (playtime-first). */
+const PSN_IMPORT_MATCH_LIMIT = 80;
+/** First sync can pull a wider catalog; re-syncs stay lighter. */
+const PSN_IMPORT_MATCH_LIMIT_FIRST = 140;
 /** Sony list fetch cap (catalog can be large; matching is capped separately). */
-const PSN_SYNC_LIMIT = 400;
-/** Per-title trophy lists are heavy — keep a tiny budget; game pages load the rest. */
-const PSN_TROPHY_DETAIL_LIMIT = 8;
+const PSN_SYNC_LIMIT = 250;
+/** Purchased catalog pages are slow — first sync only, capped. */
+const PSN_OWNED_PAGES_FIRST = 6;
 
 type ImportStatus = 'WANT_TO_PLAY' | 'PLAYING' | 'COMPLETED';
 
@@ -670,16 +672,11 @@ async function persistMergedTrophies(
   npCommunicationId: string,
   trophies: Awaited<ReturnType<typeof fetchMergedTrophiesForTitle>>
 ) {
-  for (const t of trophies) {
-    await prisma.psnTrophy.upsert({
-      where: {
-        userId_npCommunicationId_trophyId: {
-          userId,
-          npCommunicationId,
-          trophyId: t.trophyId,
-        },
-      },
-      create: {
+  // Replace-in-place is much faster than N individual upserts.
+  await prisma.$transaction([
+    prisma.psnTrophy.deleteMany({ where: { userId, npCommunicationId } }),
+    prisma.psnTrophy.createMany({
+      data: trophies.map((t) => ({
         userId,
         npCommunicationId,
         trophyId: t.trophyId,
@@ -692,20 +689,9 @@ async function persistMergedTrophies(
         earnedDateTime: t.earnedDateTime,
         rarity: t.rarity,
         earnedRate: t.earnedRate,
-      },
-      update: {
-        trophyName: t.trophyName,
-        trophyDetail: t.trophyDetail,
-        trophyType: t.trophyType,
-        trophyIconUrl: t.trophyIconUrl,
-        trophyGroupId: t.trophyGroupId,
-        earned: t.earned,
-        earnedDateTime: t.earnedDateTime,
-        rarity: t.rarity,
-        earnedRate: t.earnedRate,
-      },
-    });
-  }
+      })),
+    }),
+  ]);
 }
 
 export async function syncPsnLibraryForUser(userId: string) {
