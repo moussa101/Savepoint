@@ -21,6 +21,7 @@ import UserAvatar from '@/components/ui/UserAvatar';
 import ReportButton from '@/components/ui/ReportButton';
 import { MessageContent } from '@/components/messages/MessageContent';
 import GifPicker from '@/components/messages/GifPicker';
+import EmojiPicker from '@/components/messages/EmojiPicker';
 import GroupManagePanel from '@/components/messages/GroupManagePanel';
 import { EditIcon, TrashIcon } from '@/components/ui/Icons';
 import {
@@ -233,6 +234,7 @@ export default function ChatThread({
   const [sendError, setSendError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showGifs, setShowGifs] = useState(false);
+  const [showEmojis, setShowEmojis] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showGroupPanel, setShowGroupPanel] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{ userId: string; username: string }[]>([]);
@@ -321,6 +323,24 @@ export default function ChatThread({
       }
     },
     [editingId, notifyTyping, stopTyping]
+  );
+
+  const insertEmoji = useCallback(
+    (emoji: string) => {
+      const input = inputRef.current;
+      const start = input?.selectionStart ?? draft.length;
+      const end = input?.selectionEnd ?? draft.length;
+      const next = draft.slice(0, start) + emoji + draft.slice(end);
+      onDraftChange(next);
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        const pos = start + emoji.length;
+        el.focus();
+        el.setSelectionRange(pos, pos);
+      });
+    },
+    [draft, onDraftChange]
   );
 
   useEffect(() => () => stopTyping(), [stopTyping]);
@@ -1288,6 +1308,15 @@ export default function ChatThread({
         />
       )}
 
+      {showEmojis && (
+        <EmojiPicker
+          onClose={() => setShowEmojis(false)}
+          onSelect={(emoji) => {
+            insertEmoji(emoji);
+          }}
+        />
+      )}
+
       <form onSubmit={handleSubmit} className="chat-composer">
         {sendError && (
           <p style={{ color: '#eb5757', fontSize: 'var(--text-xs)', marginBottom: 6 }}>{sendError}</p>
@@ -1328,11 +1357,27 @@ export default function ChatThread({
             type="button"
             className="btn btn-ghost btn-sm"
             disabled={!ready || sending}
-            onClick={() => setShowGifs((v) => !v)}
+            onClick={() => {
+              setShowEmojis(false);
+              setShowGifs((v) => !v);
+            }}
             title="GIF"
             aria-label="GIF"
           >
             GIF
+          </button>
+          <button
+            type="button"
+            className={`btn btn-ghost btn-sm${showEmojis ? ' is-active' : ''}`}
+            disabled={!ready || sending}
+            onClick={() => {
+              setShowGifs(false);
+              setShowEmojis((v) => !v);
+            }}
+            title="Emoji"
+            aria-label="Emoji"
+          >
+            Emoji
           </button>
           <input
             ref={inputRef}

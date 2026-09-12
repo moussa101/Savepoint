@@ -3835,6 +3835,76 @@ img.cover,
   }
 }
 
+/* Full Apple/iOS emoji picker */
+.emoji-picker-panel {
+  flex-shrink: 0;
+  margin: 0 0 8px;
+  padding: 10px;
+  height: min(360px, 48vh);
+  background: var(--bg-surface, #12121a);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.emoji-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.emoji-picker-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.emoji-picker-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.emoji-picker-body .EmojiPickerReact {
+  --epr-bg-color: transparent;
+  --epr-category-label-bg-color: rgba(18, 18, 26, 0.95);
+  --epr-search-input-bg-color: rgba(255, 255, 255, 0.06);
+  --epr-text-color: var(--text-primary, #eee);
+  --epr-hover-bg-color: rgba(255, 255, 255, 0.08);
+  --epr-focus-bg-color: rgba(0, 229, 160, 0.15);
+  --epr-highlight-color: var(--accent-primary, #00e5a0);
+  --epr-search-border-color: rgba(255, 255, 255, 0.1);
+  border: none !important;
+  background: transparent !important;
+}
+
+.apple-emoji {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.2em;
+  object-fit: contain;
+  margin: 0 0.04em;
+}
+
+.apple-emoji.is-large {
+  width: 2.4em;
+  height: 2.4em;
+  vertical-align: -0.35em;
+  margin: 0.08em;
+}
+
+.chat-text-content.is-emoji-only {
+  line-height: 1.35;
+  font-size: 1.35em;
+}
+
 /* Site update announcement + confetti */
 .update-confetti {
   position: fixed;

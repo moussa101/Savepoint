@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import emojiRegex from 'emoji-regex';
 import { escapeHtml } from '@/lib/security';
+import { appleEmojiUrl, isEmojiOnlyMessage } from '@/lib/apple-emoji';
 import UserAvatar from '@/components/ui/UserAvatar';
 
 export type RichPayload =
@@ -26,20 +28,59 @@ export function parseMessagePayload(plain: string): RichPayload {
   return { type: 'TEXT', text: plain };
 }
 
-function linkify(text: string) {
-  const escaped = escapeHtml(text);
+function AppleEmoji({ emoji, large }: { emoji: string; large?: boolean }) {
+  return (
+    <img
+      src={appleEmojiUrl(emoji)}
+      alt={emoji}
+      className={`apple-emoji${large ? ' is-large' : ''}`}
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      onError={(e) => {
+        const img = e.currentTarget;
+        img.replaceWith(document.createTextNode(emoji));
+      }}
+    />
+  );
+}
+
+/** Render text with Apple/iOS-style emoji images + linkified URLs. */
+function renderRichText(text: string, largeEmoji: boolean) {
+  const re = emojiRegex();
+  const parts: ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) {
+      parts.push(...linkifySegment(text.slice(last, match.index), key));
+      key += 10;
+    }
+    parts.push(<AppleEmoji key={`e-${key++}`} emoji={match[0]} large={largeEmoji} />);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) {
+    parts.push(...linkifySegment(text.slice(last), key));
+  }
+  return parts;
+}
+
+function linkifySegment(segment: string, keyBase: number): ReactNode[] {
+  const escaped = escapeHtml(segment);
   const re = /(https:\/\/[^\s<]+[^.,;:!?\s<>)"'\]])/gi;
   const parts: ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
-  let key = 0;
+  let key = keyBase;
   const regex = new RegExp(re);
   while ((match = regex.exec(escaped)) !== null) {
     if (match.index > last) parts.push(escaped.slice(last, match.index));
     const href = match[1];
     parts.push(
       <a
-        key={key++}
+        key={`l-${key++}`}
         href={href}
         target="_blank"
         rel="noopener noreferrer"
@@ -72,7 +113,6 @@ export function MessageContent({ plain }: { plain: string }) {
   if (payload.type === 'GIF' && typeof payload.url === 'string') {
     const src =
       (typeof payload.previewUrl === 'string' && payload.previewUrl) || payload.url;
-    // Prefer the main url for playback, but fall back if needed
     const play = payload.url || src;
     return (
       <img
@@ -134,10 +174,18 @@ export function MessageContent({ plain }: { plain: string }) {
     );
   }
 
-  const text = payload.type === 'TEXT' && typeof (payload as { text?: unknown }).text === 'string'
-    ? (payload as { text: string }).text
-    : plain;
+  const text =
+    payload.type === 'TEXT' && typeof (payload as { text?: unknown }).text === 'string'
+      ? (payload as { text: string }).text
+      : plain;
+  const emojiOnly = isEmojiOnlyMessage(text);
+
   return (
-    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{linkify(text)}</div>
+    <div
+      className={`chat-text-content${emojiOnly ? ' is-emoji-only' : ''}`}
+      style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+    >
+      {renderRichText(text, emojiOnly)}
+    </div>
   );
 }
