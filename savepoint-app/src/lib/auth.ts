@@ -3,13 +3,13 @@ import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
 import Discord from 'next-auth/providers/discord';
 import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
-import Passkey from 'next-auth/providers/passkey';
 import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { touchLastIp } from '@/lib/user-ip';
 import { verifySteamLoginToken } from '@/lib/steam-auth';
 import { safeAutoUsername } from '@/lib/usernames';
+import { createPasskeyProvider } from '@/lib/passkey-provider';
 
 class UnverifiedEmailError extends CredentialsSignin {
   code = 'unverified_email';
@@ -56,7 +56,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   providers: [
-    Passkey({}),
+    createPasskeyProvider(),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,

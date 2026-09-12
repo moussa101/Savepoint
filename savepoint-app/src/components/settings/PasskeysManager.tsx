@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { signIn } from 'next-auth/webauthn';
 import {
   deletePasskey,
@@ -13,6 +14,7 @@ import { KeyIcon } from '@/components/ui/Icons';
 
 export default function PasskeysManager({ initial }: { initial: PasskeyListItem[] }) {
   const router = useRouter();
+  const { data: session } = useSession();
   const [items, setItems] = useState(initial);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
@@ -35,7 +37,22 @@ export default function PasskeysManager({ initial }: { initial: PasskeyListItem[
     setStatus('');
     startTransition(async () => {
       try {
-        await signIn('passkey', { action: 'register' });
+        const email = session?.user?.email ?? undefined;
+        const result = await signIn('passkey', {
+          action: 'register',
+          ...(email ? { email } : {}),
+          redirect: false,
+        });
+
+        if (result?.error) {
+          setError(
+            result.error === 'WebAuthnVerificationError'
+              ? 'Couldn’t verify this passkey. Use https://www.savepoint.life, unlock your device, then try again.'
+              : `Passkey error: ${result.error}`
+          );
+          return;
+        }
+
         setStatus('Passkey added.');
         await refresh();
       } catch (err) {
