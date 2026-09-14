@@ -1,9 +1,10 @@
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
-import { ShieldIcon, TrashIcon, SearchIcon } from '@/components/ui/Icons';
+import { ShieldIcon, SearchIcon } from '@/components/ui/Icons';
 import VerifiedBadge from '@/components/ui/VerifiedBadge';
 import UserVerificationToggles from './UserVerificationToggles';
 import PurgeSpamButton from './PurgeSpamButton';
+import DeleteUserButton from './DeleteUserButton';
 import { ensureAdmin } from '@/lib/authz';
 
 export const metadata = {
@@ -214,14 +215,11 @@ export default async function AdminUsersPage() {
                     {user._count.reviews} Reviews • {user._count.lists} Lists
                   </td>
                   <td style={{ padding: 'var(--space-md) var(--space-lg)', textAlign: 'center' }}>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: '6px', color: '#eb5757' }}
-                      title="Delete User (Not Implemented Yet)"
-                      disabled
-                    >
-                      <TrashIcon size={16} />
-                    </button>
+                    <DeleteUserButton
+                      userId={user.id}
+                      username={user.username}
+                      isAdmin={user.isAdmin}
+                    />
                   </td>
                 </tr>
               ))}

@@ -207,3 +207,60 @@ export async function purgeRecentSpamSignups(days = 7) {
     return { error: message };
   }
 }
+
+/**
+ * Permanently delete a user and cascaded content.
+ * Cannot delete yourself, other admins, or the Savepoint account.
+ */
+export async function deleteUser(userId: string, banIp = false) {
+  try {
+    const session = await ensureAdmin();
+
+    if (session.user.id === userId) {
+      return { error: 'You cannot delete your own account from admin.' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        isAdmin: true,
+        lastIp: true,
+      },
+    });
+    if (!user) return { error: 'User not found' };
+
+    if (user.isAdmin) {
+      return { error: 'Admin accounts cannot be deleted this way.' };
+    }
+
+    if (user.username.toLowerCase() === 'savepoint') {
+      return { error: 'The Savepoint account cannot be deleted.' };
+    }
+
+    if (banIp && user.lastIp && user.lastIp !== 'Unknown') {
+      await prisma.bannedIP.upsert({
+        where: { ip: user.lastIp },
+        update: { reason: `Deleted account @${user.username}` },
+        create: { ip: user.lastIp, reason: `Deleted account @${user.username}` },
+      });
+    }
+
+    await prisma.passwordResetToken.deleteMany({ where: { email: user.email } });
+    await prisma.user.delete({ where: { id: userId } });
+
+    invalidateReviewsCache();
+    revalidatePath('/admin/users');
+    revalidatePath('/admin/reviews');
+    revalidatePath('/admin/reports');
+    revalidatePath(`/profile/${user.username}`);
+
+    return { success: true as const, username: user.username };
+  } catch (error: unknown) {
+    console.error('Failed to delete user:', error);
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return { error: message };
+  }
+}
