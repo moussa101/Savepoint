@@ -126,3 +126,84 @@ export async function setUserOfficial(userId: string, isOfficial: boolean) {
     return { error: message };
   }
 }
+
+/**
+ * Ban empty spam accounts created recently (random usernames / SMS gateway emails).
+ * Does not touch admins, the Savepoint account, or users with reviews/lists.
+ */
+export async function purgeRecentSpamSignups(days = 7) {
+  try {
+    await ensureAdmin();
+    const { looksLikeGeneratedUsername, isSmsGatewayEmail, isDisposableEmail } = await import(
+      '@/lib/signup-guard'
+    );
+
+    const since = new Date(Date.now() - Math.max(1, Math.min(30, days)) * 24 * 60 * 60 * 1000);
+    const candidates = await prisma.user.findMany({
+      where: {
+        createdAt: { gte: since },
+        isAdmin: false,
+        isBanned: false,
+        NOT: { username: { equals: 'savepoint', mode: 'insensitive' } },
+        reviews: { none: {} },
+        lists: { none: {} },
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        lastIp: true,
+        _count: { select: { userGames: true } },
+      },
+      take: 500,
+    });
+
+    const spam = candidates.filter(
+      (u) =>
+        looksLikeGeneratedUsername(u.username) ||
+        isSmsGatewayEmail(u.email) ||
+        isDisposableEmail(u.email) ||
+        // Empty shell with no library activity either
+        (u._count.userGames === 0 &&
+          /^[A-Za-z0-9]{16,}$/.test(u.username) &&
+          /[a-z]/.test(u.username) &&
+          /[A-Z]/.test(u.username))
+    );
+
+    if (spam.length === 0) {
+      return { success: true as const, banned: 0 };
+    }
+
+    const ids = spam.map((u) => u.id);
+    await prisma.user.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        isBanned: true,
+        bannedReason: 'Automated spam signup purge',
+        isOfficial: false,
+      },
+    });
+    await prisma.session.deleteMany({ where: { userId: { in: ids } } });
+
+    // Ban IPs that appear more than once among spam accounts
+    const ipCounts = new Map<string, number>();
+    for (const u of spam) {
+      if (!u.lastIp || u.lastIp === 'Unknown') continue;
+      ipCounts.set(u.lastIp, (ipCounts.get(u.lastIp) || 0) + 1);
+    }
+    for (const [ip, count] of ipCounts) {
+      if (count < 2) continue;
+      await prisma.bannedIP.upsert({
+        where: { ip },
+        update: { reason: 'Repeated spam signups' },
+        create: { ip, reason: 'Repeated spam signups' },
+      });
+    }
+
+    revalidatePath('/admin/users');
+    return { success: true as const, banned: spam.length };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return { error: message };
+  }
+}

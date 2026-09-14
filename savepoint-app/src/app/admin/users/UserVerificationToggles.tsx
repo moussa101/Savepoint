@@ -12,12 +12,22 @@ interface Props {
 export default function UserVerificationToggles({ userId, isOfficial, username }: Props) {
   const [pending, startTransition] = useTransition();
   const isSavepoint = username.toLowerCase() === 'savepoint';
+  const checked = isOfficial || isSavepoint;
 
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+    <label
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        fontSize: 'var(--text-xs)',
+        color: checked ? 'var(--accent-primary)' : 'var(--text-muted)',
+        fontWeight: checked ? 600 : 400,
+      }}
+    >
       <input
         type="checkbox"
-        checked={isOfficial || isSavepoint}
+        checked={checked}
         disabled={pending || isSavepoint}
         onChange={(e) => {
           const next = e.target.checked;
@@ -26,7 +36,7 @@ export default function UserVerificationToggles({ userId, isOfficial, username }
           });
         }}
       />
-      Official (green)
+      {checked ? 'Official' : 'Not official'}
       {isSavepoint ? ' — locked' : ''}
     </label>
   );

@@ -47,6 +47,20 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+/// Email/password signup waiting for verification — no User row until the link is clicked.
+model PendingSignup {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  name         String?
+  token        String   @unique
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([expires])
+}
+
 /// WebAuthn / Passkey credentials (Auth.js Passkey provider)
 model Authenticator {
   credentialID         String

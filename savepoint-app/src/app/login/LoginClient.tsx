@@ -112,7 +112,7 @@ function LoginForm() {
 
           {registered && (
             <div className="auth-success">
-              Account created successfully! Sign in to continue.
+              Check your email for a verification link to finish creating your account.
             </div>
           )}
 

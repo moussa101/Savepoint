@@ -62,6 +62,24 @@ export default function RegisterClient() {
           {error && <div className="auth-error">{error}</div>}
 
           <form onSubmit={handleSubmit}>
+            {/* Honeypot — hidden from humans; bots often autofill it */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: '-10000px',
+                top: 'auto',
+                width: 1,
+                height: 1,
+                overflow: 'hidden',
+              }}
+            >
+              <label>
+                Website
+                <input type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
+              </label>
+            </div>
+
             <div className="form-group">
               <div className="input-group">
                 <span className="input-icon">@</span>

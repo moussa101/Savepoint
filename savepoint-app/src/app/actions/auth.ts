@@ -8,9 +8,11 @@ import crypto from 'crypto';
 import { headers } from 'next/headers';
 import { getClientIpFromHeaders } from '@/lib/security';
 import { reservedUsernameMessage } from '@/lib/usernames';
+import { signupBlockedReason } from '@/lib/signup-guard';
 
 const resetAttempts = new Map<string, { count: number; resetAt: number }>();
 const registerAttempts = new Map<string, { count: number; resetAt: number }>();
+const registerIpAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function checkRateLimit(
   store: Map<string, { count: number; resetAt: number }>,
@@ -40,18 +42,31 @@ async function clientKey(suffix: string) {
 }
 
 export async function registerUser(formData: FormData) {
-  const username = formData.get('username') as string;
-  const email = formData.get('email') as string;
+  const username = (formData.get('username') as string | null)?.trim() || '';
+  const email = (formData.get('email') as string | null)?.trim() || '';
   const password = formData.get('password') as string;
   const name = formData.get('name') as string;
+  // Honeypot — bots often fill hidden "website" fields
+  const website = formData.get('website') as string | null;
 
   if (!username || !email || !password) {
     return { error: 'All fields are required' };
   }
 
+  const ipKey = await clientKey('register-ip');
+  if (!checkRateLimit(registerIpAttempts, ipKey, 8, 60 * 60 * 1000)) {
+    return { error: 'Too many registration attempts from this network. Please try again later.' };
+  }
+
   const rateKey = await clientKey(email.toLowerCase());
   if (!checkRateLimit(registerAttempts, rateKey, 5, 60 * 60 * 1000)) {
     return { error: 'Too many registration attempts. Please try again later.' };
+  }
+
+  const blocked = signupBlockedReason({ email, username, website });
+  if (blocked) {
+    // Quietly reject honeypot fills with the same message as success-path errors
+    return { error: blocked };
   }
 
   if (username.length < 3 || username.length > 30) {
@@ -73,7 +88,10 @@ export async function registerUser(formData: FormData) {
 
   const existingUser = await prisma.user.findFirst({
     where: {
-      OR: [{ email }, { username }],
+      OR: [
+        { email: { equals: email, mode: 'insensitive' } },
+        { username: { equals: username, mode: 'insensitive' } },
+      ],
     },
   });
 
@@ -82,29 +100,61 @@ export async function registerUser(formData: FormData) {
     return { error: 'Unable to create account with those details. Try a different username or sign in.' };
   }
 
+  // Drop expired pending rows so usernames/emails can be reused.
+  await prisma.pendingSignup.deleteMany({
+    where: { expires: { lt: new Date() } },
+  });
+
+  const emailLower = email.toLowerCase();
+  const pendingConflict = await prisma.pendingSignup.findFirst({
+    where: {
+      OR: [
+        { email: emailLower },
+        { username: { equals: username, mode: 'insensitive' } },
+      ],
+    },
+  });
+
+  // Same email can resend / overwrite their own pending signup.
+  // A different email holding this username is blocked.
+  if (pendingConflict && pendingConflict.email !== emailLower) {
+    return { error: 'Unable to create account with those details. Try a different username or sign in.' };
+  }
+
   const hashedPassword = await hash(password, 12);
-
-  await prisma.user.create({
-    data: {
-      username,
-      email,
-      password: hashedPassword,
-      name: name || username,
-    },
-  });
-
   const token = crypto.randomBytes(32).toString('hex');
-  const expires = new Date(new Date().getTime() + 1000 * 60 * 60 * 24);
+  const expires = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
 
-  await prisma.verificationToken.create({
-    data: {
-      identifier: email,
-      token,
-      expires,
-    },
-  });
+  if (pendingConflict) {
+    await prisma.pendingSignup.update({
+      where: { id: pendingConflict.id },
+      data: {
+        email: emailLower,
+        username,
+        passwordHash: hashedPassword,
+        name: name || username,
+        token,
+        expires,
+      },
+    });
+  } else {
+    await prisma.pendingSignup.create({
+      data: {
+        email: emailLower,
+        username,
+        passwordHash: hashedPassword,
+        name: name || username,
+        token,
+        expires,
+      },
+    });
+  }
 
-  await sendVerificationEmail(email, token);
+  const sent = await sendVerificationEmail(emailLower, token);
+  if (!sent) {
+    // Don't leave a dead pending signup if mail can't send in production.
+    console.error('Verification email failed to send for pending signup', emailLower);
+  }
 
   return { success: true };
 }
