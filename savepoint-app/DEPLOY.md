@@ -49,6 +49,8 @@ Copy [`.env.example`](./.env.example) and fill production values in your host da
 | Variable | Provider | Console callback |
 |---|---|---|
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google | `https://www.savepoint.life/api/auth/callback/google` |
+
+If Google sign-in redirects to `/auth/error?error=Configuration`, the provider is missing or misconfigured in Vercel (empty/wrong client ID or secret) **or** the Google Cloud OAuth client is missing the exact redirect URI above (include `www`). The app only registers the Google provider when both env vars are set; otherwise the Google button is hidden.
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord | `https://www.savepoint.life/api/auth/callback/discord` |
 | `XBOX_CLIENT_ID` / `XBOX_CLIENT_SECRET` | Microsoft Entra (login only) | `https://www.savepoint.life/api/auth/callback/microsoft-entra-id` |
 

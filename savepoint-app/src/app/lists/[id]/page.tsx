@@ -12,6 +12,7 @@ import ReportButton from '@/components/ui/ReportButton';
 import UserAvatar from '@/components/ui/UserAvatar';
 import type { Metadata } from 'next';
 import { absoluteUrl, gameListJsonLd, breadcrumbJsonLd, SITE_NAME } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/JsonLd';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -75,35 +76,25 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
     <>
       {list.visibility === 'PUBLIC' && (
         <>
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
-                gameListJsonLd({
-                  name: list.title,
-                  description: list.description,
-                  url: listUrl,
-                  author,
-                  games: list.items.map((item) => ({
-                    name: item.game.name,
-                    url: absoluteUrl(`/games/${item.game.slug}`),
-                    image: item.game.coverImage,
-                  })),
-                })
-              ),
-            }}
+          <JsonLd
+            data={gameListJsonLd({
+              name: list.title,
+              description: list.description,
+              url: listUrl,
+              author,
+              games: list.items.map((item) => ({
+                name: item.game.name,
+                url: absoluteUrl(`/games/${item.game.slug}`),
+                image: item.game.coverImage,
+              })),
+            })}
           />
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
-                breadcrumbJsonLd([
-                  { name: 'Home', url: absoluteUrl('/') },
-                  { name: 'Lists', url: absoluteUrl('/lists') },
-                  { name: list.title, url: listUrl },
-                ])
-              ),
-            }}
+          <JsonLd
+            data={breadcrumbJsonLd([
+              { name: 'Home', url: absoluteUrl('/') },
+              { name: 'Lists', url: absoluteUrl('/lists') },
+              { name: list.title, url: listUrl },
+            ])}
           />
         </>
       )}

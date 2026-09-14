@@ -4,6 +4,7 @@ import './globals.css';
 import SessionProvider from '@/components/SessionProvider';
 import UpdateAnnouncement from '@/components/ui/UpdateAnnouncement';
 import { buildRootMetadata, organizationJsonLd, websiteJsonLd } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/JsonLd';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -43,10 +44,7 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://images.igdb.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://images.igdb.com" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
+        <JsonLd data={jsonLd} />
       </head>
       <body>
         <SessionProvider>

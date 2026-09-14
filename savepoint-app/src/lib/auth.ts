@@ -4,12 +4,43 @@ import Google from 'next-auth/providers/google';
 import Discord from 'next-auth/providers/discord';
 import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 import { compare } from 'bcryptjs';
+import { headers } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { touchLastIp } from '@/lib/user-ip';
 import { verifySteamLoginToken } from '@/lib/steam-auth';
 import { safeAutoUsername } from '@/lib/usernames';
 import { createPasskeyProvider } from '@/lib/passkey-provider';
+import { isRateLimited, recordRateLimitHit } from '@/lib/rate-limit';
+import { getClientIpFromHeaders } from '@/lib/security';
+
+class RateLimitedError extends CredentialsSignin {
+  code = 'rate_limited';
+}
+
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_IP_LIMIT = 20;
+const LOGIN_EMAIL_LIMIT = 8;
+
+async function assertLoginNotLocked(emailKey?: string) {
+  const h = await headers();
+  const ip = getClientIpFromHeaders(h);
+  if (isRateLimited('login-ip', ip, LOGIN_IP_LIMIT)) {
+    throw new RateLimitedError();
+  }
+  if (emailKey && isRateLimited('login-email', emailKey.toLowerCase(), LOGIN_EMAIL_LIMIT)) {
+    throw new RateLimitedError();
+  }
+}
+
+async function recordFailedLogin(emailKey?: string) {
+  const h = await headers();
+  const ip = getClientIpFromHeaders(h);
+  recordRateLimitHit('login-ip', ip, LOGIN_IP_LIMIT, LOGIN_WINDOW_MS);
+  if (emailKey) {
+    recordRateLimitHit('login-email', emailKey.toLowerCase(), LOGIN_EMAIL_LIMIT, LOGIN_WINDOW_MS);
+  }
+}
 
 class UnverifiedEmailError extends CredentialsSignin {
   code = 'unverified_email';
@@ -57,12 +88,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   providers: [
     createPasskeyProvider(),
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      // Link Google to an existing email/password account when Google verifies the email
-      allowDangerousEmailAccountLinking: true,
-    }),
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? [
+          Google({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            // Link Google to an existing email/password account when Google verifies the email
+            allowDangerousEmailAccountLinking: true,
+          }),
+        ]
+      : []),
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID,
       clientSecret: process.env.DISCORD_CLIENT_SECRET,
@@ -84,13 +119,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token: { label: 'Token', type: 'text' },
       },
       async authorize(credentials) {
+        await assertLoginNotLocked();
         const steamId = verifySteamLoginToken(
           typeof credentials?.token === 'string' ? credentials.token : null
         );
-        if (!steamId) return null;
+        if (!steamId) {
+          await recordFailedLogin();
+          return null;
+        }
 
         const user = await prisma.user.findUnique({ where: { steamId } });
-        if (!user || user.isBanned) return null;
+        if (!user || user.isBanned) {
+          await recordFailedLogin();
+          return null;
+        }
 
         await touchLastIp(user.id);
 
@@ -113,19 +155,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
+        const email = String(credentials.email).trim().toLowerCase();
+        await assertLoginNotLocked(email);
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email },
         });
 
         if (!user || !user.password) {
+          await recordFailedLogin(email);
           return null;
         }
 
         if (!user.emailVerified) {
+          await recordFailedLogin(email);
           throw new UnverifiedEmailError();
         }
 
         if (user.isBanned) {
+          await recordFailedLogin(email);
           throw new BannedUserError();
         }
 
@@ -135,6 +183,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
 
         if (!isPasswordValid) {
+          await recordFailedLogin(email);
           return null;
         }
 

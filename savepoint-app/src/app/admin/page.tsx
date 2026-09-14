@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { formatRelativeTime } from '@/lib/utils';
 import { UsersIcon, ActivityIcon, CheckCircleIcon, ServerIcon } from '@/components/ui/Icons';
 import { TrafficChart, SignupsChart } from './AdminCharts';
+import { ensureAdmin } from '@/lib/authz';
 
 export const metadata = {
   title: 'Admin Dashboard — Savepoint',
@@ -12,6 +13,9 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboard() {
+  // Must run before any queries — layout and page fetch in parallel.
+  await ensureAdmin();
+
   // Fetch aggregate statistics
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);

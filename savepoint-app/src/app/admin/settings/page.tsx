@@ -1,11 +1,9 @@
-import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { ensureAdmin } from '@/lib/authz';
 
 export const metadata = { title: 'Admin Settings — Savepoint' };
 
 export default async function AdminSettingsPage() {
-  const session = await auth();
-  if (!session || !(session.user as any).isAdmin) redirect('/login');
+  await ensureAdmin();
 
   return (
     <div style={{ padding: 'var(--space-2xl)' }}>

@@ -22,6 +22,7 @@ import {
   resolveIgdbGameFromSlug,
 } from '@/lib/resolve-game';
 import { absoluteUrl, videoGameJsonLd, breadcrumbJsonLd } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/JsonLd';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -223,38 +224,28 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            videoGameJsonLd({
-              name: game.name,
-              description: game.description,
-              image: game.coverImage,
-              url: absoluteUrl(`/games/${igdbGame.slug || slug}`),
-              datePublished: game.releaseDate
-                ? new Date(game.releaseDate).toISOString().slice(0, 10)
-                : null,
-              genre: igdbGame.genres?.map((g) => g.name).filter(Boolean) as string[],
-              aggregateRating:
-                game.ratingCount > 0
-                  ? { ratingValue: game.avgRating, ratingCount: game.ratingCount }
-                  : undefined,
-            })
-          ),
-        }}
+      <JsonLd
+        data={videoGameJsonLd({
+          name: game.name,
+          description: game.description,
+          image: game.coverImage,
+          url: absoluteUrl(`/games/${igdbGame.slug || slug}`),
+          datePublished: game.releaseDate
+            ? new Date(game.releaseDate).toISOString().slice(0, 10)
+            : null,
+          genre: igdbGame.genres?.map((g) => g.name).filter(Boolean) as string[],
+          aggregateRating:
+            game.ratingCount > 0
+              ? { ratingValue: game.avgRating, ratingCount: game.ratingCount }
+              : undefined,
+        })}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            breadcrumbJsonLd([
-              { name: 'Home', url: absoluteUrl('/') },
-              { name: 'Games', url: absoluteUrl('/games') },
-              { name: game.name, url: absoluteUrl(`/games/${igdbGame.slug || slug}`) },
-            ])
-          ),
-        }}
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: 'Home', url: absoluteUrl('/') },
+          { name: 'Games', url: absoluteUrl('/games') },
+          { name: game.name, url: absoluteUrl(`/games/${igdbGame.slug || slug}`) },
+        ])}
       />
       <Navbar />
       <main className="main-content">

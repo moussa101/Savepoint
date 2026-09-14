@@ -11,7 +11,7 @@ import XboxSignInButton from '@/components/ui/XboxSignInButton';
 import SteamSignInButton from '@/components/ui/SteamSignInButton';
 import { MailIcon, LockIcon, EyeIcon, EyeOffIcon, KeyIcon } from '@/components/ui/Icons';
 
-function LoginForm() {
+function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get('registered');
@@ -83,6 +83,8 @@ function LoginForm() {
     if (result?.error) {
       if (result.error.includes('unverified_email') || result.code === 'unverified_email') {
         setError('Please verify your email address before signing in. Check your inbox.');
+      } else if (result.error.includes('rate_limited') || result.code === 'rate_limited') {
+        setError('Too many sign-in attempts. Please wait a few minutes and try again.');
       } else {
         setError('Invalid email or password');
       }
@@ -215,7 +217,7 @@ function LoginForm() {
           </div>
 
           <div className="auth-social">
-            <GoogleSignInButton />
+            {googleEnabled && <GoogleSignInButton />}
             <DiscordSignInButton />
             <XboxSignInButton />
             <SteamSignInButton />
@@ -230,7 +232,7 @@ function LoginForm() {
   );
 }
 
-export default function LoginClient() {
+export default function LoginClient({ googleEnabled = false }: { googleEnabled?: boolean }) {
   return (
     <Suspense
       fallback={
@@ -239,7 +241,7 @@ export default function LoginClient() {
         </div>
       }
     >
-      <LoginForm />
+      <LoginForm googleEnabled={googleEnabled} />
     </Suspense>
   );
 }

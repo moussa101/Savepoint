@@ -4,6 +4,7 @@ import { ShieldIcon, TrashIcon, SearchIcon } from '@/components/ui/Icons';
 import VerifiedBadge from '@/components/ui/VerifiedBadge';
 import UserVerificationToggles from './UserVerificationToggles';
 import PurgeSpamButton from './PurgeSpamButton';
+import { ensureAdmin } from '@/lib/authz';
 
 export const metadata = {
   title: 'User Management — Admin',
@@ -13,6 +14,8 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function AdminUsersPage() {
+  await ensureAdmin();
+
   const users = await prisma.user.findMany({
     orderBy: { createdAt: 'desc' },
     include: {

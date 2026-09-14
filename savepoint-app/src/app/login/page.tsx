@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { SITE_NAME, absoluteUrl } from '@/lib/seo';
 import LoginClient from './LoginClient';
+import { isGoogleAuthConfigured } from '@/lib/auth-providers';
 
 export const metadata: Metadata = {
   title: 'Sign In',
@@ -16,5 +17,5 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  return <LoginClient />;
+  return <LoginClient googleEnabled={isGoogleAuthConfigured()} />;
 }

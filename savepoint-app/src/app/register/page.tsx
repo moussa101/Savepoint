@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { SITE_NAME, absoluteUrl } from '@/lib/seo';
 import RegisterClient from './RegisterClient';
+import { isGoogleAuthConfigured } from '@/lib/auth-providers';
 
 export const metadata: Metadata = {
   title: 'Create Account',
@@ -16,5 +17,5 @@ export const metadata: Metadata = {
 };
 
 export default function RegisterPage() {
-  return <RegisterClient />;
+  return <RegisterClient googleEnabled={isGoogleAuthConfigured()} />;
 }

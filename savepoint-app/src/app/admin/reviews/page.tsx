@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import ReviewModerationList from './ReviewModerationList';
+import { ensureAdmin } from '@/lib/authz';
 
 export const metadata = {
   title: 'Review Moderation — Admin',
@@ -8,6 +9,8 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function AdminReviewsPage() {
+  await ensureAdmin();
+
   const reviews = await prisma.review.findMany({
     orderBy: { createdAt: 'desc' },
     include: {

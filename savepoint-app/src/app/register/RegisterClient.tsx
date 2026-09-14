@@ -9,7 +9,7 @@ import DiscordSignInButton from '@/components/ui/DiscordSignInButton';
 import XboxSignInButton from '@/components/ui/XboxSignInButton';
 import { UserIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
 
-export default function RegisterClient() {
+export default function RegisterClient({ googleEnabled = false }: { googleEnabled?: boolean }) {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -207,7 +207,7 @@ export default function RegisterClient() {
           </div>
 
           <div className="auth-social">
-            <GoogleSignInButton />
+            {googleEnabled && <GoogleSignInButton />}
             <DiscordSignInButton />
             <XboxSignInButton />
           </div>

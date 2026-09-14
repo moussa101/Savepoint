@@ -1,24 +1,15 @@
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
 import Link from 'next/link';
+import { ensureAdmin } from '@/lib/authz';
 import { LogOutIcon, UsersIcon, ActivityIcon, SettingsIcon, ShieldIcon, AlertTriangleIcon, ForumIcon } from '@/components/ui/Icons';
 
+export const metadata = {
+  title: 'Admin — Savepoint',
+  robots: { index: false, follow: false },
+};
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    redirect('/');
-  }
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { isAdmin: true, isBanned: true },
-  });
-
-  if (!dbUser?.isAdmin || dbUser.isBanned) {
-    redirect('/');
-  }
+  // Defense in depth — middleware already returns 403 for non-admins.
+  await ensureAdmin();
 
   return (
     <>

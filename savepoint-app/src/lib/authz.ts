@@ -1,10 +1,12 @@
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { forbidden, unauthorized } from 'next/navigation';
 
 export async function ensureAdmin() {
   const session = await auth();
   if (!session?.user?.id) {
-    throw new Error('Unauthorized: Admin access required');
+    unauthorized();
+    throw new Error('Unauthorized');
   }
 
   const admin = await prisma.user.findUnique({
@@ -13,7 +15,8 @@ export async function ensureAdmin() {
   });
 
   if (!admin?.isAdmin || admin.isBanned) {
-    throw new Error('Unauthorized: Admin access required');
+    forbidden();
+    throw new Error('Forbidden');
   }
 
   return session;

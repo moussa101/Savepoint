@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest, NextFetchEvent } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 import { getClientIpFromRequest, getInternalApiSecret } from '@/lib/security';
 
 /**
@@ -86,8 +87,37 @@ function shouldTrack(req: NextRequest, pathname: string): boolean {
   return true;
 }
 
+function buildCsp(nonce: string): string {
+  const isDev = process.env.NODE_ENV === 'development';
+  // strict-dynamic + nonce: Next.js runtime scripts and their children are allowed.
+  // unsafe-eval only in dev (React Refresh / Turbopack).
+  const scriptSrc = isDev
+    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+
+  return [
+    "default-src 'self'",
+    scriptSrc,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https://images.igdb.com https://*.r2.dev https://*.cloudflarestorage.com https://authjs.dev https://*.googleusercontent.com https://lh3.googleusercontent.com https://cdn.discordapp.com https://media.discordapp.net https://avatars.steamstatic.com https://*.steamstatic.com https://steamcdn-a.akamaihd.net https://*.akamaihd.net https://graph.microsoft.com https://*.xboxlive.com https://*.live.net https://image.api.playstation.com https://*.playstation.com https://*.playstation.net https://*.giphy.com https://media.giphy.com https://i.giphy.com https://cdn.jsdelivr.net",
+    "media-src 'self' https://*.giphy.com https://media.giphy.com https://i.giphy.com",
+    "connect-src 'self' https://api.igdb.com https://id.twitch.tv https://api.sightengine.com https://api.steampowered.com https://steamcommunity.com https://api.xbl.io",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self' https://steamcommunity.com",
+  ].join('; ');
+}
+
+function withSecurityHeaders(res: NextResponse, nonce: string): NextResponse {
+  res.headers.set('Content-Security-Policy', buildCsp(nonce));
+  res.headers.set('x-nonce', nonce);
+  return res;
+}
+
 export async function middleware(req: NextRequest, event: NextFetchEvent) {
   const { pathname } = req.nextUrl;
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
   if (
     pathname.startsWith('/_next') ||
@@ -96,7 +126,27 @@ export async function middleware(req: NextRequest, event: NextFetchEvent) {
     pathname.includes('.') ||
     pathname === '/favicon.ico'
   ) {
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next(), nonce);
+  }
+
+  // Admin: refuse before any RSC/page work (layout+page run in parallel otherwise).
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+    const token = secret
+      ? await getToken({
+          req,
+          secret,
+          secureCookie: process.env.NODE_ENV === 'production',
+        })
+      : null;
+
+    if (!token?.id || !(token as { isAdmin?: boolean }).isAdmin) {
+      const res = new NextResponse('Forbidden', {
+        status: 403,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+      return withSecurityHeaders(res, nonce);
+    }
   }
 
   let internalSecret = '';
@@ -105,16 +155,26 @@ export async function middleware(req: NextRequest, event: NextFetchEvent) {
   } catch {
     // AUTH_SECRET missing — skip internal calls rather than crash
   }
-  if (!internalSecret) return NextResponse.next();
+  if (!internalSecret) {
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set('x-nonce', nonce);
+    return withSecurityHeaders(
+      NextResponse.next({ request: { headers: requestHeaders } }),
+      nonce
+    );
+  }
 
   const ip = getClientIpFromRequest(req);
   const origin = req.nextUrl.origin;
 
   const bannedIps = await getBannedIps(origin, internalSecret, event);
   if (bannedIps.has(ip)) {
-    return new NextResponse(
-      'Your IP address has been banned for violating our community guidelines.',
-      { status: 403 }
+    return withSecurityHeaders(
+      new NextResponse(
+        'Your IP address has been banned for violating our community guidelines.',
+        { status: 403 }
+      ),
+      nonce
     );
   }
 
@@ -136,7 +196,9 @@ export async function middleware(req: NextRequest, event: NextFetchEvent) {
     event.waitUntil(trackPromise);
   }
 
-  return NextResponse.next();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-nonce', nonce);
+  return withSecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), nonce);
 }
 
 export const config = {

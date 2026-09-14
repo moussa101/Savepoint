@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { formatRelativeTime } from '@/lib/utils';
 import ForumBody from '@/components/forum/ForumBody';
 import AdminDeleteForum from '../AdminDeleteForum';
+import { ensureAdmin } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,7 @@ export default async function AdminForumDetailPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await ensureAdmin();
   const { slug } = await params;
   const forum = await prisma.forum.findUnique({
     where: { slug },

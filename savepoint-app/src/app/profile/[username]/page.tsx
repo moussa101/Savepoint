@@ -19,6 +19,7 @@ import ProfilePsnTrophies from '@/components/profile/ProfilePsnTrophies';
 import ProfilePlatformTags from '@/components/profile/ProfilePlatformTags';
 import { Suspense, cache } from 'react';
 import { absoluteUrl, profileJsonLd } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/JsonLd';
 
 const getUser = cache(async (username: string) => {
   // Everything is keyed by username (via relation filters) so the user row and
@@ -407,19 +408,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   return (
     <>
       {!user.isPrivate ? (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(
-              profileJsonLd({
-                name: user.name || user.username,
-                username: user.username,
-                description: user.bio,
-                image: user.image,
-                url: absoluteUrl(`/profile/${user.username}`),
-              })
-            ),
-          }}
+        <JsonLd
+          data={profileJsonLd({
+            name: user.name || user.username,
+            username: user.username,
+            description: user.bio,
+            image: user.image,
+            url: absoluteUrl(`/profile/${user.username}`),
+          })}
         />
       ) : null}
       <Navbar />

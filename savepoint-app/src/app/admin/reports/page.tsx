@@ -1,10 +1,13 @@
 import { prisma } from '@/lib/db';
 import ReportsList from './ReportsList';
+import { ensureAdmin } from '@/lib/authz';
 
 export const metadata = { title: 'Reports — Admin' };
 export const dynamic = 'force-dynamic';
 
 export default async function AdminReportsPage() {
+  await ensureAdmin();
+
   const reports = await prisma.report.findMany({
     where: { status: 'OPEN' },
     include: {

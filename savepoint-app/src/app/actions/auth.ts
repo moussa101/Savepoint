@@ -9,27 +9,7 @@ import { headers } from 'next/headers';
 import { getClientIpFromHeaders } from '@/lib/security';
 import { reservedUsernameMessage } from '@/lib/usernames';
 import { signupBlockedReason } from '@/lib/signup-guard';
-
-const resetAttempts = new Map<string, { count: number; resetAt: number }>();
-const registerAttempts = new Map<string, { count: number; resetAt: number }>();
-const registerIpAttempts = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(
-  store: Map<string, { count: number; resetAt: number }>,
-  key: string,
-  limit: number,
-  windowMs: number
-): boolean {
-  const now = Date.now();
-  const entry = store.get(key);
-  if (!entry || now > entry.resetAt) {
-    store.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  if (entry.count >= limit) return false;
-  entry.count += 1;
-  return true;
-}
+import { checkRateLimit } from '@/lib/rate-limit';
 
 async function clientKey(suffix: string) {
   try {
@@ -54,12 +34,12 @@ export async function registerUser(formData: FormData) {
   }
 
   const ipKey = await clientKey('register-ip');
-  if (!checkRateLimit(registerIpAttempts, ipKey, 8, 60 * 60 * 1000)) {
+  if (!checkRateLimit('register-ip', ipKey, 8, 60 * 60 * 1000)) {
     return { error: 'Too many registration attempts from this network. Please try again later.' };
   }
 
   const rateKey = await clientKey(email.toLowerCase());
-  if (!checkRateLimit(registerAttempts, rateKey, 5, 60 * 60 * 1000)) {
+  if (!checkRateLimit('register-email', rateKey, 5, 60 * 60 * 1000)) {
     return { error: 'Too many registration attempts. Please try again later.' };
   }
 
@@ -200,7 +180,11 @@ export async function requestPasswordReset(formData: FormData) {
 
   try {
     const rateKey = await clientKey(email);
-    const allowed = checkRateLimit(resetAttempts, rateKey, 3, 60 * 60 * 1000);
+    const ipOnly = await clientKey('reset-ip');
+    // Per-email and per-IP so flooding many addresses from one network is throttled too.
+    const allowed =
+      checkRateLimit('reset-email', rateKey, 3, 60 * 60 * 1000) &&
+      checkRateLimit('reset-ip', ipOnly, 10, 60 * 60 * 1000);
 
     if (allowed) {
       const user = await prisma.user.findFirst({

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { formatRelativeTime } from '@/lib/utils';
 import AdminDeleteForum from './AdminDeleteForum';
 import { ensureReleaseAnnouncement } from '@/lib/ensure-release-announcement';
+import { ensureAdmin } from '@/lib/authz';
 
 export const metadata = { title: 'Forums — Admin' };
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,7 @@ export default async function AdminForumsPage({
 }: {
   searchParams: Promise<{ status?: string; slug?: string }>;
 }) {
+  await ensureAdmin();
   await ensureReleaseAnnouncement().catch(() => null);
 
   const params = await searchParams;
