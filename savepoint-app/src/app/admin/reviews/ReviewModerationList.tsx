@@ -53,6 +53,7 @@ export default function ReviewModerationList({ reviews }: { reviews: Review[] })
   return (
     <>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="admin-table-wrap">
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--bg-surface-border)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
@@ -122,6 +123,7 @@ export default function ReviewModerationList({ reviews }: { reviews: Review[] })
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Moderation Modal */}

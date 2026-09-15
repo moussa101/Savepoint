@@ -119,13 +119,12 @@ export default async function ForumsPage({
             <div className="empty-state-text">Create a community or try a different search.</div>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             {forums.map((forum) => (
               <Link
                 key={forum.id}
                 href={`/forums/${forum.slug}`}
-                className="card forum-topic-row"
-                style={{ textDecoration: 'none', color: 'inherit' }}
+                className="forum-row"
               >
                 <UserAvatar
                   className="avatar"

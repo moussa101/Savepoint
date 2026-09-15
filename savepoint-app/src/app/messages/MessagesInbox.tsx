@@ -67,17 +67,18 @@ export default function MessagesInbox({
   }, [userId, initial.length]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      void (async () => {
-        try {
-          await ensureLocalKeyPair();
-          setKeyNote('Messages sync across your devices.');
-        } catch {
-          setKeyNote('Could not initialize encryption keys in this browser.');
-        }
-      })();
-    }, 1500);
-    return () => window.clearTimeout(t);
+    let cancelled = false;
+    void (async () => {
+      try {
+        await ensureLocalKeyPair();
+        if (!cancelled) setKeyNote('Messages sync across your devices.');
+      } catch {
+        if (!cancelled) setKeyNote('Could not initialize encryption keys in this browser.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

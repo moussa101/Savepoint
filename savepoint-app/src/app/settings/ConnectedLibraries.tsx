@@ -13,6 +13,7 @@ import {
   unlinkXbox,
 } from '@/app/actions/library-sync';
 import { PlaystationIcon, SteamIcon, XboxIcon } from '@/components/ui/Icons';
+import PlatformConnectionCard from '@/components/ui/PlatformConnectionCard';
 
 type Props = {
   steamId: string | null;
@@ -26,7 +27,6 @@ type Props = {
   psnLinkedAt: Date | string | null;
   psnLastSyncAt: Date | string | null;
   steamQuery?: string | null;
-  /** When false, hide Xbox connect UI (e.g. OPENXBL_API_KEY unset). Default true. */
   showXbox?: boolean;
 };
 
@@ -144,61 +144,43 @@ export default function ConnectedLibraries({
 
   return (
     <div className="card">
-      <h2
-        className="font-display"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-sm)',
-          fontSize: 'var(--text-xl)',
-          fontWeight: 700,
-          marginBottom: 'var(--space-sm)',
-        }}
-      >
+      <h2 className="section-title" style={{ marginBottom: 'var(--space-sm)' }}>
         Connected libraries
       </h2>
-      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-lg)' }}>
+      <p className="page-subtitle" style={{ marginBottom: 'var(--space-lg)' }}>
         Link Steam, PlayStation, or Xbox to the same Savepoint account you already use.
         Connecting a library never creates a new Savepoint account. Manual ratings and statuses are never overwritten.
       </p>
 
       {(steamBanner || message) && (
-        <div className="auth-success" style={{ marginBottom: 'var(--space-md)' }}>
+        <div className="auth-success" style={{ marginBottom: 'var(--space-md)' }} role="status">
           {message || steamBanner}
         </div>
       )}
       {error && (
-        <div className="auth-error" style={{ marginBottom: 'var(--space-md)' }}>
+        <div className="auth-error" style={{ marginBottom: 'var(--space-md)' }} role="alert">
           {error}
         </div>
       )}
 
-      {/* Steam */}
-      <div
-        style={{
-          padding: 'var(--space-md)',
-          borderRadius: 'var(--radius-md)',
-          background: 'var(--bg-surface-hover)',
-          marginBottom: 'var(--space-md)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
-          <SteamIcon size={22} />
-          <strong>Steam</strong>
-        </div>
-        {steamId ? (
-          <>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-sm)' }}>
-              {steamPersonaName || 'Linked'}
-              {steamLinkedAt ? ` · Linked ${formatWhen(steamLinkedAt)}` : ''}
-              {steamLastSyncAt
-                ? ` · Last sync ${formatWhen(steamLastSyncAt)} · Auto-syncs when you open Library`
-                : ' · Library auto-syncs when you open it'}
-            </p>
-            <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+      <PlatformConnectionCard
+        icon={<SteamIcon size={22} />}
+        title="Steam"
+        meta={
+          steamId
+            ? `${steamPersonaName || 'Linked'}${steamLinkedAt ? ` · Linked ${formatWhen(steamLinkedAt)}` : ''}${
+                steamLastSyncAt
+                  ? ` · Last sync ${formatWhen(steamLastSyncAt)} · Auto-syncs when you open Library`
+                  : ' · Library auto-syncs when you open it'
+              }`
+            : null
+        }
+        actions={
+          steamId ? (
+            <>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-primary btn-sm"
                 disabled={anyBusy}
                 onClick={() => run('steam', syncSteamLibrary)}
               >
@@ -206,52 +188,42 @@ export default function ConnectedLibraries({
               </button>
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-secondary btn-sm"
                 disabled={anyBusy}
                 onClick={() => run('steam', unlinkSteam)}
               >
                 Disconnect
               </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <a href="/api/auth/steam?mode=link&return=settings" className="btn btn-primary">
+            </>
+          ) : (
+            <a href="/api/auth/steam?mode=link&return=settings" className="btn btn-primary btn-sm">
               Connect Steam
             </a>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>
-              Approves the link on Steam — we never see your Steam password. Your Steam profile
-              and “Game details” must be Public for library import. After linking you can also use
-              “Continue with Steam” on the login page.
-            </p>
-          </>
-        )}
-      </div>
+          )
+        }
+        hint={
+          steamId
+            ? null
+            : 'Approves the link on Steam — we never see your Steam password. Profile and “Game details” must be Public for import.'
+        }
+      />
 
-      {/* PlayStation */}
-      <div
-        style={{
-          padding: 'var(--space-md)',
-          borderRadius: 'var(--radius-md)',
-          background: 'var(--bg-surface-hover)',
-          marginBottom: 'var(--space-md)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
-          <PlaystationIcon size={22} />
-          <strong>PlayStation</strong>
-        </div>
-        {psnOnlineId ? (
-          <>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-sm)' }}>
-              {psnOnlineId}
-              {psnLinkedAt ? ` · Linked ${formatWhen(psnLinkedAt)}` : ''}
-              {psnLastSyncAt ? ` · Last sync ${formatWhen(psnLastSyncAt)}` : ''}
-            </p>
-            <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+      <PlatformConnectionCard
+        icon={<PlaystationIcon size={22} />}
+        title="PlayStation"
+        meta={
+          psnOnlineId
+            ? `${psnOnlineId}${psnLinkedAt ? ` · Linked ${formatWhen(psnLinkedAt)}` : ''}${
+                psnLastSyncAt ? ` · Last sync ${formatWhen(psnLastSyncAt)}` : ''
+              }`
+            : null
+        }
+        actions={
+          psnOnlineId ? (
+            <>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-primary btn-sm"
                 disabled={anyBusy}
                 onClick={() => run('psn', syncPsnLibrary)}
               >
@@ -259,15 +231,18 @@ export default function ConnectedLibraries({
               </button>
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-secondary btn-sm"
                 disabled={anyBusy}
                 onClick={() => run('psn', unlinkPsn)}
               >
                 Disconnect
               </button>
-            </div>
-          </>
-        ) : (
+            </>
+          ) : null
+        }
+        hint="Unofficial PSN access. Treat the token like a password — reconnect with a fresh one if sync stops working."
+      >
+        {!psnOnlineId ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             <ol
               style={{
@@ -282,27 +257,24 @@ export default function ConnectedLibraries({
             >
               <li>Sign in to your PlayStation account (we’ll open Sony’s page for you).</li>
               <li>
-                Copy the <code>npsso</code> value from the JSON (looks like a long string).
+                Copy the <code>npsso</code> value from the JSON.
               </li>
-              <li>Paste it below and connect. We never store the NPSSO — only an encrypted refresh token.</li>
+              <li>Paste it below and connect.</li>
             </ol>
-            <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={anyBusy}
-                onClick={() => {
-                  // Opens Sony SSO cookie endpoint. If not signed in, Sony sends them through login first.
-                  window.open(
-                    'https://ca.account.sony.com/api/v1/ssocookie',
-                    'savepoint-psn-npsso',
-                    'noopener,noreferrer'
-                  );
-                }}
-              >
-                Open Sony token page
-              </button>
-            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={anyBusy}
+              onClick={() => {
+                window.open(
+                  'https://ca.account.sony.com/api/v1/ssocookie',
+                  'savepoint-psn-npsso',
+                  'noopener,noreferrer'
+                );
+              }}
+            >
+              Open Sony token page
+            </button>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -312,93 +284,96 @@ export default function ConnectedLibraries({
                   return linkPsnNpsso(fd);
                 });
               }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}
+              className="platform-connect-actions"
+              style={{ width: '100%' }}
             >
+              <label className="sr-only" htmlFor="settings-psn-npsso">
+                NPSSO token
+              </label>
               <input
+                id="settings-psn-npsso"
                 className="input"
                 type="password"
                 autoComplete="off"
-                placeholder="Paste npsso token from the Sony tab"
+                placeholder="Paste npsso token"
                 value={psnInput}
                 onChange={(e) => setPsnInput(e.target.value)}
                 required
+                style={{ flex: 1, minWidth: 160 }}
               />
-              <button type="submit" className="btn btn-primary" disabled={anyBusy || !psnInput.trim()} style={{ alignSelf: 'flex-start' }}>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={anyBusy || !psnInput.trim()}
+              >
                 {psnBusy ? 'Linking…' : 'Connect PlayStation'}
               </button>
             </form>
           </div>
-        )}
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>
-          Unofficial PSN access (no public OAuth from Sony). Treat the token like a password. It expires —
-          reconnect with a fresh one if sync stops working.
-        </p>
-      </div>
+        ) : null}
+      </PlatformConnectionCard>
 
-      {/* Xbox */}
       {showXbox && (
-      <div
-        style={{
-          padding: 'var(--space-md)',
-          borderRadius: 'var(--radius-md)',
-          background: 'var(--bg-surface-hover)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
-          <XboxIcon size={22} />
-          <strong>Xbox</strong>
-        </div>
-        {xboxGamertag ? (
-          <>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-sm)' }}>
-              {xboxGamertag}
-              {xboxLinkedAt ? ` · Linked ${formatWhen(xboxLinkedAt)}` : ''}
-              {xboxLastSyncAt ? ` · Last sync ${formatWhen(xboxLastSyncAt)}` : ''}
-            </p>
-            <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={anyBusy}
-                onClick={() => run('xbox', syncXboxLibrary)}
-              >
-                {xboxBusy ? 'Working…' : 'Sync library'}
+        <PlatformConnectionCard
+          icon={<XboxIcon size={22} />}
+          title="Xbox"
+          meta={
+            xboxGamertag
+              ? `${xboxGamertag}${xboxLinkedAt ? ` · Linked ${formatWhen(xboxLinkedAt)}` : ''}${
+                  xboxLastSyncAt ? ` · Last sync ${formatWhen(xboxLastSyncAt)}` : ''
+                }`
+              : null
+          }
+          actions={
+            xboxGamertag ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={anyBusy}
+                  onClick={() => run('xbox', syncXboxLibrary)}
+                >
+                  {xboxBusy ? 'Working…' : 'Sync library'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={anyBusy}
+                  onClick={() => run('xbox', unlinkXbox)}
+                >
+                  Disconnect
+                </button>
+              </>
+            ) : null
+          }
+          hint='Uses OpenXBL for title history. Separate from “Continue with Xbox” login.'
+        >
+          {!xboxGamertag ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                run('xbox', () => linkXboxGamertag(xboxInput));
+              }}
+              className="platform-connect-actions"
+            >
+              <label className="sr-only" htmlFor="settings-xbox-gt">
+                Xbox gamertag
+              </label>
+              <input
+                id="settings-xbox-gt"
+                className="input"
+                placeholder="Gamertag (include #suffix if any)"
+                value={xboxInput}
+                onChange={(e) => setXboxInput(e.target.value)}
+                style={{ flex: 1, minWidth: 160 }}
+                required
+              />
+              <button type="submit" className="btn btn-primary btn-sm" disabled={anyBusy}>
+                {xboxBusy ? 'Linking…' : 'Connect Xbox'}
               </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={anyBusy}
-                onClick={() => run('xbox', unlinkXbox)}
-              >
-                Disconnect
-              </button>
-            </div>
-          </>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              run('xbox', () => linkXboxGamertag(xboxInput));
-            }}
-            style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', alignItems: 'center' }}
-          >
-            <input
-              className="input"
-              placeholder="Gamertag (include #suffix if any)"
-              value={xboxInput}
-              onChange={(e) => setXboxInput(e.target.value)}
-              style={{ flex: 1, minWidth: 0 }}
-              required
-            />
-            <button type="submit" className="btn btn-primary" disabled={anyBusy}>
-              {xboxBusy ? 'Linking…' : 'Connect Xbox'}
-            </button>
-          </form>
-        )}
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>
-          Uses OpenXBL for title history. Separate from “Continue with Xbox” login.
-        </p>
-      </div>
+            </form>
+          ) : null}
+        </PlatformConnectionCard>
       )}
     </div>
   );

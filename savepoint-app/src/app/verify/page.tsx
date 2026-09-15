@@ -164,29 +164,35 @@ function VerifyMessage({
   message: string;
 }) {
   return (
-    <main
-      className="main-content"
-      style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      <div
-        className="card card-glass"
-        style={{ maxWidth: '400px', width: '100%', textAlign: 'center', padding: 'var(--space-2xl)' }}
-      >
-        <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)' }}>
+    <div className="auth-page">
+      <div className="auth-bg" aria-hidden="true" />
+      <div className="auth-container animate-fade-in-up">
+        <div className="auth-card" style={{ textAlign: 'center' }}>
+          <div style={{ marginBottom: 'var(--space-md)', display: 'flex', justifyContent: 'center' }}>
+            {type === 'success' ? (
+              <CheckCircleIcon size={48} color="var(--status-completed)" />
+            ) : (
+              <XCircleIcon size={48} color="var(--danger)" />
+            )}
+          </div>
+          <h1 className="auth-title font-display">{title}</h1>
+          <p className="auth-subtitle" style={{ marginBottom: 'var(--space-xl)' }}>
+            {message}
+          </p>
           {type === 'success' ? (
-            <CheckCircleIcon size={48} color="var(--status-completed)" />
+            <div className="auth-success" role="status" style={{ marginBottom: 'var(--space-lg)' }}>
+              You can sign in now.
+            </div>
           ) : (
-            <XCircleIcon size={48} color="var(--danger)" />
+            <div className="auth-error" role="alert" style={{ marginBottom: 'var(--space-lg)' }}>
+              {message}
+            </div>
           )}
+          <Link href="/login" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
+            Go to Login
+          </Link>
         </div>
-        <h1 className="font-display" style={{ fontSize: 'var(--text-2xl)', marginBottom: 'var(--space-sm)' }}>
-          {title}
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)' }}>{message}</p>
-        <Link href="/login" className="btn btn-primary" style={{ width: '100%' }}>
-          Go to Login
-        </Link>
       </div>
-    </main>
+    </div>
   );
 }

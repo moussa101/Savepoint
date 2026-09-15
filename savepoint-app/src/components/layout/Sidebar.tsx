@@ -3,20 +3,32 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { HomeIcon, GamepadIcon, BookOpenIcon, ListIcon, SettingsIcon, UserIcon, UsersIcon, MessageIcon, ForumIcon } from '@/components/ui/Icons';
+import {
+  HomeIcon,
+  GamepadIcon,
+  BookOpenIcon,
+  ListIcon,
+  SettingsIcon,
+  UserIcon,
+  UsersIcon,
+  MessageIcon,
+  ForumIcon,
+} from '@/components/ui/Icons';
 import UserAvatar from '@/components/ui/UserAvatar';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { MEMBER_NAV, isNavActive, profileHref, type NavId } from '@/lib/nav';
 
-const sidebarLinks: { href: string; label: string; icon: ReactNode }[] = [
-  { href: '/feed', label: 'Home', icon: <HomeIcon size={18} /> },
-  { href: '/games', label: 'Browse Games', icon: <GamepadIcon size={18} /> },
-  { href: '/library', label: 'My Library', icon: <BookOpenIcon size={18} /> },
-  { href: '/forums', label: 'Forums', icon: <ForumIcon size={18} /> },
-  { href: '/lists', label: 'My Lists', icon: <ListIcon size={18} /> },
-  { href: '/friends', label: 'Friends', icon: <UsersIcon size={18} /> },
-  { href: '/messages', label: 'Messages', icon: <MessageIcon size={18} /> },
-  { href: '/settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
-];
+const ICONS: Record<NavId, ReactNode> = {
+  home: <HomeIcon size={18} />,
+  discover: <GamepadIcon size={18} />,
+  library: <BookOpenIcon size={18} />,
+  forums: <ForumIcon size={18} />,
+  lists: <ListIcon size={18} />,
+  friends: <UsersIcon size={18} />,
+  messages: <MessageIcon size={18} />,
+  settings: <SettingsIcon size={18} />,
+  profile: <UserIcon size={18} />,
+};
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -24,9 +36,12 @@ export default function Sidebar() {
 
   if (!session) return null;
 
+  const profilePath = profileHref(session.user.username);
+  const profileActive = isNavActive(pathname, profilePath, 'profile');
+
   return (
     <aside className="sidebar">
-      <Link href={`/profile/${session.user.username}`} className="sidebar-profile" style={{ textDecoration: 'none', color: 'inherit' }}>
+      <Link href={profilePath} className="sidebar-profile" style={{ textDecoration: 'none', color: 'inherit' }}>
         <UserAvatar
           className="avatar avatar-xl avatar-ring"
           src={session.user.image}
@@ -36,31 +51,26 @@ export default function Sidebar() {
         <div className="sidebar-profile-name">{session.user.name || session.user.username}</div>
       </Link>
 
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" aria-label="Sidebar">
         <Link
-          href={`/profile/${session.user.username}`}
-          className={`sidebar-link ${pathname.startsWith('/profile') ? 'sidebar-link-active' : ''}`}
+          href={profilePath}
+          className={`sidebar-link ${profileActive ? 'sidebar-link-active' : ''}`}
+          aria-current={profileActive ? 'page' : undefined}
         >
-          <span><UserIcon size={18} /></span>
+          <span>{ICONS.profile}</span>
           My Profile
         </Link>
-        {sidebarLinks.map((link) => {
-          let isActive = pathname === link.href;
-          if (link.href === '/games' && pathname.startsWith('/games')) isActive = true;
-          if (link.href === '/library' && pathname.startsWith('/library')) isActive = true;
-          if (link.href === '/forums' && pathname.startsWith('/forums')) isActive = true;
-          if (link.href === '/friends' && pathname.startsWith('/friends')) isActive = true;
-          if (link.href === '/messages' && pathname.startsWith('/messages')) isActive = true;
-          if (link.href === '/feed' && pathname === '/feed') isActive = true;
-
+        {MEMBER_NAV.map((link) => {
+          const active = isNavActive(pathname, link.href, link.id);
           return (
             <Link
               key={link.href}
               href={link.href}
-              className={`sidebar-link ${isActive ? 'sidebar-link-active' : ''}`}
+              className={`sidebar-link ${active ? 'sidebar-link-active' : ''}`}
+              aria-current={active ? 'page' : undefined}
             >
-              <span>{link.icon}</span>
-              {link.label}
+              <span>{ICONS[link.id]}</span>
+              {link.sidebarLabel || link.label}
             </Link>
           );
         })}

@@ -107,43 +107,37 @@ export default async function LibraryPage({
         </div>
 
         {/* Steam */}
-        <div
-          className="card"
-          style={{
-            marginBottom: 'var(--space-md)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 'var(--space-md)',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', minWidth: 0 }}>
-            <SteamIcon size={28} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700 }}>Steam library</div>
-              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                {steamQuery === 'taken'
-                  ? 'That Steam account is already linked to another Savepoint user.'
-                  : steamQuery === 'invalid' || steamQuery === 'error'
-                    ? 'Steam connection failed. Try again.'
-                    : autoSyncNote
-                      ? autoSyncNote
-                      : steamLinked
-                        ? steamLink?.steamLastSyncAt
-                          ? `Auto-syncs when you open Library (last sync ${new Date(steamLink.steamLastSyncAt).toLocaleString()}).`
-                          : 'Connected — importing your library…'
-                        : 'Link Steam to this Savepoint account. Your library syncs automatically after connecting.'}
+        <div className="card" style={{ marginBottom: 'var(--space-md)' }}>
+          <div className="platform-connect-header" style={{ marginBottom: 0 }}>
+            <div className="platform-connect-title-row">
+              <SteamIcon size={28} />
+              <div style={{ minWidth: 0 }}>
+                <strong>Steam library</strong>
+                <div className="platform-connect-meta" style={{ marginBottom: 0 }}>
+                  {steamQuery === 'taken'
+                    ? 'That Steam account is already linked to another Savepoint user.'
+                    : steamQuery === 'invalid' || steamQuery === 'error'
+                      ? 'Steam connection failed. Try again.'
+                      : autoSyncNote
+                        ? autoSyncNote
+                        : steamLinked
+                          ? steamLink?.steamLastSyncAt
+                            ? `Auto-syncs when you open Library (last sync ${new Date(steamLink.steamLastSyncAt).toLocaleString()}).`
+                            : 'Connected — importing your library…'
+                          : 'Link Steam to this Savepoint account. Your library syncs automatically after connecting.'}
+                </div>
               </div>
             </div>
+            <div className="platform-connect-actions">
+              {steamLinked ? (
+                <SteamSyncButton />
+              ) : (
+                <a href="/api/auth/steam?mode=link&return=library" className="btn btn-primary btn-sm">
+                  Connect Steam
+                </a>
+              )}
+            </div>
           </div>
-          {steamLinked ? (
-            <SteamSyncButton />
-          ) : (
-            <a href="/api/auth/steam?mode=link&return=library" className="btn btn-primary btn-sm">
-              Connect Steam
-            </a>
-          )}
         </div>
 
         {/* PlayStation */}

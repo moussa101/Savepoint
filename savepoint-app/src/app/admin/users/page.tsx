@@ -64,7 +64,7 @@ export default async function AdminUsersPage() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
+        <div className="admin-table-wrap">
           <table
             style={{
               width: '100%',

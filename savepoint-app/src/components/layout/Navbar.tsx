@@ -19,6 +19,7 @@ import NotificationsDropdown from './NotificationsDropdown';
 import MobileNavDrawer from './MobileNavDrawer';
 import MobileBottomNav from './MobileBottomNav';
 import UserAvatar from '@/components/ui/UserAvatar';
+import { GUEST_NAV, MEMBER_TOP_NAV, isNavActive, profileHref } from '@/lib/nav';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -45,36 +46,10 @@ export default function Navbar() {
 
   const isAdmin = (session?.user as { isAdmin?: boolean } | undefined)?.isAdmin;
 
-  const guestLinks = [
-    { href: '/games', label: 'Discover' },
-    { href: '/forums', label: 'Forums' },
-  ];
-
-  const memberLinks = [
-    { href: '/feed', label: 'Feed' },
-    { href: '/games', label: 'Discover' },
-    { href: '/library', label: 'Library' },
-    { href: '/forums', label: 'Forums' },
-    { href: '/lists', label: 'Lists' },
-    { href: '/friends', label: 'Friends' },
-    { href: '/messages', label: 'Messages' },
-  ];
-
-  // While session is resolving after a reload, keep the member link set so
-  // signed-in users don't flash the short guest nav (Discover / Lists only).
+  // While session is resolving, keep the member link set so signed-in users
+  // don't flash the short guest nav.
   const navLinks =
-    status === 'loading' || (session && !isAdmin) ? memberLinks : guestLinks;
-
-  function linkActive(href: string) {
-    if (href === '/feed') return pathname === '/feed';
-    if (href === '/games') return pathname === '/games' || pathname.startsWith('/games/');
-    if (href === '/library') return pathname === '/library' || pathname.startsWith('/library/');
-    if (href === '/lists') return pathname === '/lists' || pathname.startsWith('/lists/');
-    if (href === '/forums') return pathname === '/forums' || pathname.startsWith('/forums/');
-    if (href === '/friends') return pathname.startsWith('/friends');
-    if (href === '/messages') return pathname.startsWith('/messages');
-    return pathname === href || pathname.startsWith(href);
-  }
+    status === 'loading' || (session && !isAdmin) ? MEMBER_TOP_NAV : GUEST_NAV;
 
   return (
     <>
@@ -103,15 +78,19 @@ export default function Navbar() {
 
         {!isAdmin && (
           <div className="navbar-nav">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`navbar-link ${linkActive(link.href) ? 'navbar-link-active' : ''}`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const active = isNavActive(pathname, link.href, link.id);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`navbar-link ${active ? 'navbar-link-active' : ''}`}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
         )}
 
@@ -143,7 +122,7 @@ export default function Navbar() {
                   {!isAdmin && (
                     <>
                       <Link
-                        href={`/profile/${session.user.username}`}
+                        href={profileHref(session.user.username)}
                         className="dropdown-item"
                         onClick={() => setDropdownOpen(false)}
                       >

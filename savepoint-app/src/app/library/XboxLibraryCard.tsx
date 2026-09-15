@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { linkXboxGamertag, syncXboxLibrary, unlinkXbox } from '@/app/actions/library-sync';
 import { XboxIcon } from '@/components/ui/Icons';
+import PlatformConnectionCard from '@/components/ui/PlatformConnectionCard';
 
 type Props = {
   xboxGamertag: string | null;
   xboxLastSyncAt: Date | string | null;
-  /** When true, kick off a background library sync on mount (non-blocking). */
   autoSync?: boolean;
 };
 
@@ -117,100 +117,75 @@ export default function XboxLibraryCard({
     autoStarted.current = true;
     setStatus({ kind: 'ok', text: 'Auto-syncing Xbox library in the background…' });
     run(syncXboxLibrary, { quiet: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot when Library says sync is due
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSync, xboxGamertag]);
 
   return (
-    <div
-      className="card"
-      style={{
-        marginBottom: 'var(--space-xl)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-md)',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 'var(--space-md)',
-          flexWrap: 'wrap',
-        }}
+    <div className="card" style={{ marginBottom: 'var(--space-xl)' }}>
+      <PlatformConnectionCard
+        icon={<XboxIcon size={28} />}
+        title="Xbox library"
+        meta={
+          xboxGamertag
+            ? `${xboxGamertag}${xboxLastSyncAt ? ` · Last sync ${formatWhen(xboxLastSyncAt)}` : ''}`
+            : 'Link your gamertag to import Xbox title history via OpenXBL.'
+        }
+        actions={
+          xboxGamertag ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={pending}
+                onClick={() => run(syncXboxLibrary)}
+              >
+                {pending ? 'Working…' : 'Sync now'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={pending}
+                onClick={() => run(unlinkXbox)}
+              >
+                Disconnect
+              </button>
+            </>
+          ) : null
+        }
+        status={status}
+        hint='Uses OpenXBL for title history. Separate from “Continue with Xbox” login.'
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', minWidth: 0 }}>
-          <XboxIcon size={28} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700 }}>Xbox library</div>
-            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-              {xboxGamertag
-                ? `${xboxGamertag}${xboxLastSyncAt ? ` · Last sync ${formatWhen(xboxLastSyncAt)}` : ''}`
-                : 'Link your gamertag to import Xbox title history via OpenXBL.'}
-            </div>
-          </div>
-        </div>
-
-        {xboxGamertag ? (
-          <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+        {!xboxGamertag ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              run(() => linkXboxGamertag(xboxInput));
+            }}
+            className="platform-connect-actions"
+          >
+            <label className="sr-only" htmlFor="library-xbox-gt">
+              Xbox gamertag
+            </label>
+            <input
+              id="library-xbox-gt"
+              className="input"
+              placeholder="Gamertag (include #suffix if any)"
+              value={xboxInput}
+              onChange={(e) => setXboxInput(e.target.value)}
+              style={{ flex: 1, minWidth: 160 }}
+              required
+              disabled={pending}
+            />
             <button
-              type="button"
+              type="submit"
               className="btn btn-primary btn-sm"
-              disabled={pending}
-              onClick={() => run(syncXboxLibrary)}
+              disabled={pending || !xboxInput.trim()}
             >
-              {pending ? 'Working…' : 'Sync now'}
+              {pending ? 'Linking…' : 'Connect Xbox'}
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={pending}
-              onClick={() => run(unlinkXbox)}
-            >
-              Disconnect
-            </button>
-          </div>
+          </form>
         ) : null}
-      </div>
-
-      {!xboxGamertag ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            run(() => linkXboxGamertag(xboxInput));
-          }}
-          style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', alignItems: 'center' }}
-        >
-          <input
-            className="input"
-            placeholder="Gamertag (include #suffix if any)"
-            value={xboxInput}
-            onChange={(e) => setXboxInput(e.target.value)}
-            style={{ flex: 1, minWidth: 180 }}
-            required
-            disabled={pending}
-          />
-          <button type="submit" className="btn btn-primary btn-sm" disabled={pending || !xboxInput.trim()}>
-            {pending ? 'Linking…' : 'Connect Xbox'}
-          </button>
-        </form>
-      ) : null}
-
-      {status ? (
-        <p
-          style={{
-            margin: 0,
-            fontSize: 'var(--text-sm)',
-            color: status.kind === 'error' ? '#eb5757' : 'var(--accent-primary)',
-          }}
-        >
-          {status.text}
-        </p>
-      ) : null}
-
-      <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-        Uses OpenXBL for title history. Separate from “Continue with Xbox” login.
-      </p>
+      </PlatformConnectionCard>
     </div>
   );
 }

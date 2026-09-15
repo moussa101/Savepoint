@@ -66,7 +66,7 @@ export default async function LandingPage() {
               The Video Game Tracker for Serious Gamers
             </p>
             <p className="landing-hero-subtitle">
-              Rate, review, and track every game you play. Sync Steam &amp; PlayStation. The Letterboxd for games.
+              Rate, review, and track every game you play. Sync Steam, PlayStation &amp; Xbox. The Letterboxd for games.
             </p>
             <div className="landing-hero-actions">
               {session ? (
@@ -86,7 +86,7 @@ export default async function LandingPage() {
         </section>
 
         {/* Features Section */}
-        <section className="landing-features container">
+        <section className="landing-features container landing-section">
           <h2 className="section-title font-display" style={{ textAlign: 'center', marginBottom: 'var(--space-2xl)' }}>
             Features
           </h2>
@@ -116,7 +116,7 @@ export default async function LandingPage() {
         </section>
 
         {/* Games Preview */}
-        <section className="landing-games container">
+        <section className="landing-games container landing-section">
           <div className="section-header">
             <h2 className="section-title font-display">Popular Games</h2>
             <Link href="/games" className="section-link">

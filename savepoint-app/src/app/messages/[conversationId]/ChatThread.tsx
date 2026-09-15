@@ -570,7 +570,7 @@ export default function ChatThread({
           if (!cancelled) setGroupKey(gKey);
         } else if (!other?.e2ePublicKey) {
           setSetupError(
-            `@${other?.username || 'user'} hasn’t opened Messages yet, so encryption keys aren’t ready.`
+            `Waiting for @${other?.username || 'user'}’s encryption keys… This usually finishes within a few seconds after they sign in.`
           );
           setReady(true);
           return;

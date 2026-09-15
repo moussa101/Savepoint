@@ -55,7 +55,7 @@ export default async function SettingsPage({
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
-        <div className="page-header" style={{ marginBottom: 'var(--space-2xl)' }}>
+        <div className="page-header">
           <div>
             <h1 className="page-title font-display">Settings</h1>
             <p className="page-subtitle">Manage your account preferences</p>
@@ -64,20 +64,24 @@ export default async function SettingsPage({
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-xl)', maxWidth: '800px' }}>
           <div className="card">
-            <h2 className="font-display" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', fontSize: 'var(--text-xl)', fontWeight: 700, marginBottom: 'var(--space-lg)' }}>
+            <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', fontSize: 'var(--text-xl)', marginBottom: 'var(--space-lg)' }}>
               <UserIcon size={24} color="var(--accent-primary)" />
               Account Details
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-              <div style={{ padding: 'var(--space-md)', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-md)' }}>
-                <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 'var(--text-xs)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Username</span>
-                <span style={{ fontSize: 'var(--text-lg)', fontWeight: 600 }}>@{user.username}</span>
+              <div className="settings-row">
+                <div className="settings-row-copy">
+                  <span className="settings-row-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 'var(--text-xs)' }}>Username</span>
+                  <span className="settings-row-title" style={{ marginBottom: 0 }}>@{user.username}</span>
+                </div>
               </div>
 
-              <div style={{ padding: 'var(--space-md)', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-md)' }}>
-                <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 'var(--text-xs)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Email Address</span>
-                <span style={{ fontSize: 'var(--text-lg)', fontWeight: 600 }}>{user.email}</span>
+              <div className="settings-row">
+                <div className="settings-row-copy">
+                  <span className="settings-row-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 'var(--text-xs)' }}>Email Address</span>
+                  <span className="settings-row-title" style={{ marginBottom: 0 }}>{user.email}</span>
+                </div>
               </div>
             </div>
 
@@ -89,15 +93,15 @@ export default async function SettingsPage({
           </div>
 
           <div className="card">
-            <h2 className="font-display" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', fontSize: 'var(--text-xl)', fontWeight: 700, marginBottom: 'var(--space-lg)' }}>
+            <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', fontSize: 'var(--text-xl)', marginBottom: 'var(--space-lg)' }}>
               <ShieldIcon size={24} color="var(--accent-primary)" />
               Security
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-              <div style={{ padding: 'var(--space-md)', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ display: 'block', fontWeight: 600, marginBottom: '4px' }}>Password</span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Reset your login password via email</span>
+              <div className="settings-row">
+                <div className="settings-row-copy">
+                  <span className="settings-row-title">Password</span>
+                  <span className="settings-row-meta">Reset your login password via email</span>
                 </div>
                 <Link href="/forgot-password" className="btn btn-outline btn-sm">Change</Link>
               </div>

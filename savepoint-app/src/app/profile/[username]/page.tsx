@@ -420,24 +420,13 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       ) : null}
       <Navbar />
       <main className="main-content">
-        <div style={{
-          height: '280px',
-          marginTop: 0,
-          position: 'relative',
-          overflow: 'hidden',
-          backgroundColor: 'var(--bg-surface)'
-        }}>
+        <div className="profile-banner">
           {user.bannerImage ? (
-            <img src={user.bannerImage} alt="Profile Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={user.bannerImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, rgba(0, 229, 160, 0.15) 100%)' }} />
           )}
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(to bottom, rgba(13, 13, 26, 0.2) 0%, var(--bg-background) 100%)',
-            pointerEvents: 'none'
-          }} />
+          <div className="profile-banner-fade" aria-hidden="true" />
         </div>
 
         <div className="container" style={{ marginTop: '-100px', position: 'relative', zIndex: 2 }}>

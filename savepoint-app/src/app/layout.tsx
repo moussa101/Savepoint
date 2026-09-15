@@ -3,6 +3,7 @@ import { Inter, Outfit } from 'next/font/google';
 import './globals.css';
 import SessionProvider from '@/components/SessionProvider';
 import UpdateAnnouncement from '@/components/ui/UpdateAnnouncement';
+import MessagingKeyBootstrap from '@/components/messages/MessagingKeyBootstrap';
 import { buildRootMetadata, organizationJsonLd, websiteJsonLd } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/JsonLd';
 
@@ -50,6 +51,7 @@ export default function RootLayout({
         <SessionProvider>
           {children}
           <UpdateAnnouncement />
+          <MessagingKeyBootstrap />
         </SessionProvider>
       </body>
     </html>

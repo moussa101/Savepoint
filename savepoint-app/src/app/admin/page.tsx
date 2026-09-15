@@ -117,7 +117,7 @@ export default async function AdminDashboard() {
             </p>
           </div>
           
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto' }} className="admin-table-wrap">
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--bg-surface-border)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
