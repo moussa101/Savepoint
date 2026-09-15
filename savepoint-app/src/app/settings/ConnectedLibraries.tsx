@@ -26,7 +26,7 @@ type Props = {
   psnLinkedAt: Date | string | null;
   psnLastSyncAt: Date | string | null;
   steamQuery?: string | null;
-  /** Xbox (OpenXBL) is opt-in until that integration is finished. */
+  /** When false, hide Xbox connect UI (e.g. OPENXBL_API_KEY unset). Default true. */
   showXbox?: boolean;
 };
 
@@ -47,7 +47,7 @@ export default function ConnectedLibraries({
   psnLinkedAt,
   psnLastSyncAt,
   steamQuery,
-  showXbox = false,
+  showXbox = true,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -83,6 +83,7 @@ export default function ConnectedLibraries({
       skipped?: number;
       warning?: string;
       onlineId?: string;
+      gamertag?: string;
       xpGained?: number;
       needsSync?: boolean;
       trophyTitles?: number;
@@ -100,16 +101,18 @@ export default function ConnectedLibraries({
         }
         if (result?.success) {
           let syncExtra = result;
-          if (platform === 'psn' && result.needsSync) {
-            setMessage(
-              result.onlineId
-                ? `Linked as ${result.onlineId}. Syncing library in the background…`
-                : 'Linked. Syncing library in the background…'
-            );
-            syncExtra = await syncPsnLibrary();
+          if ((platform === 'psn' || platform === 'xbox') && result.needsSync) {
+            const label =
+              platform === 'xbox'
+                ? result.gamertag || 'Xbox'
+                : result.onlineId || 'PlayStation';
+            setMessage(`Linked as ${label}. Syncing library in the background…`);
+            syncExtra =
+              platform === 'xbox' ? await syncXboxLibrary() : await syncPsnLibrary();
           }
           const parts = [];
           if (result.onlineId) parts.push(`Linked as ${result.onlineId}`);
+          if (result.gamertag && platform === 'xbox') parts.push(`Linked as ${result.gamertag}`);
           if (typeof syncExtra.imported === 'number') parts.push(`${syncExtra.imported} new`);
           if (typeof syncExtra.updated === 'number') parts.push(`${syncExtra.updated} updated`);
           if (typeof syncExtra.skipped === 'number' && syncExtra.skipped > 0) {
@@ -126,6 +129,7 @@ export default function ConnectedLibraries({
             setMessage(warning ? `${base} ${warning}` : base);
           }
           setPsnInput('');
+          setXboxInput('');
           router.refresh();
           return;
         }

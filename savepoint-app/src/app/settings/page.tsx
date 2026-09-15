@@ -7,6 +7,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import { UserIcon, ShieldIcon } from '@/components/ui/Icons';
 import SettingsForms from './SettingsForms';
 import ConnectedLibraries from './ConnectedLibraries';
+import { isXboxLibraryConfigured } from '@/lib/auth-providers';
 import PasskeysManager from '@/components/settings/PasskeysManager';
 import type { PasskeyListItem } from '@/app/actions/passkeys';
 
@@ -116,6 +117,7 @@ export default async function SettingsPage({
             psnLinkedAt={user.psnLinkedAt}
             psnLastSyncAt={user.psnLastSyncAt}
             steamQuery={steamQuery ?? null}
+            showXbox={isXboxLibraryConfigured()}
           />
 
           <SettingsForms

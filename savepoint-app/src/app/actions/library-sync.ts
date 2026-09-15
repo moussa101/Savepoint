@@ -416,7 +416,7 @@ export async function linkXboxGamertag(gamertag: string) {
 
     revalidatePath('/settings');
     revalidatePath('/library');
-    return { success: true, gamertag: resolved.gamertag };
+    return { success: true, gamertag: resolved.gamertag, needsSync: true as const };
   } catch (error) {
     console.error('Xbox link failed:', error);
     return {
@@ -441,8 +441,7 @@ export async function unlinkXbox() {
   return { success: true };
 }
 
-export async function syncXboxLibrary() {
-  const userId = await requireUserId();
+export async function syncXboxLibraryForUser(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { xboxXuid: true, xboxGamertag: true },
@@ -509,8 +508,6 @@ export async function syncXboxLibrary() {
       data: { xboxLastSyncAt: new Date() },
     });
 
-    // Refresh community averages for titles we just wrote.
-    // (Xbox sync is per-title; collect game ids from this user's Xbox rows.)
     const xboxGames = await prisma.userGame.findMany({
       where: { userId, source: 'XBOX' },
       select: { gameId: true },
@@ -540,6 +537,11 @@ export async function syncXboxLibrary() {
       error: error instanceof Error ? error.message : 'Xbox sync failed',
     };
   }
+}
+
+export async function syncXboxLibrary() {
+  const userId = await requireUserId();
+  return syncXboxLibraryForUser(userId);
 }
 
 export async function linkPsnNpsso(formData: FormData) {

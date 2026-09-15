@@ -9,13 +9,16 @@ import { STATUS_LABELS, STATUS_COLORS, type GameStatus } from '@/lib/utils';
 import { GamepadIcon, SteamIcon } from '@/components/ui/Icons';
 import SteamSyncButton from './SteamSyncButton';
 import PsnLibraryCard from './PsnLibraryCard';
+import XboxLibraryCard from './XboxLibraryCard';
 import { syncSteamLibraryForUser } from '@/app/actions/library-sync';
 import { shouldAutoSyncSteam } from '@/lib/steam-sync';
 import { shouldAutoSyncPsn } from '@/lib/psn-sync';
+import { shouldAutoSyncXbox } from '@/lib/xbox-sync';
 import { formatPlaytimeHours } from '@/lib/playtime';
+import { isXboxLibraryConfigured } from '@/lib/auth-providers';
 
 export const metadata = { title: 'My Library', robots: { index: false, follow: false } };
-// Steam / PSN sync can take a while for large libraries.
+// Steam / PSN / Xbox sync can take a while for large libraries.
 export const maxDuration = 120;
 
 const SHELVES: GameStatus[] = ['PLAYING', 'WANT_TO_PLAY', 'COMPLETED', 'DROPPED'];
@@ -35,6 +38,8 @@ export default async function LibraryPage({
     redirect('/admin');
   }
 
+  const xboxEnabled = isXboxLibraryConfigured();
+
   let steamLink = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
@@ -42,6 +47,8 @@ export default async function LibraryPage({
       steamLastSyncAt: true,
       psnOnlineId: true,
       psnLastSyncAt: true,
+      xboxGamertag: true,
+      xboxLastSyncAt: true,
     },
   });
 
@@ -73,6 +80,7 @@ export default async function LibraryPage({
   });
   const steamLinked = !!steamLink?.steamId;
   const psnLinked = !!steamLink?.psnOnlineId;
+  const xboxLinked = !!steamLink?.xboxGamertag;
 
   const byStatus = Object.fromEntries(
     SHELVES.map((status) => [status, userGames.filter((ug) => ug.status === status)])
@@ -148,6 +156,18 @@ export default async function LibraryPage({
           }
         />
 
+        {/* Xbox */}
+        {xboxEnabled && (
+          <XboxLibraryCard
+            xboxGamertag={steamLink?.xboxGamertag ?? null}
+            xboxLastSyncAt={steamLink?.xboxLastSyncAt ?? null}
+            autoSync={
+              !!steamLink?.xboxGamertag &&
+              shouldAutoSyncXbox(steamLink.xboxLastSyncAt)
+            }
+          />
+        )}
+
         {userGames.length === 0 && (
           <div className="empty-state card" style={{ marginBottom: 'var(--space-xl)' }}>
             <div className="empty-state-icon">
@@ -155,9 +175,9 @@ export default async function LibraryPage({
             </div>
             <div className="empty-state-title">Your library is empty</div>
             <div className="empty-state-text">
-              {steamLinked || psnLinked
+              {steamLinked || psnLinked || xboxLinked
                 ? 'Syncing usually fills this automatically. You can also add games from Discover.'
-                : 'Connect Steam or PlayStation above to import your games, or add them from Discover.'}
+                : 'Connect Steam, PlayStation, or Xbox above to import your games, or add them from Discover.'}
             </div>
             <Link href="/games" className="btn btn-primary" style={{ marginTop: 'var(--space-md)' }}>
               Discover games

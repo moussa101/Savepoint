@@ -54,13 +54,15 @@ If Google sign-in redirects to `/auth/error?error=Configuration`, the provider i
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord | `https://www.savepoint.life/api/auth/callback/discord` |
 | `XBOX_CLIENT_ID` / `XBOX_CLIENT_SECRET` | Microsoft Entra (login only) | `https://www.savepoint.life/api/auth/callback/microsoft-entra-id` |
 
-### Optional / currently UI-hidden
+### Optional library APIs
 
 | Variable | Feature | Status |
 |---|---|---|
-| `STEAM_WEB_API_KEY` | Steam library sync | Required — Library + Settings “Sign in through Steam” |
-| `OPENXBL_API_KEY` | Xbox library sync | Backend exists; Settings UI may be hidden |
+| `STEAM_WEB_API_KEY` | Steam library sync | Required — Library + Settings |
+| `OPENXBL_API_KEY` | Xbox library sync | Required — gamertag link + title history via `https://api.xbl.io/v2/...` |
 | `GEMINI_API_KEY` | Legacy README entry | **Unused** — recommendations are algorithmic IGDB, not Gemini |
+
+Set `OPENXBL_API_KEY` in Vercel (and local `.env`). When present, Settings and Library show Connect Xbox / Sync. Separate from Xbox login (`XBOX_CLIENT_ID` / `XBOX_CLIENT_SECRET`).
 
 ## 3. Provider consoles (URLs & domains)
 
@@ -72,7 +74,7 @@ If Google sign-in redirects to `/auth/error?error=Configuration`, the provider i
 - [ ] **Sightengine**: Account has NSFW/moderation credits
 - [ ] **Gmail**: App password for the sending account; SPF/DKIM if using custom domain later
 - [ ] **Steam**: set `STEAM_WEB_API_KEY` in Vercel; Steam API key domain = `www.savepoint.life` (or `savepoint.life`); OpenID return `https://www.savepoint.life/api/auth/steam/callback`; set `NEXTAUTH_URL`/`AUTH_URL` to `https://www.savepoint.life`
-- [ ] **OpenXBL** (when re-enabling UI): Key valid; calls go to `https://api.xbl.io/v2/...` (no `/api` prefix)
+- [ ] **OpenXBL**: API key in `OPENXBL_API_KEY`; calls go to `https://api.xbl.io/v2/...` (no `/api` prefix). Enables Xbox library UI.
 
 ## 4. Build & host config
 
@@ -100,7 +102,7 @@ If Google sign-in redirects to `/auth/error?error=Configuration`, the provider i
 | Internal APIs | Ban IP / traffic | `/api/track` + `/api/banned-ips` need `AUTH_SECRET` via middleware |
 | Mobile | Phone or 375px | Bottom nav + no horizontal overflow |
 | Steam sync | Only if UI re-enabled | Connect + sync with public Steam profile |
-| Xbox sync | Only if UI re-enabled | Gamertag connect via OpenXBL `/v2/search/...` |
+| Xbox sync | Settings or Library | Enter gamertag → Sync; titles match via IGDB name search |
 
 ## 6. Security before go-live
 
@@ -118,4 +120,4 @@ If Google sign-in redirects to `/auth/error?error=Configuration`, the provider i
 4. OAuth providers one at a time
 5. R2 + Sightengine uploads
 6. Full smoke matrix above
-7. Re-enable Steam/Xbox Settings UI later when ready
+7. Steam / Xbox / PSN library smoke tests after API keys are set
