@@ -4,7 +4,6 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import StarRating from '@/components/ui/StarRating';
 import { STATUS_LABELS, STATUS_COLORS, type GameStatus } from '@/lib/utils';
 import { GamepadIcon, SteamIcon } from '@/components/ui/Icons';
 import SteamSyncButton from './SteamSyncButton';
@@ -14,8 +13,8 @@ import { syncSteamLibraryForUser } from '@/app/actions/library-sync';
 import { shouldAutoSyncSteam } from '@/lib/steam-sync';
 import { shouldAutoSyncPsn } from '@/lib/psn-sync';
 import { shouldAutoSyncXbox } from '@/lib/xbox-sync';
-import { formatPlaytimeHours } from '@/lib/playtime';
 import { isXboxLibraryConfigured } from '@/lib/auth-providers';
+import LibraryGameCard from './LibraryGameCard';
 
 export const metadata = { title: 'My Library', robots: { index: false, follow: false } };
 // Steam / PSN / Xbox sync can take a while for large libraries.
@@ -205,49 +204,21 @@ export default async function LibraryPage({
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>No games on this shelf yet.</p>
                 ) : (
                   <div className="scroll-row">
-                    {items.map((ug) => {
-                      const yours = formatPlaytimeHours(ug.playtimeMinutes);
-                      const avg = formatPlaytimeHours(ug.game.avgPlaytimeMinutes);
-                      return (
-                        <Link
-                          key={ug.id}
-                          href={`/games/${ug.game.slug}`}
-                          className="landing-game-card"
-                        >
-                          <div className="game-cover">
-                            {ug.game.coverImage ? (
-                              <img src={ug.game.coverImage} alt={ug.game.name} loading="lazy" decoding="async" />
-                            ) : (
-                              <div style={{ width: '100%', height: '100%', background: 'var(--bg-surface-hover)' }} />
-                            )}
-                          </div>
-                          <div className="landing-game-info">
-                            <div className="landing-game-title">{ug.game.name}</div>
-                            {ug.rating != null && ug.rating > 0 && (
-                              <StarRating rating={ug.rating} size="sm" />
-                            )}
-                            <div
-                              style={{
-                                display: 'flex',
-                                gap: 6,
-                                flexWrap: 'wrap',
-                                marginTop: 4,
-                                fontSize: '0.65rem',
-                                color: 'var(--text-muted)',
-                              }}
-                            >
-                              {yours && <span>You {yours}</span>}
-                              {avg && ug.game.playtimeSampleCount > 0 && (
-                                <span>Avg {avg}</span>
-                              )}
-                              {ug.source === 'STEAM' && <span className="pill">Steam</span>}
-                              {ug.source === 'XBOX' && <span className="pill">Xbox</span>}
-                              {ug.source === 'PSN' && <span className="pill">PSN</span>}
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
+                    {items.map((ug) => (
+                      <LibraryGameCard
+                        key={ug.id}
+                        gameId={ug.game.id}
+                        slug={ug.game.slug}
+                        name={ug.game.name}
+                        coverImage={ug.game.coverImage}
+                        status={ug.status as GameStatus}
+                        rating={ug.rating}
+                        playtimeMinutes={ug.playtimeMinutes}
+                        avgPlaytimeMinutes={ug.game.avgPlaytimeMinutes}
+                        playtimeSampleCount={ug.game.playtimeSampleCount}
+                        source={ug.source}
+                      />
+                    ))}
                   </div>
                 )}
               </section>

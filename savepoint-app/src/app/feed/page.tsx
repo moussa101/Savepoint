@@ -79,18 +79,13 @@ export default async function FeedPage() {
       <Navbar />
       <Sidebar />
       <main className="main-with-sidebar">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title font-display">Your Feed</h1>
-            <p className="page-subtitle">Activity from you and people you follow</p>
-          </div>
-        </div>
+        <h1 className="page-title font-display">Your Feed</h1>
 
         <div className="feed-layout">
           {/* Feed */}
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             {activities.length === 0 ? (
-              <div className="empty-state" style={{ padding: 'var(--space-2xl)' }}>
+              <div className="empty-state card">
                 <div className="empty-state-icon"><SignalIcon size={48} color="var(--text-muted)" /></div>
                 <div className="empty-state-title">Your feed is empty</div>
                 <div className="empty-state-text">Follow other gamers or start tracking games to see activity here.</div>
@@ -121,7 +116,7 @@ export default async function FeedPage() {
                   const d = item.review;
                   const game = d.game;
                   return (
-                    <div key={`review-${i}`} className="feed-activity-card animate-fade-in">
+                    <div key={`review-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
                         <Link href={`/profile/${user.username}`}>
                           <UserAvatar
@@ -167,7 +162,7 @@ export default async function FeedPage() {
                   const game = d.game;
                   const status = d.status as string;
                   return (
-                    <div key={`tracking-${i}`} className="feed-activity-card animate-fade-in">
+                    <div key={`tracking-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
                         <Link href={`/profile/${user.username}`}>
                           <UserAvatar
@@ -216,7 +211,7 @@ export default async function FeedPage() {
                   const d = item.list;
                   const items = d.items || [];
                   return (
-                    <div key={`list-${i}`} className="feed-activity-card animate-fade-in">
+                    <div key={`list-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
                         <Link href={`/profile/${user.username}`}>
                           <UserAvatar
@@ -257,7 +252,7 @@ export default async function FeedPage() {
                   const d = item.favorite;
                   const game = d.game;
                   return (
-                    <div key={`favorite-${i}`} className="feed-activity-card animate-fade-in">
+                    <div key={`favorite-${i}`} className="card animate-fade-in">
                       <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
                         <Link href={`/profile/${user.username}`}>
                           <UserAvatar
