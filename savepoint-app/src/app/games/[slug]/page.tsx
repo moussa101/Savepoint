@@ -31,15 +31,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     if (!game) return { title: 'Game Not Found' };
 
     const description =
-      game.summary?.replace(/\s+/g, ' ').trim().slice(0, 160) ||
-      `Track, rate, and review ${game.name} on Savepoint.`;
+      game.summary?.replace(/\s+/g, ' ').trim().slice(0, 155) ||
+      `Track, rate, and review ${game.name} on Savepoint — the Letterboxd for games. Log play status, write reviews, and see community ratings.`;
     const cover = game.cover?.image_id
       ? getIGDBImageUrl(game.cover.image_id, 'cover_big')
       : undefined;
-    const url = `/games/${game.slug || slug}`;
+    const url = absoluteUrl(`/games/${game.slug || slug}`);
+    const title = `${game.name} — Reviews, Ratings & Tracking`;
 
     return {
-      title: `${game.name} reviews & library tracking`,
+      title,
       description,
       alternates: { canonical: url },
       openGraph: {
@@ -47,7 +48,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         description,
         url,
         type: 'website',
-        images: cover ? [{ url: cover, alt: game.name }] : undefined,
+        images: cover ? [{ url: cover, alt: `${game.name} cover art` }] : undefined,
       },
       twitter: {
         card: 'summary_large_image',

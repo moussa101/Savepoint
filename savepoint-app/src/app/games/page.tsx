@@ -13,17 +13,26 @@ import GameFilters from '@/components/ui/GameFilters';
 import ListCard from '@/components/ui/ListCard';
 import { getPopularListsCached, getTrendingGamesCached } from '@/lib/cached-queries';
 import { shuffleCopy, shuffleTier } from '@/lib/shuffle';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { absoluteUrl, collectionPageJsonLd } from '@/lib/seo';
+
+const DISCOVER_DESCRIPTION =
+  'Discover popular, highly rated, and trending video games. Search the catalog, filter by genre and platform, and track titles in your Savepoint library — the Letterboxd for games.';
 
 export const metadata = {
-  title: 'Discover Games',
-  description:
-    'Discover popular, highly rated, and trending video games. Search, filter, and add titles to your Savepoint library.',
-  alternates: { canonical: '/games' },
+  title: 'Discover Games — Track, Rate & Review',
+  description: DISCOVER_DESCRIPTION,
+  alternates: { canonical: absoluteUrl('/games') },
   openGraph: {
     title: 'Discover Games · Savepoint',
-    description:
-      'Discover popular, highly rated, and trending video games on Savepoint.',
-    url: '/games',
+    description: DISCOVER_DESCRIPTION,
+    url: absoluteUrl('/games'),
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Discover Games · Savepoint',
+    description: DISCOVER_DESCRIPTION,
   },
 };
 
@@ -213,14 +222,24 @@ export default async function GamesPage({
 
   return (
     <>
+      <JsonLd
+        data={collectionPageJsonLd({
+          name: 'Discover Games · Savepoint',
+          description: DISCOVER_DESCRIPTION,
+          url: absoluteUrl('/games'),
+        })}
+      />
       <Navbar />
       <main className="main-content main-content-padded">
         <div className="container container-wide">
           {!q && heroGames.length > 0 && <GamesHeroCarousel games={heroGames} />}
 
           <h1 className="page-title font-display" style={{ marginTop: q ? 'var(--space-xl)' : 0 }}>
-            Discover
+            Discover games
           </h1>
+          <p className="page-subtitle" style={{ marginBottom: 'var(--space-lg)' }}>
+            Search, filter, and track video games — rate, review, and build your library on Savepoint.
+          </p>
 
           {!q && trendingGames.length > 0 && <TrendingSpotlight games={trendingGames} />}
 

@@ -4,7 +4,7 @@ import './globals.css';
 import SessionProvider from '@/components/SessionProvider';
 import UpdateAnnouncement from '@/components/ui/UpdateAnnouncement';
 import MessagingKeyBootstrap from '@/components/messages/MessagingKeyBootstrap';
-import { buildRootMetadata, organizationJsonLd, websiteJsonLd } from '@/lib/seo';
+import { buildRootMetadata, organizationJsonLd, softwareApplicationJsonLd, websiteJsonLd } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/JsonLd';
 
 const inter = Inter({
@@ -38,7 +38,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const jsonLd = [websiteJsonLd(), organizationJsonLd()];
+  const jsonLd = [websiteJsonLd(), organizationJsonLd(), softwareApplicationJsonLd()];
 
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable}`}>

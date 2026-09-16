@@ -1,7 +1,7 @@
 {
   "name": "Savepoint",
   "short_name": "Savepoint",
-  "description": "Track, rate, review, and share your games. Sync Steam, PlayStation, and Xbox libraries.",
+  "description": "Savepoint is the Letterboxd for games — track your backlog, rate and review titles, and sync Steam, PlayStation & Xbox.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",

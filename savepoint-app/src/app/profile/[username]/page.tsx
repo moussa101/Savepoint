@@ -147,7 +147,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   }
 
   return {
-    title: `${display} (@${user.username})`,
+    title: `${display} (@${user.username}) — Gaming Profile`,
     description,
     alternates: { canonical: path },
     openGraph: {

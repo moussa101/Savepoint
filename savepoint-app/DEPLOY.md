@@ -121,3 +121,15 @@ Set `OPENXBL_API_KEY` in Vercel (and local `.env`). When present, Settings and L
 5. R2 + Sightengine uploads
 6. Full smoke matrix above
 7. Steam / Xbox / PSN library smoke tests after API keys are set
+
+## 8. SEO & Google Search Console (after go-live)
+
+Technical SEO is wired in the app (`sitemap.xml`, `robots.txt`, JSON-LD, meta tags). Ranking still needs indexing + links.
+
+- [ ] Open [Google Search Console](https://search.google.com/search-console) → add property `https://www.savepoint.life`
+- [ ] Verify ownership (DNS TXT **or** HTML tag). For the HTML tag, paste the token into `GOOGLE_SITE_VERIFICATION` and redeploy
+- [ ] Submit sitemap: `https://www.savepoint.life/sitemap.xml`
+- [ ] Request indexing for `/` and `/games` (URL Inspection → Request indexing)
+- [ ] Confirm apex `savepoint.life` 301s to `www` (already in Domains checklist)
+- [ ] Optional: set `NEXT_PUBLIC_TWITTER_URL` / `NEXT_PUBLIC_DISCORD_URL` / `NEXT_PUBLIC_GITHUB_URL` so Organization schema includes `sameAs`
+- [ ] Build backlinks over time (gaming blogs, Reddit, Discord, Product Hunt) — code alone cannot put you #1 for competitive queries

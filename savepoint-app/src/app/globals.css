@@ -2706,23 +2706,29 @@ img.cover,
   z-index: 1;
   text-align: center;
   padding: var(--space-xl);
-  max-width: 700px;
+  max-width: 820px;
 }
 .landing-hero-title {
-  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-size: clamp(2.25rem, 5.5vw, 3.75rem);
   font-weight: 900;
   line-height: var(--leading-tight);
-  margin-bottom: var(--space-lg);
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  margin-bottom: var(--space-md);
+  color: var(--accent-primary);
+  background: none;
+  -webkit-text-fill-color: unset;
 }
 .landing-hero-subtitle {
   font-size: var(--text-lg);
   color: var(--text-secondary);
-  margin-bottom: var(--space-2xl);
+  margin-bottom: var(--space-md);
   line-height: var(--leading-relaxed);
+}
+.landing-hero-seo-lead {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-relaxed);
+  max-width: 36rem;
+  margin: 0 auto var(--space-2xl);
 }
 .landing-hero-actions {
   display: flex;
@@ -4764,6 +4770,53 @@ img.cover,
 
 .landing-section {
   padding: var(--space-3xl) 0;
+}
+
+.landing-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.landing-faq-item {
+  border: 1px solid var(--bg-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  padding: 0;
+  overflow: hidden;
+}
+
+.landing-faq-item summary {
+  cursor: pointer;
+  list-style: none;
+  padding: var(--space-md) var(--space-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.landing-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-faq-item summary::after {
+  content: '+';
+  float: right;
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
+.landing-faq-item[open] summary::after {
+  content: '–';
+}
+
+.landing-faq-item p {
+  margin: 0;
+  padding: 0 var(--space-lg) var(--space-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
 }
 
 @media (max-width: 768px) {

@@ -6,17 +6,38 @@ import StarRating from '@/components/ui/StarRating';
 import { GamepadIcon, StarIcon, UsersIcon } from '@/components/ui/Icons';
 import { fetchIGDB, getIGDBImageUrl, IGDBGame } from '@/lib/igdb';
 import { auth } from '@/lib/auth';
-import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, absoluteUrl } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/JsonLd';
+import {
+  SITE_DESCRIPTION,
+  SITE_FAQ,
+  SITE_NAME,
+  SITE_TAGLINE,
+  SITE_TITLE,
+  absoluteUrl,
+  faqJsonLd,
+} from '@/lib/seo';
 
 export const metadata: Metadata = {
-  title: { absolute: `${SITE_NAME} — ${SITE_TAGLINE}` },
+  title: { absolute: SITE_TITLE },
   description: SITE_DESCRIPTION,
+  keywords: [
+    'Letterboxd for games',
+    'video game tracker',
+    'game backlog tracker',
+    'Steam library sync',
+    'Savepoint',
+  ],
   alternates: { canonical: absoluteUrl('/') },
   openGraph: {
-    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     url: absoluteUrl('/'),
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
   },
 };
 
@@ -39,6 +60,7 @@ export default async function LandingPage() {
 
   return (
     <>
+      <JsonLd data={faqJsonLd(SITE_FAQ)} />
       <Navbar />
       <main className="main-content">
         {/* Hero Section */}
@@ -60,13 +82,14 @@ export default async function LandingPage() {
           </div>
           <div className="landing-hero-content animate-fade-in-up">
             <h1 className="landing-hero-title font-display">
-              Savepoint
+              {SITE_TAGLINE}
             </h1>
-            <p className="landing-hero-subtitle" style={{ fontSize: 'clamp(1.1rem, 3vw, 1.5rem)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
-              The Video Game Tracker for Serious Gamers
-            </p>
             <p className="landing-hero-subtitle">
-              Rate, review, and track every game you play. Sync Steam, PlayStation &amp; Xbox. The Letterboxd for games.
+              Play. Rate. Review. Remember.
+            </p>
+            <p className="landing-hero-seo-lead">
+              {SITE_NAME} is the free Letterboxd for games — track your backlog, rate and review
+              every title, and sync Steam, PlayStation &amp; Xbox.
             </p>
             <div className="landing-hero-actions">
               {session ? (
@@ -88,7 +111,7 @@ export default async function LandingPage() {
         {/* Features Section */}
         <section className="landing-features container landing-section">
           <h2 className="section-title font-display" style={{ textAlign: 'center', marginBottom: 'var(--space-2xl)' }}>
-            Features
+            A video game tracker built for your taste
           </h2>
           <div className="landing-features-grid">
             <div className="card card-glass landing-feature-card">
@@ -175,6 +198,21 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* FAQ — crawlable answers + FAQ rich results */}
+        <section className="landing-faq container landing-section" aria-labelledby="landing-faq-heading">
+          <h2 id="landing-faq-heading" className="section-title font-display" style={{ textAlign: 'center', marginBottom: 'var(--space-xl)' }}>
+            Frequently asked questions
+          </h2>
+          <div className="landing-faq-list">
+            {SITE_FAQ.map((faq) => (
+              <details key={faq.question} className="landing-faq-item">
+                <summary>{faq.question}</summary>
+                <p>{faq.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
         {/* CTA */}
         {!session && (
           <section className="landing-cta container" style={{ textAlign: 'center', padding: 'var(--space-3xl) 0' }}>
@@ -182,7 +220,7 @@ export default async function LandingPage() {
               Ready to start your journey?
             </h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)', maxWidth: '500px', margin: '0 auto var(--space-xl)' }}>
-              Join Savepoint and build a gaming profile that represents your taste.
+              Join Savepoint free and build a gaming profile that represents your taste.
             </p>
             <Link href="/register" className="btn btn-primary btn-lg">
               Create Your Account
@@ -193,6 +231,12 @@ export default async function LandingPage() {
         {/* Footer */}
         <footer style={{ borderTop: '1px solid var(--bg-surface-border)', padding: 'var(--space-xl)', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
           <p style={{ marginBottom: 'var(--space-sm)' }}>
+            <Link href="/games" style={{ color: 'var(--text-secondary)', marginRight: 'var(--space-md)' }}>
+              Discover Games
+            </Link>
+            <Link href="/register" style={{ color: 'var(--text-secondary)', marginRight: 'var(--space-md)' }}>
+              Sign Up
+            </Link>
             <Link href="/terms" style={{ color: 'var(--text-secondary)', marginRight: 'var(--space-md)' }}>
               Terms of Service
             </Link>

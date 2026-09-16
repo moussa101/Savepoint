@@ -29,9 +29,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!list || list.visibility === 'PRIVATE') return { title: 'List', robots: { index: false, follow: false } };
   const author = list.user.name || list.user.username;
   const description = list.description ||
-    `A game list by ${author} on ${SITE_NAME} — ${list._count.items} games.`;
+    `A public game list by ${author} on ${SITE_NAME} — ${list._count.items} games to track, rate, and discover.`;
   return {
-    title: list.title,
+    title: `${list.title} — Game List`,
     description,
     alternates: { canonical: absoluteUrl(`/lists/${id}`) },
     openGraph: {
@@ -39,6 +39,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       description,
       url: absoluteUrl(`/lists/${id}`),
       type: 'website',
+    },
+    twitter: {
+      card: 'summary',
+      title: `${list.title} · ${SITE_NAME}`,
+      description,
     },
   };
 }

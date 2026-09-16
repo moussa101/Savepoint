@@ -56,7 +56,7 @@ export default function OpenGraphImage() {
             lineHeight: 1.35,
           }}
         >
-          Track · Rate · Review · Sync Steam, PlayStation & Xbox
+          The Letterboxd for games — track, rate, review &amp; sync Steam, PlayStation &amp; Xbox
         </div>
       </div>
     ),
